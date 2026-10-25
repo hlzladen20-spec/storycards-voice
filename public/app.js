@@ -4,6 +4,7 @@ const $ = (id) => document.getElementById(id);
 const startButton = $("startButton"), pauseButton = $("pauseButton"), finishButton = $("finishButton"), status = $("status"), messages = $("messages"), timer = $("timer");
 timer.style.position = "relative";
 let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
+let timeExpired = false, responseActive = false, outputPlaying = false, finishingSession = false, finishAfterAudioTimer;
 let cards = JSON.parse(localStorage.getItem("storycards") || "[]"), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
@@ -185,10 +186,11 @@ function showEmmaFrame(frame) { $("emmaAvatar").src = frame; document.querySelec
 function setEmmaSpeaking(speaking) { clearTimeout(emmaQuietTimer); const stage = $("coachStage"); stage.classList.toggle("speaking", speaking); if (!speaking) { showEmmaFrame("/emma-coach.png"); return; } showEmmaFrame("/emma-coach-talking.png"); emmaQuietTimer = setTimeout(() => setEmmaSpeaking(false), 1250); }
 function scheduleEmmaBlink() { clearTimeout(emmaBlinkTimer); emmaBlinkTimer = setTimeout(() => { if (!$("coachStage").classList.contains("speaking")) { showEmmaFrame("/emma-coach-blink.png"); setTimeout(() => showEmmaFrame("/emma-coach.png"), 150); } scheduleEmmaBlink(); }, 3200 + Math.floor(Math.random() * 2200)); }
 function addMessage(role, text) { if (!text?.trim()) return; const el = document.createElement("p"); el.className = `message ${role}`; if (role === "coach") { const avatar = document.createElement("img"); avatar.className = "emma-mini"; avatar.src = $("emmaAvatar").src; avatar.alt = "Emma"; const bubble = document.createElement("span"); bubble.textContent = text; el.append(avatar, bubble); } else { el.textContent = text; } messages.append(el); messages.scrollTop = messages.scrollHeight; }
-function updateTimer() { const elapsed = Date.now() - startedAt - pausedDuration - (isPaused ? Date.now() - pausedAt : 0); const remaining = Math.max(0, sessionDurationSeconds - Math.floor(elapsed / 1000)); $("timerText").textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`; timer.style.background = `conic-gradient(#1d8b71 ${(sessionDurationSeconds - remaining) / sessionDurationSeconds * 360}deg,#dcece7 0deg)`; if (!remaining) finishSession(); }
+function updateTimer() { const elapsed = Date.now() - startedAt - pausedDuration - (isPaused ? Date.now() - pausedAt : 0); const remaining = Math.max(0, sessionDurationSeconds - Math.floor(elapsed / 1000)); $("timerText").textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`; timer.style.background = `conic-gradient(#1d8b71 ${(sessionDurationSeconds - remaining) / sessionDurationSeconds * 360}deg,#dcece7 0deg)`; if (!remaining) finishWhenEmmaIsDone(); }
 
 async function startSession() {
   if (hasActiveConversation()) { if (isPaused) togglePause(); return; }
+  timeExpired = false; responseActive = false; outputPlaying = false; finishingSession = false; clearTimeout(finishAfterAudioTimer);
   refreshSpeakingGoal();
   let phase = "Mikrofon";
   try {
@@ -223,11 +225,35 @@ async function startSession() {
   }
 }
 
+function finishWhenEmmaIsDone() {
+  if (!timeExpired) {
+    timeExpired = true;
+    clearInterval(interval);
+    stream?.getAudioTracks().forEach(track => track.enabled = false);
+    pauseButton.disabled = true;
+    finishButton.disabled = true;
+    status.textContent = "Die Zeit ist um. Emma spricht noch zu Ende …";
+    setMicState("Emma spricht noch zu Ende …");
+  }
+  clearTimeout(finishAfterAudioTimer);
+  if (!responseActive && !outputPlaying) {
+    // Allow the WebRTC playback tail and any final transcript event to arrive.
+    finishAfterAudioTimer = setTimeout(() => {
+      if (timeExpired && !responseActive && !outputPlaying) finishSession();
+    }, 700);
+  }
+}
 function handleEvent(event) {
+  if (event.type === "response.created") { responseActive = true; clearTimeout(finishAfterAudioTimer); }
+  if (event.type === "output_audio_buffer.started") { outputPlaying = true; clearTimeout(finishAfterAudioTimer); }
+  if (event.type === "response.done") responseActive = false;
+  if (event.type === "output_audio_buffer.stopped" || event.type === "output_audio_buffer.cleared") { outputPlaying = false; setEmmaSpeaking(false); }
+
   if (event.type === "response.output_audio.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.created") { if (!isPaused) { setMicState("Ich antworte gerade …"); setEmmaSpeaking(true); } }
   if (event.type === "conversation.item.input_audio_transcription.completed") { transcript.push({ role:"learner", text:event.transcript }); addMessage("learner", event.transcript); setMicState("Ich höre dir zu.", true); }
   if (event.type === "response.output_audio_transcript.done") { transcript.push({ role:"coach", text:event.transcript }); addMessage("coach", event.transcript); setEmmaSpeaking(false); if (!isPaused) setMicState("Ich höre dir zu.", true); }
   if (event.type === "error") status.textContent = event.error?.message || "Ein Verbindungsfehler ist aufgetreten.";
+  if (timeExpired) { setMicState("Emma spricht noch zu Ende …"); finishWhenEmmaIsDone(); }
 }
 
 function togglePause() {
@@ -256,6 +282,8 @@ new MutationObserver(() => {
 }).observe($("practice"), { attributes:true, attributeFilter:["class"] });
 
 async function finishSession() {
+  if (finishingSession) return;
+  finishingSession = true; timeExpired = false; clearTimeout(finishAfterAudioTimer);
   clearInterval(interval); isPaused = false; setEmmaSpeaking(false); $("coachStage").classList.remove("paused"); pauseButton.disabled = true; finishButton.disabled = true; finishButton.textContent = "Karten werden erstellt …"; startButton.textContent = "Gespräch beendet"; setMicState("Gespräch wird ausgewertet …"); stream?.getTracks().forEach((t) => t.stop()); pc?.close();
   if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; finishButton.textContent = "Gespräch beenden & Karten erstellen"; return; }
   status.textContent = "Ich erstelle deine persönlichen Karten …";
