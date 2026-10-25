@@ -8,25 +8,34 @@ let cards = JSON.parse(localStorage.getItem("storycards") || "[]"), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
 let repairingCards = false;
-new MutationObserver(() => { if (queue[0] && queue[0].cueLanguage !== "de" && !repairingCards) { $("card").textContent = "Deutscher Übungssatz wird vorbereitet …"; ensureGermanCards(); } }).observe($("card"), { childList:true });
+let repairFailed = false;
+new MutationObserver(() => { if (queue[0] && queue[0].cueLanguage !== "de" && !repairingCards && !repairFailed) ensureGermanCards(); }).observe($("card"), { childList:true });
 async function ensureGermanCards() {
-  const pending = cards.filter((card) => card.cueLanguage !== "de");
+  const pending = queue.filter((card) => card.cueLanguage !== "de");
   if (!pending.length || repairingCards) return;
   repairingCards = true;
+  repairFailed = false;
+  $("card").textContent = "Deutscher Übungssatz wird vorbereitet …";
   $("recordAnswerButton").disabled = true;
+  $("revealButton").disabled = true;
   try {
     for (let offset = 0; offset < pending.length; offset += 15) {
       const batch = pending.slice(offset, offset + 15);
-      const response = await fetch("/api/flashcards", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ repairCards:batch.map((card) => ({ back:card.back })), transcript:[{ role:"learner", text:"Repair these cards by translating each English back into a complete German front." }] }) });
+      const response = await fetch("/api/flashcards", { method:"POST", signal:AbortSignal.timeout(30000), headers:{"Content-Type":"application/json"}, body:JSON.stringify({ repairCards:batch.map((card) => ({ back:card.back })), transcript:[{ role:"learner", text:"Repair these cards by translating each English back into a complete German front." }] }) });
       const data = await response.json();
       if (!response.ok || !Array.isArray(data.cards) || data.cards.length !== batch.length || data.cards.some((card) => typeof card.front !== "string" || !card.front.trim())) throw new Error("Die deutschen Aufgaben konnten noch nicht erstellt werden. Bitte versuche es erneut.");
-      batch.forEach((card, index) => { card.front = data.cards[index].front.trim(); card.cueLanguage = "de"; });
+      batch.forEach((card, index) => { card.front = data.cards[index].front.trim(); card.cueLanguage = "de"; const stored = cards.find((item) => item.id === card.id); if (stored) { stored.front = card.front; stored.cueLanguage = "de"; } });
       saveCards();
     }
     queue = queue.map((item) => cards.find((card) => card.id === item.id) || item);
     renderCard();
-  } catch (error) { $("card").textContent = error.message; $("recordAnswerButton").disabled = true; }
-  finally { repairingCards = false; }
+  } catch (error) {
+    repairFailed = true;
+    $("card").textContent = error.name === "TimeoutError" ? "Die Übersetzung dauert gerade zu lange. Bitte versuche es erneut." : "Der deutsche Satz konnte nicht geladen werden. Bitte versuche es erneut.";
+    const retry = document.createElement("button"); retry.className = "secondary"; retry.textContent = "Erneut versuchen"; retry.addEventListener("click", ensureGermanCards); $("card").append(retry);
+    $("recordAnswerButton").disabled = true;
+  }
+  finally { repairingCards = false; $("revealButton").disabled = repairFailed; }
 }
 const assessedCards = new Map();
 const reviewNavigation = $("ratingButtons");

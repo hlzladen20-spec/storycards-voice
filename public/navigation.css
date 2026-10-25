@@ -7,3 +7,8 @@
 .bottom-nav button.active .home-icon{fill:currentColor;stroke-width:1}
 .bottom-nav button:hover{color:#13846a;background:#e7f3ed70}
 .bottom-nav button:focus-visible{outline:2px solid #13846a;outline-offset:-2px;border-radius:8px}
+/* Reserve the same bottom space on every screen with main navigation. */
+.app:has(.bottom-nav){padding-bottom:100px}
+.bottom-nav,.home-screen>.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(680px,100%);z-index:50;margin:0;padding:9px 10px calc(9px + env(safe-area-inset-bottom,0px));background:#fffdf8f5;border-top:1px solid #e2e8e1;box-shadow:0 -4px 18px #163c3309;backdrop-filter:blur(12px)}
+.home-screen{padding-bottom:18px}
+.statistics-screen,.profile-screen,#cards{padding-bottom:24px}
