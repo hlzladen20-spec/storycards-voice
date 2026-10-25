@@ -1,0 +1,4 @@
+.chat-word{display:inline;margin:0;padding:0;border:0;border-radius:3px;background:transparent;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;touch-action:manipulation}
+.chat-word:hover,.chat-word:focus-visible{background:#b7ddcc;text-decoration:underline;text-underline-offset:3px}
+.conversation-screen .message.coach>.word-translation{grid-column:2;background:#fff3d2;color:#635020;border-radius:10px;padding:8px 10px;font-size:.8rem}
+.conversation-screen .message.learner>.word-translation{display:block;margin-top:7px;padding-top:7px;border-top:1px solid #b7d9ca;color:#315c4d;font-size:.8rem}
