@@ -45,7 +45,34 @@ function moveReviewCard(back = false) {
   if (back) { if (!reviewHistory.length) return; if (queue[0]) queue.unshift(reviewHistory.pop()); else queue.push(reviewHistory.pop()); }
   else { if (!queue[0]) return; rememberDailyCard(queue[0].id); reviewHistory.push(queue.shift()); }
   renderCard();
+  if (!back && !queue.length) playLessonFanfare();
 }
+function playLessonFanfare() {
+  try {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    const context = new Audio();
+    context.resume().then(() => {
+      const start = context.currentTime + 0.03;
+      [[523.25,0,.13],[659.25,.15,.13],[783.99,.3,.17],[1046.5,.5,.55]].forEach(([frequency,offset,duration]) => {
+        const oscillator = context.createOscillator(), gain = context.createGain();
+        oscillator.type = "triangle"; oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0,start + offset); gain.gain.linearRampToValueAtTime(.16,start + offset + .02); gain.gain.exponentialRampToValueAtTime(.001,start + offset + duration);
+        oscillator.connect(gain); gain.connect(context.destination); oscillator.start(start + offset); oscillator.stop(start + offset + duration);
+      });
+      setTimeout(() => context.close().catch(() => {}), 1600);
+    }).catch(() => context.close().catch(() => {}));
+  } catch { /* Lesson completion must remain available when sound is unavailable. */ }
+}
+const finishLessonButton = document.createElement("button");
+finishLessonButton.className = "primary hidden"; finishLessonButton.textContent = "Fertig";
+reviewNavigation.after(finishLessonButton);
+finishLessonButton.addEventListener("click", showHome);
+new MutationObserver(() => {
+  const complete = !queue.length;
+  finishLessonButton.classList.toggle("hidden", !complete);
+  reviewNavigation.style.setProperty("display", complete ? "none" : "flex", "important");
+  $("backToPractice").classList.toggle("hidden", complete);
+}).observe($("card"), { childList:true });
 $("previousCardButton").addEventListener("click", () => moveReviewCard(true));
 $("nextCardButton").addEventListener("click", () => moveReviewCard());
 new MutationObserver(() => { reviewNavigation.classList.remove("hidden"); $("previousCardButton").disabled = !reviewHistory.length; $("nextCardButton").disabled = !queue[0]; const count = dailyLesson().completed.length; lessonProgress.textContent = `${Math.min(count, dailyCardLimit)} von ${dailyCardLimit} Karten heute`; if (!queue[0] && !$("card").dataset.finished) { $("card").dataset.finished = "yes"; $("card").innerHTML = `<strong>${count >= dailyCardLimit ? "🎉 Lektion geschafft!" : "Für heute alles geschafft!"}</strong><small>${count >= dailyCardLimit ? "Deine nächste Lektion wartet morgen auf dich." : "Sobald weitere Karten fällig sind, findest du sie hier."}</small>`; } else if (queue[0]) delete $("card").dataset.finished; }).observe($("card"), { childList:true });
