@@ -188,13 +188,16 @@ async function startSession() {
     setFinishLabel();
     startButton.disabled = true; startButton.textContent = "🎙 Aufnahme wird vorbereitet …"; status.textContent = "Mikrofon wird verbunden …"; setMicState("Mikrofon wird vorbereitet …");
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error("Das Mikrofon ist in dieser App-Ansicht nicht verfügbar.");
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:false, channelCount:1 } });
     phase = "Sprachverbindung";
     status.textContent = "Sprachverbindung wird hergestellt …";
     pc = new RTCPeerConnection();
     pc.ontrack = (event) => { remoteAudio = new Audio(); remoteAudio.autoplay = true; remoteAudio.srcObject = event.streams[0]; remoteAudio.onplaying = () => setEmmaSpeaking(true); remoteAudio.onpause = () => setEmmaSpeaking(false); };
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     dataChannel = pc.createDataChannel("oai-events");
+    dataChannel.addEventListener("open", () => {
+      dataChannel.send(JSON.stringify({ type:"session.update", session:{ type:"realtime", audio:{ input:{ noise_reduction:{ type:"near_field" }, turn_detection:{ type:"server_vad", threshold:0.7, prefix_padding_ms:300, silence_duration_ms:1000, create_response:true, interrupt_response:false, idle_timeout_ms:null } } } } }));
+    });
     dataChannel.onmessage = event => handleEvent(JSON.parse(event.data));
     dataChannel.onopen = () => dataChannel.send(JSON.stringify({ type:"session.update", session:{ type:"realtime", instructions:coachInstructions() + " Keep every spoken turn very brief: normally one short reaction and at most one simple question, about 10 to 25 words total. Then stop and let Mark speak. Never repeat his whole answer or add a summary. Avoid repeated praise and unsolicited examples. Give a longer explanation only if Mark explicitly asks for it. Example: 'That sounds nice! What did you make?'" } }));
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
