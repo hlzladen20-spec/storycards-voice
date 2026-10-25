@@ -12,3 +12,7 @@
 .bottom-nav,.home-screen>.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(680px,100%);z-index:50;margin:0;padding:9px 10px calc(9px + env(safe-area-inset-bottom,0px));background:#fffdf8f5;border-top:1px solid #e2e8e1;box-shadow:0 -4px 18px #163c3309;backdrop-filter:blur(12px)}
 .home-screen{padding-bottom:18px}
 .statistics-screen,.profile-screen,#cards{padding-bottom:24px}
+#listenButton{display:none!important}
+#card>span[role=button]{cursor:pointer;border-radius:10px;padding:5px;transition:background .15s}
+#card>span[role=button]:hover{background:#dceee580}
+#card>span[role=button]:focus-visible{outline:2px solid #16846a;outline-offset:3px}
