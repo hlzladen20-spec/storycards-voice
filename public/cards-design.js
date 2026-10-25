@@ -1,6 +1,10 @@
 // Presentation only: progress always follows the actual lesson state.
 const panel = document.getElementById('cards');
 const card = document.getElementById('card');
+const feedback = document.getElementById('voiceFeedback');
+panel.insertBefore(feedback, document.getElementById('recordAnswerButton'));
+feedback.setAttribute('role', 'status');
+feedback.setAttribute('aria-live', 'polite');
 const progressText = panel.querySelector(':scope > .speak-prompt:not(#speakPrompt)');
 const progress = document.createElement('div');
 progress.className = 'cards-progress';

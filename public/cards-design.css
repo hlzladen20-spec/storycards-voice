@@ -36,7 +36,13 @@ body:has(#cards:not(.hidden)) .app>header h1{font-size:1.5rem;letter-spacing:-.0
 #cards #nextCardButton{grid-column:2;grid-row:1}
 #cards #nextCardButton{background:linear-gradient(145deg,#168574,#0b6658);color:white;border-color:transparent!important}
 #cards #backToPractice{display:block;margin:9px auto 0;font-size:.75rem;color:#71857c}
-#cards .voice-feedback{font-size:.85rem;border-radius:14px;line-height:1.5}
+#cards .voice-feedback{font-size:.95rem;border-radius:15px;line-height:1.5;padding:16px;margin:14px 0;border:1px solid #d5e6db;background:#eff7ee;color:#164b3b;box-shadow:0 3px 10px #163c3309}
+#cards .voice-feedback.correct::before{content:'✓ Gut gemacht!';display:block;font-size:1.2rem;font-weight:800;margin-bottom:6px;color:#087b59}
+#cards .voice-feedback.close{background:#fff5de;border-color:#eddfb6;color:#695020}
+#cards .voice-feedback.close::before{content:'Fast richtig!';display:block;font-size:1.15rem;font-weight:800;margin-bottom:6px}
+#cards .voice-feedback.incorrect{background:#fff0ed;border-color:#f0d4cf;color:#903c38}
+#cards .voice-feedback button.secondary{display:block;width:100%;padding:8px;font-size:.73rem;font-weight:500;margin-top:10px;background:transparent;border:1px solid currentColor;opacity:.8}
+#cards #card>span[role=button]::after{content:'';display:inline-block;width:23px;height:23px;margin-left:8px;vertical-align:middle;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317826d' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 5 6 9H3v6h3l5 4V5ZM15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14'/%3E%3C/svg%3E") center/contain no-repeat}
 #cards button:focus-visible{outline:3px solid #69b89d;outline-offset:3px}
 @media(min-width:560px){#cards{max-width:480px;margin:10px auto 0!important}body:has(#cards:not(.hidden)) .app>header{max-width:480px;margin:auto}#cards #card{min-height:290px}}
 @media(max-width:380px){body:has(#cards:not(.hidden)) .app{padding-left:10px;padding-right:10px}#cards #card{min-height:225px;font-size:1.35rem}}
