@@ -1,0 +1,18 @@
+.conversation-screen .mic-state{min-height:72px;padding:9px 12px;border-radius:23px;background:#fffef9;border:1px solid #eeeae1;box-shadow:0 4px 12px #193f3610;gap:11px;flex-shrink:0}
+.conversation-screen .mic-dot{width:49px;height:49px;border:3px solid #fff;outline:2px solid #a6d9ca;background:linear-gradient(145deg,#0e9b7d,#00634f);box-shadow:0 3px 6px #135f4830}
+.mic-dot svg{width:29px;height:29px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round}
+.listening-wave{color:#12866f;letter-spacing:1px;font-size:1.05rem;line-height:1}
+.conversation-screen #micStateText{font-size:.84rem;font-weight:750}
+.conversation-screen .conversation-actions{padding:13px 0 6px;margin:0;gap:4px;align-items:flex-start}
+.conversation-actions .round-action{width:30%;gap:7px;font-weight:500}
+.conversation-actions .round-action>span{width:49px;height:49px;background:#eef1ed;color:#193e39;font-size:1.6rem;box-shadow:none}
+.conversation-actions .round-action small{font-size:.66rem}
+.conversation-actions .hangup>span{width:52px;height:52px;transform:none;background:#ff363d;color:white;font-size:2rem;font-weight:300;box-shadow:0 3px 8px #ff363d20}
+.conversation-actions .subtitle-icon{display:flex;align-items:center;justify-content:center;gap:2px}
+.subtitle-icon i{width:3px;height:15px;border-radius:3px;background:#399bd5}.subtitle-icon i:nth-child(2){height:21px;background:#43be83}.subtitle-icon i:nth-child(3){height:13px;background:#e6b735}.subtitle-icon i:nth-child(4){height:19px;background:#bc72d8}.subtitle-icon i:nth-child(5){height:10px;background:#3e9bba}
+#subtitleButton[aria-pressed=false] .subtitle-icon{filter:grayscale(1);opacity:.5}
+.subtitles-off .messages{visibility:hidden}
+.conversation-screen .messages{max-height:none;min-height:180px;justify-content:flex-start;flex:1;overflow-y:auto}
+.conversation-screen .messages .message{flex-shrink:0}
+.conversation-screen{height:calc(100dvh - 34px);min-height:520px}
+@media(max-width:420px){.conversation-screen{height:calc(100dvh - 26px);min-height:480px}}

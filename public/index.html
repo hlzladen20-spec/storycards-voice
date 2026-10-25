@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#173f3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <title>StoryCards Voice</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/home.css" />
+    <link rel="stylesheet" href="/navigation.css" />
+    <link rel="stylesheet" href="/conversation-controls.css" />
+    <style>
+      .coach-stage{position:relative;min-height:180px;margin:12px 0 4px;overflow:hidden;border-radius:22px;background:radial-gradient(circle at 50% 35%,#e8f4ef 0 29%,#f4f7f1 30% 56%,#edf2ea 57%);display:flex;justify-content:center;align-items:flex-end}
+      .coach-stage img{height:195px;max-width:72%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 8px 10px #15393424);transform-origin:50% 88%;will-change:transform;animation:emma-rest 5.2s ease-in-out infinite}
+      .coach-stage.speaking img{filter:drop-shadow(0 8px 12px #15393436);animation:emma-speak 1.1s ease-in-out infinite alternate}.coach-stage.paused img{animation-play-state:paused;filter:grayscale(.18) drop-shadow(0 6px 8px #1539341f)}@keyframes emma-rest{0%,100%{transform:translate3d(0,0,0) rotate(-.18deg)}48%{transform:translate3d(0,-1px,0) rotate(.18deg)}72%{transform:translate3d(1px,0,0) rotate(.08deg)}}@keyframes emma-speak{0%{transform:translate3d(0,0,0) rotate(-.28deg)}100%{transform:translate3d(0,-1px,0) rotate(.28deg)}}
+      .coach-label{position:absolute;left:14px;bottom:14px;margin:0;padding:8px 11px;border-radius:12px;background:#fffdf8e8;color:#176b5b;font-size:.82rem;font-weight:800}
+      .coach-label small{display:block;color:#58716a;font-weight:600;margin-top:2px}
+      .practice-intro{margin-top:12px;text-align:center;color:#58716a;font-size:.95rem}
+      .voice-feedback{padding:12px 14px;border-radius:14px;background:#eef7f2;color:#153934;line-height:1.4;white-space:pre-line}.voice-feedback.close{background:#fff3d8}.voice-feedback.incorrect{background:#fdebea}
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header><div><p class="eyebrow">ENGLISCH · A1 → B1</p><h1>StoryCards Voice</h1></div><div class="header-actions"><button id="installButton" class="ghost hidden">App installieren</button></div></header>
+      <section id="home" class="home-screen">
+        <div class="home-scenery">
+          <div class="home-brand"><img src="/icon-192.png" alt="StoryCards Voice Logo"><h1>StoryCards<br>Voice</h1><button id="homeSettingsButton" aria-label="Profil und Einstellungen">⚙</button></div>
+          <div class="home-card"><div class="home-countdown"><strong>10:00</strong><small>/ 10:00</small></div><p class="home-today">Heute deine</p><h2>10 Minuten</h2><p>Sprich mit deiner KI, erhalte persönliche Lernkarten und verbessere dein Englisch.</p><button id="homeStartButton" class="primary">🎙 Gespräch starten <span>›</span></button></div>
+        </div>
+        <section class="home-progress"><div class="home-progress-heading"><h2>▥ Dein Fortschritt</h2><button id="homeDetailsButton">Alle Details ›</button></div><div class="home-progress-grid"><div><span>🎯</span><strong>A1 → B1</strong><small>Dein Lernziel</small></div><div><span>🔥</span><strong id="homeStreak">0 Tage</strong><small>Lernserie</small></div><div><span>📚</span><strong id="homeLearned">0</strong><small>Gelernte Karten</small></div><div><span>◷</span><strong id="homeMinutes">0 min</strong><small>Gesprochene Zeit</small></div></div></section>
+        <p class="home-section-title">▦ Deine Lernmodi</p>
+        <div class="mode-grid" aria-label="Gesprächsmodus auswählen">
+          <button class="mode-tile active" data-home-mode="alltag"><span>☕</span><strong>Alltag</strong></button>
+          <button class="mode-tile" data-home-mode="beruf"><span>🚚</span><strong>Beruf</strong></button>
+          <button class="mode-tile" data-home-mode="reisen"><span>✈️</span><strong>Reisen</strong></button>
+          <button class="mode-tile" data-home-mode="schwaechen"><span>🎯</span><strong>Schwächen trainieren</strong></button>
+          <button class="mode-tile" data-home-mode="einkaufen"><span>🛒</span><strong>Einkaufen</strong></button>
+          <button class="mode-tile" data-home-mode="ueberraschung"><span>🎲</span><strong>Überraschung</strong></button>
+        </div>
+        <aside class="home-tip"><span>💡</span><div><strong>Tipp des Tages</strong><p>Sprich deine Karten laut aus. So übst du Erinnern und Sprechen zusammen.</p></div><span>🎧</span></aside>
+        <nav class="bottom-nav" aria-label="Hauptmenü"><button class="active" id="homeNavButton">⌂<small>Home</small></button><button id="cardsNavButton">▣<small>Karten</small></button><button id="progressNavButton">▥<small>Statistiken</small></button><button id="profileNavButton">♙<small>Profil</small></button></nav>
+      </section>
+      <section id="practice" class="panel hidden conversation-screen">
+        <div class="conversation-topbar"><button id="conversationBackButton" class="icon-button" aria-label="Zurück">‹</button><strong>Gespräch</strong><button id="conversationSettingsButton" class="icon-button" aria-label="Gesprächsmodus">☷</button></div>
+        <div class="conversation-timer"><div class="timer" id="timer"><span id="timerText">10:00</span><small>/ 10:00</small></div></div>
+        <div id="coachStage" class="coach-stage"><img id="emmaAvatar" src="/emma-coach.png" alt="Emma, deine virtuelle Englischtrainerin" /></div>
+        <label id="modePicker" class="mode-picker hidden">Gesprächsmodus<select id="conversationMode"><option value="alltag">☕ Alltag</option><option value="reisen">✈️ Reisen</option><option value="beruf">💼 Beruf</option><option value="einkaufen">🛒 Einkaufen</option><option value="rollenspiel">🎭 Rollenspiel</option><option value="ueberraschung">🎲 Überraschung</option><option value="schwaechen">🎯 Schwächen trainieren</option></select></label>
+        <div id="micState" class="mic-state"><span class="mic-dot" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M4 12v4m5-8v12m5-16v20m5-16v12m5-8v4"/></svg></span><span class="listening-wave" aria-hidden="true">▂▅▇▃▆▂</span><span id="micStateText">Ich höre zu …</span></div>
+        <div id="messages" class="messages" aria-live="polite"><p class="message coach"><img class="emma-mini" src="/emma-coach.png" alt="Emma" /><span>What did you do today?</span></p></div>
+        <p id="status" class="status">Bereit, wenn du es bist.</p>
+        <p id="focusHint" class="focus-hint hidden"></p>
+        <button id="startButton" class="hidden">🎙️ Gespräch starten</button>
+        <div class="conversation-actions"><button id="pauseButton" class="round-action" disabled><span>Ⅱ</span><small>Pause</small></button><button id="subtitleButton" class="round-action" type="button" aria-pressed="true"><span class="subtitle-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><small>Untertitel</small></button><button id="finishButton" class="round-action hangup" disabled><span>×</span><small>Gespräch beenden</small></button><button id="conversationCardsButton" class="hidden" type="button">Lernkarten</button><button id="keyboardButton" class="hidden" type="button">Tastatur</button></div>
+      </section>
+      <section id="summary" class="panel hidden summary-screen"><div class="summary-topbar"><button id="summaryBackButton" class="icon-button" aria-label="Zurück">‹</button><strong>Gespräch beendet</strong><button id="summaryCloseButton" class="icon-button" aria-label="Schließen">×</button></div><div class="celebration">🎉</div><h2>Super gemacht!</h2><p id="summaryText" class="summary-text"></p><div class="summary-metrics"><div><span>◷</span><strong id="summaryMinutes">0</strong><small>Minuten</small></div><div><span>▣</span><strong id="summaryCards">0</strong><small>neue Karten</small></div><div><span>✦</span><strong id="summaryFocus">0</strong><small>Lernhinweise</small></div></div><p class="summary-section-title">Deine Themen heute</p><div id="summaryTopics" class="summary-topics"></div><div id="summaryFocusCard" class="summary-focus-card hidden"><strong>💡 Kurz erklärt</strong><p id="summaryFocusText"></p></div><button id="toCardsButton" class="primary">Zu den Lernkarten</button><button id="continueButton" class="ghost">🎙 Weiter sprechen</button></section>
+      <section id="cards" class="panel hidden"><p class="eyebrow">DEINE STORYCARDS</p><h2>Was möchtest du wiederholen?</h2><div id="card" class="flashcard"></div><p id="speakPrompt" class="speak-prompt">Sprich die englische Übersetzung laut ins Mikrofon.</p><button id="recordAnswerButton" class="primary">🎙 Antwort sprechen</button><p id="voiceFeedback" class="voice-feedback hidden"></p><button id="revealButton" class="secondary">Antwort aufdecken</button><button id="listenButton" class="ghost hidden">🔊 Satz anhören</button><div id="ratingButtons" class="rating hidden"><button data-rating="no" class="secondary">⚪ Nicht gewusst</button><button data-rating="hard" class="secondary">🟡 Mit Mühe gewusst</button><button data-rating="yes" class="primary">🟢 Sofort gewusst</button></div><button id="backToPractice" class="ghost">Zurück zum Gespräch</button><nav class="bottom-nav cards-nav" aria-label="Hauptmenü"><button id="cardsHomeButton">⌂<small>Home</small></button><button class="active">▣<small>Karten <span id="dueCount">0</span></small></button><button id="cardsProgressButton">▥<small>Statistiken</small></button><button id="cardsProfileButton">♙<small>Profil</small></button></nav></section>
+      <section id="statistics" class="panel hidden statistics-screen"><div class="statistics-topbar"><button id="statisticsBackButton" class="icon-button" aria-label="Zurück">‹</button><h2>Dein Fortschritt</h2><strong>A1 → B1</strong></div><div class="level-card"><small>Aktuelles Niveau</small><div><strong>A2</strong><span><i></i></span></div><div class="level-scale"><small>A1</small><small>A2</small><small>B1</small></div></div><div class="stat-grid"><div><span>🎧</span><strong id="statConversations">0</strong><small>Gespräche</small></div><div><span>◷</span><strong id="statMinutes">0</strong><small>gesprochene Minuten</small></div><div><span>▣</span><strong id="statCards">0</strong><small>gelernte Karten</small></div><div><span>🔥</span><strong id="statStreak">0 Tage</strong><small>Lernserie</small></div></div><div class="insight-columns"><div><p>Deine Stärken</p><ul id="strengthList"></ul></div><div><p>Daran arbeiten wir</p><ul id="workList"></ul></div></div><nav class="bottom-nav statistics-nav" aria-label="Hauptmenü"><button id="statisticsHomeButton">⌂<small>Home</small></button><button id="statisticsCardsButton">▣<small>Karten</small></button><button class="active">▥<small>Statistiken</small></button><button id="statisticsProfileButton">♙<small>Profil</small></button></nav></section>
+      <section id="profile" class="panel hidden profile-screen"><div class="profile-topbar"><button id="profileBackButton" class="icon-button" aria-label="Zurück">‹</button><h2>Themen &amp; Ziele</h2><span></span></div><div class="profile-card"><strong>Dein Ziel</strong><p>Von A1 auf B1 <button id="editGoalButton" class="inline-action" aria-label="Ziel bearbeiten">⌕</button></p><hr><strong>Lernplan</strong><p>Individuell <span>KI passt sich an</span><b>›</b></p></div><p class="profile-section-title">Bevorzugte Themen</p><div class="profile-card topic-list"><button>🚚 <span>Beruf (LKW, Transport)</span><b>›</b></button><button>🛠 <span>Werkstatt &amp; Holz</span><b>›</b></button><button>✈️ <span>Reisen</span><b>›</b></button><button>🍴 <span>Restaurant &amp; Essen</span><b>›</b></button><button>☕ <span>Alltag</span><b>›</b></button><button id="addTopicButton" class="add-topic">＋ Weiteres Thema hinzufügen</button></div><p class="profile-section-title">Stimme der KI</p><div class="profile-card coach-choice"><img src="/emma-coach.png" alt="Emma" /><span><strong>Emma</strong><small>Standard</small></span><b>›</b></div><nav class="bottom-nav profile-nav" aria-label="Hauptmenü"><button id="profileHomeButton">⌂<small>Home</small></button><button id="profileCardsButton">▣<small>Karten</small></button><button id="profileProgressButton">▥<small>Statistiken</small></button><button class="active">♙<small>Profil</small></button></nav></section>
+    </main>
+    <script type="module" src="/app.js"></script>
+    <script type="module" src="/navigation.js"></script>
+  </body>
+</html>

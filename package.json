@@ -1,0 +1,38 @@
+{
+  "name": "storycards-voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "node server.js",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win --x64",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "de.storycards.voice",
+    "productName": "StoryCards Voice",
+    "files": [
+      "desktop/**",
+      "public/**",
+      "lib/**",
+      "server.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

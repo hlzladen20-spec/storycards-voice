@@ -1,0 +1,9 @@
+.bottom-nav{gap:4px;padding:9px 8px 7px;background:#fffdf8;border-top:1px solid #e8e8df}
+.bottom-nav button,.home-screen>.bottom-nav button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:49px;padding:3px 5px 8px;color:#6d7573;background:transparent;border-radius:0;font-weight:500}
+.bottom-nav button svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.bottom-nav button small,.home-screen>.bottom-nav small{font-size:.65rem;line-height:1.2}
+.bottom-nav button.active{color:#13846a;font-weight:750}
+.bottom-nav button.active::after,.home-screen>.bottom-nav .active::after{content:'';position:absolute;bottom:0;left:17%;width:66%;height:3px;margin:0;border-radius:3px;background:#13846a}
+.bottom-nav button.active .home-icon{fill:currentColor;stroke-width:1}
+.bottom-nav button:hover{color:#13846a;background:#e7f3ed70}
+.bottom-nav button:focus-visible{outline:2px solid #13846a;outline-offset:-2px;border-radius:8px}
