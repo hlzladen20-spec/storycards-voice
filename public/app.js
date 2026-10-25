@@ -72,7 +72,8 @@ finishLessonButton.addEventListener("click", showHome);
 new MutationObserver(() => {
   const complete = !queue.length;
   finishLessonButton.classList.toggle("hidden", !complete);
-  reviewNavigation.style.setProperty("display", complete ? "none" : "flex", "important");
+  reviewNavigation.style.setProperty("display", complete ? "none" : "grid", "important");
+  reviewNavigation.style.setProperty("grid-template-columns", "minmax(0, 1fr) minmax(0, 1fr)");
   $("backToPractice").classList.toggle("hidden", complete);
 }).observe($("card"), { childList:true });
 $("previousCardButton").addEventListener("click", () => moveReviewCard(true));
