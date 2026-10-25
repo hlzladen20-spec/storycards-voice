@@ -7,6 +7,7 @@ let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
 let cards = JSON.parse(localStorage.getItem("storycards") || "[]"), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
+let freePractice = false;
 let repairingCards = false;
 let repairFailed = false;
 new MutationObserver(() => { if (queue[0] && queue[0].cueLanguage !== "de" && !repairingCards && !repairFailed) ensureGermanCards(); }).observe($("card"), { childList:true });
@@ -43,7 +44,7 @@ reviewNavigation.innerHTML = '<button id="previousCardButton" class="secondary">
 function moveReviewCard(back = false) {
   if (reviewRecorder?.state === "recording" || $("recordAnswerButton").disabled) return;
   if (back) { if (!reviewHistory.length) return; if (queue[0]) queue.unshift(reviewHistory.pop()); else queue.push(reviewHistory.pop()); }
-  else { if (!queue[0]) return; rememberDailyCard(queue[0].id); reviewHistory.push(queue.shift()); }
+  else { if (!queue[0]) return; if (!freePractice) rememberDailyCard(queue[0].id); reviewHistory.push(queue.shift()); }
   renderCard();
   if (!back && !queue.length) playLessonFanfare();
 }
@@ -152,6 +153,14 @@ $("saveProfileButton").addEventListener("click", () => {
   } catch { $("profileSavedStatus").textContent = "Speichern fehlgeschlagen. Bitte erneut versuchen."; }
 });
 const lessonProgress = document.createElement("p"); lessonProgress.className = "speak-prompt"; $("cards").insertBefore(lessonProgress, $("card"));
+const practiceSwitch = document.createElement("div"); practiceSwitch.className = "rating"; practiceSwitch.style.marginBottom = "14px";
+practiceSwitch.innerHTML = '<button id="dailyPracticeButton" class="secondary">Tageslektion</button><button id="freePracticeButton" class="secondary">↻ Frei üben</button>';
+$("cards").insertBefore(practiceSwitch, lessonProgress);
+$("dailyPracticeButton").addEventListener("click", () => showReview());
+function startFreePractice() { showReview(); freePractice = true; reviewHistory = []; assessedCards.clear(); queue = prioritiseCards(cards); delete $("card").dataset.finished; renderCard(); }
+$("freePracticeButton").addEventListener("click", startFreePractice);
+const repeatPracticeButton = document.createElement("button"); repeatPracticeButton.className = "secondary hidden"; repeatPracticeButton.textContent = "↻ Karten noch einmal üben"; finishLessonButton.after(repeatPracticeButton); repeatPracticeButton.addEventListener("click", startFreePractice);
+new MutationObserver(() => { repeatPracticeButton.classList.toggle("hidden", Boolean(queue.length) || !cards.length); if (freePractice) { lessonProgress.textContent = `Freies Üben · ${Math.min(reviewHistory.length + (queue.length ? 1 : 0), cards.length)} von ${cards.length} Karten`; if (!queue.length && $("card").dataset.finished !== "practice") { $("card").dataset.finished = "practice"; $("card").innerHTML = '<strong>🎉 Übungsrunde geschafft!</strong><small>Du kannst deine Karten jederzeit noch einmal üben.</small>'; } } }).observe($("card"), { childList:true });
 let installPrompt;
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -256,7 +265,7 @@ async function finishSession() {
 function showSummary(cardCount, focusCount) { $("practice").classList.add("hidden"); $("summary").classList.remove("hidden"); const minutes = Math.max(1, Math.round((Date.now() - startedAt - pausedDuration) / 60000)); const focus = cleanFocus(learningProfile.focus); $("summaryText").textContent = `Du hast ${minutes} Minuten Englisch gesprochen.`; $("summaryMinutes").textContent = minutes; $("summaryCards").textContent = cardCount; $("summaryFocus").textContent = focusCount; const topics = $("summaryTopics"); topics.replaceChildren(); (focus.length ? focus : [{ pattern:"Freies Sprechen" }]).forEach((item) => { const chip = document.createElement("span"); chip.className = "summary-topic"; chip.textContent = item.pattern; topics.append(chip); }); const focusCard = $("summaryFocusCard"), first = focus[0]; $("summaryFocusText").textContent = first ? `Dein nächster Fokus: ${first.pattern}. ${first.practice}` : "Heute ging es vor allem darum, frei und verständlich zu sprechen."; focusCard.classList.remove("hidden"); }
 function showHome() { document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); }
 function showPractice() { document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
-function showReview(includeAll = false) { reviewHistory = []; assessedCards.clear(); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("cards").classList.remove("hidden"); const lesson = dailyLesson(); queue = prioritiseCards(cards.filter(c => c.nextReviewAt <= Date.now() && !lesson.completed.includes(c.id))).slice(0, Math.max(0, dailyCardLimit - lesson.completed.length)); renderCard(); }
+function showReview(includeAll = false) { freePractice = false; reviewHistory = []; assessedCards.clear(); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("cards").classList.remove("hidden"); const lesson = dailyLesson(); queue = prioritiseCards(cards.filter(c => c.nextReviewAt <= Date.now() && !lesson.completed.includes(c.id))).slice(0, Math.max(0, dailyCardLimit - lesson.completed.length)); delete $("card").dataset.finished; renderCard(); }
 function fillInsightList(id, items, kind) { const list = $(id); list.replaceChildren(); items.forEach((item) => { const row = document.createElement("li"); row.textContent = item; row.className = kind; list.append(row); }); }
 function showStatistics() { document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = cards.filter((card) => Number(card.knownStreak || 0) > 0).length; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
 function showProfile() { document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
