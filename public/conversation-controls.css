@@ -16,3 +16,8 @@
 .conversation-screen .messages .message{flex-shrink:0}
 .conversation-screen{height:calc(100dvh - 34px);min-height:520px}
 @media(max-width:420px){.conversation-screen{height:calc(100dvh - 26px);min-height:480px}}
+/* Keep the conversation controls above the persistent main menu. */
+.conversation-screen:has(.conversation-nav){height:calc(100dvh - 124px - env(safe-area-inset-bottom,0px));min-height:370px}
+.conversation-screen:has(.conversation-nav) .messages{min-height:100px}
+.conversation-screen>.conversation-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));order:7;flex-shrink:0}
+@media(max-height:540px){.conversation-screen:has(.conversation-nav){min-height:320px}.conversation-screen:has(.conversation-nav) .messages{min-height:60px}}
