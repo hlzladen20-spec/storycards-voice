@@ -114,8 +114,8 @@ export function createApp() {
     if (req.method === "POST" && req.url === "/api/flashcards") return await createFlashcards(req, res);
     if (req.method === "POST" && req.url === "/api/card-answer") return await reviewCardAnswer(req, res);
     if (req.method === "POST" && req.url === "/api/translate-word") return await translateWord(req, res);
-    if (req.method === "GET" && req.url === "/cards.js") {
-      const content = await readFile(join(projectDir, "lib", "flashcards.js"));
+    if (req.method === "GET" && ["/cards.js", "/fsrs.mjs"].includes(req.url)) {
+      const content = await readFile(join(projectDir, "lib", req.url === "/cards.js" ? "flashcards.js" : "fsrs.mjs"));
       res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
       return res.end(content);
     }
