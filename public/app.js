@@ -254,7 +254,6 @@ function escapeHtml(text) { const el=document.createElement("span"); el.textCont
 document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => { if (!queue[0]) return; const updated=rateCard(queue[0], button.dataset.rating); cards=cards.map(c=>c.id===updated.id?updated:c); queue.shift(); saveCards(); renderCard(); }));
 document.querySelectorAll("[data-home-mode]").forEach((button) => button.addEventListener("click", () => { $("conversationMode").value = button.dataset.homeMode; document.querySelectorAll("[data-home-mode]").forEach((tile) => tile.classList.toggle("active", tile === button)); }));
 $("homeStartButton").addEventListener("click", () => { showPractice(); if (!hasActiveConversation()) startSession(); });
-$("homeSettingsButton").addEventListener("click", showProfile);
 $("homeDetailsButton").addEventListener("click", showStatistics);
 updateHomeProgress();
 refreshSpeakingGoal();
