@@ -1,4 +1,5 @@
 import { normaliseCards, prioritiseCards, rateCard } from "/cards.js";
+import { setupCardManager } from "/card-manager.js";
 
 const $ = (id) => document.getElementById(id);
 const startButton = $("startButton"), pauseButton = $("pauseButton"), finishButton = $("finishButton"), status = $("status"), messages = $("messages"), timer = $("timer");
@@ -170,6 +171,14 @@ window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault
 $("installButton").addEventListener("click", async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $("installButton").classList.add("hidden"); });
 
 function saveCards() { localStorage.setItem("storycards", JSON.stringify(cards)); updateDue(); updateHomeProgress(); }
+setupCardManager(() => cards, updated => {
+  cards = updated;
+  const ids = new Set(cards.map(card => card.id));
+  queue = queue.filter(card => ids.has(card.id));
+  reviewHistory = reviewHistory.filter(card => ids.has(card.id));
+  for (const id of assessedCards.keys()) if (!ids.has(id)) assessedCards.delete(id);
+  saveCards();
+});
 function saveStats() { localStorage.setItem("storycards-learning-stats", JSON.stringify(learningStats)); updateHomeProgress(); }
 function updateHomeProgress() { $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`; $("homeLearned").textContent = cards.filter((card) => Number(card.knownStreak || 0) > 0).length; $("homeMinutes").textContent = `${Number(learningStats.minutes || 0)} min`; }
 function dayKey() { return new Date().toISOString().slice(0, 10); }
