@@ -1,12 +1,15 @@
 import { normaliseCards, prioritiseCards, rateCard } from "/cards.js";
 import { setupCardManager } from "/card-manager.js";
+import { createLearningStorage, getActiveCourse, showLanguageSettings } from "/learning-storage.js";
+const activeCourse = getActiveCourse(localStorage);
+const learningStorage = createLearningStorage(localStorage, activeCourse.target, activeCourse.source);
 
 const $ = (id) => document.getElementById(id);
 const startButton = $("startButton"), pauseButton = $("pauseButton"), finishButton = $("finishButton"), status = $("status"), messages = $("messages"), timer = $("timer");
 timer.style.position = "relative";
 let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
 let timeExpired = false, responseActive = false, outputPlaying = false, finishingSession = false, finishAfterAudioTimer;
-let cards = JSON.parse(localStorage.getItem("storycards") || "[]"), queue = [];
+let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
 let freePractice = false;
@@ -119,8 +122,8 @@ function startReviewMeter(inputStream) {
     reviewAudioContext.resume().catch(() => {}); draw();
   } catch { /* Recording remains available if audio visualisation is unsupported. */ }
 }
-let learningProfile = JSON.parse(localStorage.getItem("storycards-learning-profile") || "{\"focus\":[]}");
-let learningStats = JSON.parse(localStorage.getItem("storycards-learning-stats") || "{\"conversations\":0,\"minutes\":0,\"practiceDays\":[]}");
+let learningProfile = learningStorage.load("profile", {focus:[]});
+let learningStats = learningStorage.load("stats", {conversations:0,minutes:0,practiceDays:[]});
 let dailyCardLimit = Math.min(100, Math.max(1, Number(localStorage.getItem("storycards-daily-limit")) || 15));
 let dailySpeakingMinutes = Math.min(60, Math.max(1, Number(localStorage.getItem("storycards-speaking-minutes")) || 10));
 let sessionDurationSeconds = dailySpeakingMinutes * 60;
@@ -132,8 +135,8 @@ $("dailySpeakingMinutes").value = dailySpeakingMinutes;
 function refreshSpeakingGoal() { document.querySelector(".home-card h2").textContent = `${dailySpeakingMinutes} Minuten`; if (!hasActiveConversation()) { sessionDurationSeconds = dailySpeakingMinutes * 60; $("timerText").textContent = `${String(dailySpeakingMinutes).padStart(2, "0")}:00`; } const total = `${String(sessionDurationSeconds / 60).padStart(2, "0")}:00`; timer.querySelector("small").textContent = `/ ${total}`; document.querySelector(".home-countdown small").textContent = `/ ${total}`; document.querySelector(".home-countdown strong").textContent = $("timerText").textContent; }
 $("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinutes = Math.min(60, Math.max(1, Math.round(Number($("dailySpeakingMinutes").value) || 10))); $("dailySpeakingMinutes").value = dailySpeakingMinutes; localStorage.setItem("storycards-speaking-minutes", String(dailySpeakingMinutes)); refreshSpeakingGoal(); $("speakingMinutesSaved").textContent = hasActiveConversation() ? "Gespeichert – gilt ab dem nächsten Gespräch." : `Gespeichert: ${dailySpeakingMinutes} Minuten pro Tag.`; });
 function localLearningDay() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`; }
-function dailyLesson() { const saved = JSON.parse(localStorage.getItem("storycards-daily-lesson") || "null"); return saved?.day === localLearningDay() ? saved : { day:localLearningDay(), completed:[] }; }
-function rememberDailyCard(id) { const lesson = dailyLesson(); lesson.completed = [...new Set([...lesson.completed, id])]; localStorage.setItem("storycards-daily-lesson", JSON.stringify(lesson)); }
+function dailyLesson() { const saved = learningStorage.load("lesson", null); return saved?.day === localLearningDay() ? saved : { day:localLearningDay(), completed:[] }; }
+function rememberDailyCard(id) { const lesson = dailyLesson(); lesson.completed = [...new Set([...lesson.completed, id])]; learningStorage.save("lesson", lesson); }
 const dailySettings = document.createElement("div");
 dailySettings.className = "profile-card";
 dailySettings.innerHTML = '<label for="dailyCardLimit"><strong>Lernkarten pro Tag</strong></label><p>Deine tägliche Lektion</p><input id="dailyCardLimit" type="number" min="1" max="100" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="dailyLimitSaved" role="status"></p>';
@@ -170,7 +173,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
 window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; $("installButton").classList.remove("hidden"); });
 $("installButton").addEventListener("click", async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $("installButton").classList.add("hidden"); });
 
-function saveCards() { localStorage.setItem("storycards", JSON.stringify(cards)); updateDue(); updateHomeProgress(); }
+function saveCards() { learningStorage.save("cards", cards); updateDue(); updateHomeProgress(); }
+showLanguageSettings($("profile"), activeCourse);
 setupCardManager(() => cards, updated => {
   cards = updated;
   const ids = new Set(cards.map(card => card.id));
@@ -179,7 +183,7 @@ setupCardManager(() => cards, updated => {
   for (const id of assessedCards.keys()) if (!ids.has(id)) assessedCards.delete(id);
   saveCards();
 });
-function saveStats() { localStorage.setItem("storycards-learning-stats", JSON.stringify(learningStats)); updateHomeProgress(); }
+function saveStats() { learningStorage.save("stats", learningStats); updateHomeProgress(); }
 function updateHomeProgress() { $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`; $("homeLearned").textContent = cards.filter((card) => Number(card.knownStreak || 0) > 0).length; $("homeMinutes").textContent = `${Number(learningStats.minutes || 0)} min`; }
 function dayKey() { return new Date().toISOString().slice(0, 10); }
 function learningStreak(days) { const unique = [...new Set(days || [])].sort().reverse(); let streak = 0, cursor = new Date(); cursor.setHours(0, 0, 0, 0); for (const day of unique) { const expected = cursor.toISOString().slice(0, 10); if (day !== expected) break; streak += 1; cursor.setDate(cursor.getDate() - 1); } return streak; }
@@ -187,7 +191,7 @@ function recordCompletedSession() { const minutes = Math.max(1, Math.round((Date
 function updateDue() { $("dueCount").textContent = cards.filter((card) => card.nextReviewAt <= Date.now()).length; }
 function cleanFocus(focus) { return Array.isArray(focus) ? focus.filter((item) => item && typeof item.pattern === "string" && typeof item.practice === "string").map((item) => ({ pattern:item.pattern.trim().slice(0, 90), practice:item.practice.trim().slice(0, 140), example:typeof item.example === "string" ? item.example.trim().slice(0, 120) : "" })).filter((item) => item.pattern && item.practice) : []; }
 function updateFocusHint() { const focus = cleanFocus(learningProfile.focus); const hint = $("focusHint"); if (!focus.length) { hint.classList.add("hidden"); return; } hint.textContent = `Dein nächster Fokus: ${focus[0].pattern} – ${focus[0].practice}`; hint.classList.remove("hidden"); }
-function rememberFocus(newFocus) { const merged = [...cleanFocus(newFocus), ...cleanFocus(learningProfile.focus)]; const seen = new Set(); learningProfile = { focus:merged.filter((item) => !seen.has(item.pattern.toLowerCase()) && seen.add(item.pattern.toLowerCase())).slice(0, 3), updatedAt:Date.now() }; localStorage.setItem("storycards-learning-profile", JSON.stringify(learningProfile)); updateFocusHint(); }
+function rememberFocus(newFocus) { const merged = [...cleanFocus(newFocus), ...cleanFocus(learningProfile.focus)]; const seen = new Set(); learningProfile = { focus:merged.filter((item) => !seen.has(item.pattern.toLowerCase()) && seen.add(item.pattern.toLowerCase())).slice(0, 3), updatedAt:Date.now() }; learningStorage.save("profile", learningProfile); updateFocusHint(); }
 function coachInstructions() { const focus = cleanFocus(learningProfile.focus); const modes = { alltag:"a relaxed everyday conversation about Mark's day and interests", reisen:"a practical travel conversation, for example a hotel, airport, restaurant, or directions", beruf:"a friendly workplace conversation or a simple job-related role play", einkaufen:"a practical shopping conversation", rollenspiel:"a vivid but simple role play where you take a fitting role", ueberraschung:"a pleasant, everyday surprise topic", schwaechen:"a natural conversation that gives small chances to practise Mark's known learning focus" }; const modeText = ` Today's conversation mode is ${modes[$("conversationMode").value] || modes.alltag}.`; const weakCards = cards.filter(c => c.misses > 0).sort((a,b) => b.misses-a.misses).slice(0,3); const personalContext = weakCards.length ? ` Previously difficult sentences from actual conversations: ${weakCards.map(c => c.back).join("; ")}. Naturally revisit these meanings in new short questions, not rote repetition.` : ""; const focusText = focus.length ? ` Mark's current learning focus is: ${focus.map((item) => `${item.pattern} (${item.practice})`).join("; ")}. Naturally invite brief chances to practise this when it fits, but never announce a lesson or force it.` : ""; return "You are Mark's friendly English conversation coach for A1 to B1. The goal is confidence and understandable communication, not native-level English. Speak mainly English at a calm, clear, natural pace. Use short sentences and make a small pause between ideas so Mark can repeat them. Keep a natural chat going. Let Mark finish speaking. Do not correct every mistake and do not give grammar lessons. Correct only errors that prevent understanding, repeatedly block an important pattern, or create a phrase Mark is likely to reuse incorrectly. At most give one short correction in a turn; often give none. Prefer a gentle natural rephrasing at the end of your reply. Praise successful communication. Ask one concise question at a time. Near ten minutes, warmly conclude the practice." + modeText + focusText + personalContext; }
 function setMicState(text, listening = false) { $("micStateText").textContent = text; $("micState").classList.toggle("listening", listening); }
 function setPauseLabel(paused) { pauseButton.innerHTML = paused ? "<span>▶</span><small>Fortsetzen</small>" : "<span>Ⅱ</span><small>Pause</small>"; }
