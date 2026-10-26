@@ -1,8 +1,16 @@
 import { normaliseCards, prioritiseCards, rateCard } from "/cards.js";
 import { setupCardManager } from "/card-manager.js";
 import { createLearningStorage, getActiveCourse, showLanguageSettings } from "/learning-storage.js";
-const activeCourse = getActiveCourse(localStorage);
-const learningStorage = createLearningStorage(localStorage, activeCourse.target, activeCourse.source);
+import { initCloudAccount } from "/cloud-account.js";
+const bootNotice = document.createElement("p");
+bootNotice.textContent = "Dein Lernstand wird geladen …";
+bootNotice.setAttribute("role", "status");
+document.querySelector(".app > header").after(bootNotice);
+const account = await initCloudAccount(localStorage);
+bootNotice.remove();
+const appStorage = account.storage;
+const activeCourse = getActiveCourse(appStorage);
+const learningStorage = createLearningStorage(appStorage, activeCourse.target, activeCourse.source);
 
 const $ = (id) => document.getElementById(id);
 const startButton = $("startButton"), pauseButton = $("pauseButton"), finishButton = $("finishButton"), status = $("status"), messages = $("messages"), timer = $("timer");
@@ -124,8 +132,8 @@ function startReviewMeter(inputStream) {
 }
 let learningProfile = learningStorage.load("profile", {focus:[]});
 let learningStats = learningStorage.load("stats", {conversations:0,minutes:0,practiceDays:[]});
-let dailyCardLimit = Math.min(100, Math.max(1, Number(localStorage.getItem("storycards-daily-limit")) || 15));
-let dailySpeakingMinutes = Math.min(60, Math.max(1, Number(localStorage.getItem("storycards-speaking-minutes")) || 10));
+let dailyCardLimit = Math.min(100, Math.max(1, Number(appStorage.getItem("storycards-daily-limit")) || 15));
+let dailySpeakingMinutes = Math.min(60, Math.max(1, Number(appStorage.getItem("storycards-speaking-minutes")) || 10));
 let sessionDurationSeconds = dailySpeakingMinutes * 60;
 const speakingSettings = document.createElement("div");
 speakingSettings.className = "profile-card";
@@ -133,7 +141,7 @@ speakingSettings.innerHTML = '<label for="dailySpeakingMinutes"><strong>Sprechmi
 $("profile").insertBefore(speakingSettings, $("profile").querySelector(".profile-section-title"));
 $("dailySpeakingMinutes").value = dailySpeakingMinutes;
 function refreshSpeakingGoal() { document.querySelector(".home-card h2").textContent = `${dailySpeakingMinutes} Minuten`; if (!hasActiveConversation()) { sessionDurationSeconds = dailySpeakingMinutes * 60; $("timerText").textContent = `${String(dailySpeakingMinutes).padStart(2, "0")}:00`; } const total = `${String(sessionDurationSeconds / 60).padStart(2, "0")}:00`; timer.querySelector("small").textContent = `/ ${total}`; document.querySelector(".home-countdown small").textContent = `/ ${total}`; document.querySelector(".home-countdown strong").textContent = $("timerText").textContent; }
-$("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinutes = Math.min(60, Math.max(1, Math.round(Number($("dailySpeakingMinutes").value) || 10))); $("dailySpeakingMinutes").value = dailySpeakingMinutes; localStorage.setItem("storycards-speaking-minutes", String(dailySpeakingMinutes)); refreshSpeakingGoal(); $("speakingMinutesSaved").textContent = hasActiveConversation() ? "Gespeichert – gilt ab dem nächsten Gespräch." : `Gespeichert: ${dailySpeakingMinutes} Minuten pro Tag.`; });
+$("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinutes = Math.min(60, Math.max(1, Math.round(Number($("dailySpeakingMinutes").value) || 10))); $("dailySpeakingMinutes").value = dailySpeakingMinutes; appStorage.setItem("storycards-speaking-minutes", String(dailySpeakingMinutes)); refreshSpeakingGoal(); $("speakingMinutesSaved").textContent = hasActiveConversation() ? "Gespeichert – gilt ab dem nächsten Gespräch." : `Gespeichert: ${dailySpeakingMinutes} Minuten pro Tag.`; });
 function localLearningDay() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`; }
 function dailyLesson() { const saved = learningStorage.load("lesson", null); return saved?.day === localLearningDay() ? saved : { day:localLearningDay(), completed:[] }; }
 function rememberDailyCard(id) { const lesson = dailyLesson(); lesson.completed = [...new Set([...lesson.completed, id])]; learningStorage.save("lesson", lesson); }
@@ -142,7 +150,7 @@ dailySettings.className = "profile-card";
 dailySettings.innerHTML = '<label for="dailyCardLimit"><strong>Lernkarten pro Tag</strong></label><p>Deine tägliche Lektion</p><input id="dailyCardLimit" type="number" min="1" max="100" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="dailyLimitSaved" role="status"></p>';
 $("profile").insertBefore(dailySettings, $("profile").querySelector(".profile-section-title"));
 $("dailyCardLimit").value = dailyCardLimit;
-$("dailyCardLimit").addEventListener("change", () => { dailyCardLimit = Math.min(100, Math.max(1, Math.round(Number($("dailyCardLimit").value) || 15))); $("dailyCardLimit").value = dailyCardLimit; localStorage.setItem("storycards-daily-limit", String(dailyCardLimit)); $("dailyLimitSaved").textContent = `Gespeichert: ${dailyCardLimit} Karten pro Tag.`; });
+$("dailyCardLimit").addEventListener("change", () => { dailyCardLimit = Math.min(100, Math.max(1, Math.round(Number($("dailyCardLimit").value) || 15))); $("dailyCardLimit").value = dailyCardLimit; appStorage.setItem("storycards-daily-limit", String(dailyCardLimit)); $("dailyLimitSaved").textContent = `Gespeichert: ${dailyCardLimit} Karten pro Tag.`; });
 const topicList = $("profile").querySelector(".topic-list");
 if (topicList) { topicList.previousElementSibling?.remove(); topicList.remove(); }
 $("profile").querySelector("h2").textContent = "Profil & Einstellungen";
@@ -340,3 +348,5 @@ refreshSpeakingGoal();
 $("conversationCardsButton").addEventListener("click", () => { if (stream?.getAudioTracks().some((track) => track.readyState === "live") && !isPaused) togglePause(); showReview(true); });
 $("subtitleButton").addEventListener("click", () => { const visible = $("subtitleButton").getAttribute("aria-pressed") !== "true"; $("subtitleButton").setAttribute("aria-pressed", String(visible)); $("practice").classList.toggle("subtitles-off", !visible); messages.setAttribute("aria-hidden", String(!visible)); });
 startButton.addEventListener("click", startSession); pauseButton.addEventListener("click", togglePause); finishButton.addEventListener("click", finishSession); $("conversationBackButton").addEventListener("click", () => { if (stream && !isPaused) togglePause(); showHome(); }); $("conversationSettingsButton").addEventListener("click", () => $("modePicker").classList.toggle("hidden")); $("keyboardButton").addEventListener("click", () => { status.textContent = "Sprich einfach weiter – die Tastatur kommt als Nächstes."; }); $("summaryBackButton").addEventListener("click", showHome); $("summaryCloseButton").addEventListener("click", showHome); $("statisticsBackButton").addEventListener("click", showHome); $("profileBackButton").addEventListener("click", showHome); $("continueButton").addEventListener("click", () => { showPractice(); startSession(); }); $("homeNavButton").addEventListener("click", showHome); $("cardsNavButton").addEventListener("click", () => showReview(true)); $("progressNavButton").addEventListener("click", showStatistics); $("profileNavButton").addEventListener("click", showProfile); $("statisticsHomeButton").addEventListener("click", showHome); $("statisticsCardsButton").addEventListener("click", () => showReview(true)); $("statisticsProfileButton").addEventListener("click", showProfile); $("cardsHomeButton").addEventListener("click", showHome); $("cardsProgressButton").addEventListener("click", showStatistics); $("cardsProfileButton").addEventListener("click", showProfile); $("profileHomeButton").addEventListener("click", showHome); $("profileCardsButton").addEventListener("click", () => showReview(true)); $("profileProgressButton").addEventListener("click", showStatistics); $("toCardsButton").addEventListener("click", () => showReview(true)); $("recordAnswerButton").addEventListener("click", recordAnswer); $("revealButton").addEventListener("click", revealAnswer); $("listenButton").addEventListener("click", speakAnswer); $("backToPractice").addEventListener("click", showPractice); updateDue(); updateFocusHint(); scheduleEmmaBlink();
+account.mount($("profile"), () => hasActiveConversation() || reviewRecorder?.state === "recording" || answerStarting || $("recordAnswerButton").disabled);
+await import("/cards-design.js");

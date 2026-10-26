@@ -1,0 +1,11 @@
+.cloud-account{margin:14px 0;padding:15px}
+.cloud-account h3{margin:0 0 8px;font-size:1rem}
+.cloud-account p{font-size:.8rem;line-height:1.5;overflow-wrap:anywhere}
+.cloud-account label{display:grid;gap:6px;font-size:.8rem;font-weight:650;margin:11px 0}
+.cloud-account input{width:100%;padding:11px;border:1px solid #cadbd2;border-radius:10px;background:#fffefa;color:#153934;font-size:16px}
+.cloud-account button{font-size:.83rem;margin-top:8px}
+.cloud-account .ghost{display:block;width:100%}
+.cloud-account .cloud-status{margin-top:12px;color:#176b5b;font-weight:650;white-space:pre-line}
+.cloud-account .cloud-conflict{padding:12px;margin-top:12px;border:1px solid #e9dcb7;border-radius:12px;background:#fff5de}
+.cloud-account .cloud-import-help{font-size:.73rem;color:#667b74}
+.cloud-account input:focus-visible{outline:2px solid #16846a;outline-offset:3px}

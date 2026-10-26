@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/word-translation.css" />
     <link rel="stylesheet" href="/cards-design.css" />
     <link rel="stylesheet" href="/card-manager.css" />
+    <link rel="stylesheet" href="/cloud-account.css" />
     <style>
       .coach-stage{position:relative;min-height:180px;margin:12px 0 4px;overflow:hidden;border-radius:22px;background:radial-gradient(circle at 50% 35%,#e8f4ef 0 29%,#f4f7f1 30% 56%,#edf2ea 57%);display:flex;justify-content:center;align-items:flex-end}
       .coach-stage img{height:195px;max-width:72%;object-fit:contain;object-position:bottom;filter:drop-shadow(0 8px 10px #15393424);transform-origin:50% 88%;will-change:transform;animation:emma-rest 5.2s ease-in-out infinite}
@@ -65,10 +66,10 @@
       <section id="statistics" class="panel hidden statistics-screen"><div class="statistics-topbar"><button id="statisticsBackButton" class="icon-button" aria-label="Zurück">‹</button><h2>Dein Fortschritt</h2><strong>A1 → B1</strong></div><div class="level-card"><small>Aktuelles Niveau</small><div><strong>A2</strong><span><i></i></span></div><div class="level-scale"><small>A1</small><small>A2</small><small>B1</small></div></div><div class="stat-grid"><div><span>🎧</span><strong id="statConversations">0</strong><small>Gespräche</small></div><div><span>◷</span><strong id="statMinutes">0</strong><small>gesprochene Minuten</small></div><div><span>▣</span><strong id="statCards">0</strong><small>gelernte Karten</small></div><div><span>🔥</span><strong id="statStreak">0 Tage</strong><small>Lernserie</small></div></div><div class="insight-columns"><div><p>Deine Stärken</p><ul id="strengthList"></ul></div><div><p>Daran arbeiten wir</p><ul id="workList"></ul></div></div><nav class="bottom-nav statistics-nav" aria-label="Hauptmenü"><button id="statisticsHomeButton">⌂<small>Home</small></button><button id="statisticsCardsButton">▣<small>Karten</small></button><button class="active">▥<small>Statistiken</small></button><button id="statisticsProfileButton">♙<small>Profil</small></button></nav></section>
       <section id="profile" class="panel hidden profile-screen"><div class="profile-topbar"><button id="profileBackButton" class="icon-button" aria-label="Zurück">‹</button><h2>Themen &amp; Ziele</h2><span></span></div><div class="profile-card"><strong>Dein Ziel</strong><p>Von A1 auf B1 <button id="editGoalButton" class="inline-action" aria-label="Ziel bearbeiten">⌕</button></p><hr><strong>Lernplan</strong><p>Individuell <span>KI passt sich an</span><b>›</b></p></div><p class="profile-section-title">Bevorzugte Themen</p><div class="profile-card topic-list"><button>🚚 <span>Beruf (LKW, Transport)</span><b>›</b></button><button>🛠 <span>Werkstatt &amp; Holz</span><b>›</b></button><button>✈️ <span>Reisen</span><b>›</b></button><button>🍴 <span>Restaurant &amp; Essen</span><b>›</b></button><button>☕ <span>Alltag</span><b>›</b></button><button id="addTopicButton" class="add-topic">＋ Weiteres Thema hinzufügen</button></div><p class="profile-section-title">Stimme der KI</p><div class="profile-card coach-choice"><img src="/emma-coach.png" alt="Emma" /><span><strong>Emma</strong><small>Standard</small></span><b>›</b></div><nav class="bottom-nav profile-nav" aria-label="Hauptmenü"><button id="profileHomeButton">⌂<small>Home</small></button><button id="profileCardsButton">▣<small>Karten</small></button><button id="profileProgressButton">▥<small>Statistiken</small></button><button class="active">♙<small>Profil</small></button></nav></section>
     </main>
+    <script src="/vendor/supabase.js"></script>
     <script type="module" src="/app.js"></script>
     <script type="module" src="/navigation.js"></script>
     <script type="module" src="/word-translation.js"></script>
     <script type="module" src="/keep-awake.js"></script>
-    <script type="module" src="/cards-design.js"></script>
   </body>
 </html>
