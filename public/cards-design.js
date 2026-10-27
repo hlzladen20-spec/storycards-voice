@@ -40,7 +40,7 @@ function update() {
   const current = match ? Number(match[1]) : 0;
   const total = match ? Number(match[2]) : 0;
   const practice = text.startsWith('Freies Üben');
-  panel.querySelector('h2').textContent = practice ? 'Freies Üben' : 'Deine Tageslektion';
+  panel.querySelector('h2').textContent = text.startsWith('Schwierige Karten') ? 'Deine Wiederholung' : practice ? 'Freies Üben' : 'Deine Tageslektion';
   progress.querySelector('.cards-progress-count').textContent = `${current} / ${total}`;
   progress.querySelector('.cards-progress-fill').style.width = `${total ? Math.min(100,current / total * 100) : 0}%`;
   const track = progress.querySelector('[role=progressbar]');

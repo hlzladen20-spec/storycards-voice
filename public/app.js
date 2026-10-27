@@ -2,7 +2,7 @@ import { normaliseCards, prioritiseCards, rateCard } from "/cards.js";
 import { setupCardManager } from "/card-manager.js";
 import { createLearningStorage, getActiveCourse, showLanguageSettings } from "/learning-storage.js";
 import { initCloudAccount } from "/cloud-account.js";
-import { planDailyLesson, lessonQueue, retryAllowed } from "/lesson-planner.js";
+import { planDailyLesson, lessonQueue, retryAllowed, difficultCards } from "/lesson-planner.js";
 import { appendLearningImage } from "/learning-images.js";
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
@@ -23,6 +23,8 @@ let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
 let freePractice = false;
+let weakPractice = false;
+let weakRoundTotal = 0;
 let imageHintsEnabled = appStorage.getItem("storycards-image-hints") !== "off";
 let repairingCards = false;
 let repairFailed = false;
@@ -80,10 +82,10 @@ function moveReviewCard(back = false) {
     } else {
       if(!freePractice) {
         if(result==="assisted" && !card.retryPractice && !card.scheduleApplied) {card.scheduleApplied=true;cards=cards.map(c=>c.id===card.id?rateCard(c,"no"):c);saveCards();}
-        rememberDailyCard(card.id,result);
+        if(!weakPractice) rememberDailyCard(card.id,result);
       }
       const plan=dailyLesson();
-      if(!freePractice && ["incorrect","assisted","close"].includes(result) && !card.retryPractice && retryAllowed(plan,card.id)) {
+      if(!freePractice && !weakPractice && ["incorrect","assisted","close"].includes(result) && !card.retryPractice && retryAllowed(plan,card.id)) {
         plan.retryUsed=(plan.retryUsed||0)+1;plan.retriedIds=[...(plan.retriedIds||[]),card.id];learningStorage.save("lesson",plan);
         queue.splice(Math.min(2,queue.length),0,{...card,retryPractice:true,lessonStage:"recall"});
       }
@@ -124,6 +126,15 @@ $("previousCardButton").addEventListener("click", () => moveReviewCard(true));
 $("nextCardButton").addEventListener("click", () => moveReviewCard());
 new MutationObserver(() => {
   reviewNavigation.classList.remove("hidden");$("previousCardButton").disabled=!reviewHistory.length;$("nextCardButton").disabled=!queue[0];
+  if(weakPractice) {
+    lessonProgress.textContent=`Schwierige Karten · ${reviewHistory.length} von ${weakRoundTotal} Karten`;
+    if(!queue.length && $("card").dataset.finished!=="weak") {
+      $("card").dataset.finished="weak";
+      const remaining=difficultCards(cards).length;
+      $("card").innerHTML=`<strong>${weakRoundTotal?"🎉 Wiederholung geschafft!":"Keine schwierigen Karten offen"}</strong><small>${remaining?`${remaining} Karten sind noch unsicher. Du kannst später freiwillig weiterüben.`:"Die zuletzt geübten Karten sitzen. Wir erinnern dich zum nächsten Lerntermin wieder daran."}</small>`;
+    }
+    return;
+  }
   if(freePractice) return;
   const plan=prepareDailyLesson();const total=plan.plannedIds.length;const count=(plan.completed||[]).filter(id=>plan.plannedIds.includes(id)).length;
   lessonProgress.textContent=`${count} von ${total} Lernzielen`;
@@ -225,6 +236,7 @@ $("saveProfileButton").addEventListener("click", () => {
 });
 const lessonProgress = document.createElement("p"); lessonProgress.className = "speak-prompt"; $("cards").insertBefore(lessonProgress, $("card"));
 $("dailyPracticeButton").addEventListener("click", () => showReview());
+$("weakPracticeButton").addEventListener("click", () => showReview("weak"));
 function startFreePractice() { showReview("free");freePractice=true;reviewHistory=[];assessedCards.clear();queue=prioritiseCards(cards).map(card=>({...card,lessonStage:"recall"}));delete $("card").dataset.finished;renderCard(); }
 $("freePracticeButton").addEventListener("click", startFreePractice);
 const repeatPracticeButton = document.createElement("button"); repeatPracticeButton.id = "repeatPracticeButton"; repeatPracticeButton.className = "secondary hidden"; repeatPracticeButton.textContent = "↻ Karten noch einmal üben"; finishLessonButton.after(repeatPracticeButton); repeatPracticeButton.addEventListener("click", startFreePractice);
@@ -380,6 +392,9 @@ function showCardChoice() {
   const plan=prepareDailyLesson();
   const remaining=plan.plannedIds.filter(id=>!plan.completed.includes(id)).length;
   $("dailyChoiceHint").textContent=remaining?`${remaining} Lernziele · höchstens 3 neue, Wiederholungen zuerst`:"Für heute ist deine Lernrunde geschafft. Weiterüben ist freiwillig.";
+  const weakCount=difficultCards(cards).length;
+  $("weakChoiceHint").textContent=weakCount?`${weakCount} unsichere Karten · auch heute wiederholen, Lernabstände verbessern`:"Keine schwierigen Karten offen – gut gemacht!";
+  $("weakPracticeButton").disabled=!weakCount;
 }
 $("choiceHomeButton").addEventListener("click", showHome);
 $("choiceCardsButton").addEventListener("click", showCardChoice);
@@ -390,11 +405,12 @@ $("cards").querySelector(".cards-nav button.active").addEventListener("click", s
 function showHome() { $("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); }
 function showPractice() { $("cardChoice").classList.add("hidden"); document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
 function showReview(includeAll = false) {
-  $("cardChoice").classList.add("hidden");freePractice=false;reviewHistory=[];assessedCards.clear();
+  $("cardChoice").classList.add("hidden");freePractice=false;weakPractice=includeAll==="weak";reviewHistory=[];assessedCards.clear();
   document.body.classList.remove("in-conversation");
   for(const id of ["home","practice","summary","statistics","profile"]) $(id).classList.add("hidden");
   $("cards").classList.remove("hidden");
-  if(includeAll === "free") queue=[]; else { const plan=prepareDailyLesson(true);queue=lessonQueue(cards,plan); }
+  if(weakPractice) {queue=difficultCards(cards).slice(0,dailyCardLimit).map(card=>({...card,lessonStage:"recall"}));weakRoundTotal=queue.length;}
+  else if(includeAll === "free") queue=[]; else { const plan=prepareDailyLesson(true);queue=lessonQueue(cards,plan); }
   repairFailed=false;delete $("card").dataset.finished;renderCard();
 }
 function fillInsightList(id, items, kind) { const list = $(id); list.replaceChildren(); items.forEach((item) => { const row = document.createElement("li"); row.textContent = item; row.className = kind; list.append(row); }); }

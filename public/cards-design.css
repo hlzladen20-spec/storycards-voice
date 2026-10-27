@@ -14,6 +14,7 @@
 .card-choice-option small{font-size:.82rem;font-weight:400;line-height:1.4;color:#60786f}
 .card-choice-option b{font-size:1.7rem;font-weight:400;color:#16806b}
 .card-choice-option:focus-visible{outline:3px solid #69b89d;outline-offset:3px}
+.card-choice-option:disabled{opacity:.6;cursor:default}
 body:has(#cards:not(.hidden)){background:#fcfbf6;color:#103b3e}
 body:has(#cards:not(.hidden)) .app{max-width:680px;padding-top:24px}
 body:has(#cards:not(.hidden)) .app>header{padding:0 2px 20px}
