@@ -21,3 +21,11 @@
 .conversation-screen:has(.conversation-nav) .messages{min-height:100px}
 .conversation-screen>.conversation-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));order:7;flex-shrink:0}
 @media(max-height:540px){.conversation-screen:has(.conversation-nav){min-height:320px}.conversation-screen:has(.conversation-nav) .messages{min-height:60px}}
+.conversation-screen .conversation-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;justify-items:center;gap:6px}
+.conversation-screen .conversation-actions .round-action{display:grid;grid-template-rows:49px auto;justify-items:center;align-items:center;align-content:start;width:100%;min-width:0;gap:7px}
+.conversation-screen .conversation-actions .round-action>span{width:49px;height:49px;margin:0}
+.conversation-screen .conversation-actions .round-action small{text-align:center;line-height:1.3;white-space:normal}
+.conversation-screen #finishButton.creating-cards{opacity:1;color:#52756b}
+.conversation-screen #finishButton.creating-cards>.cards-loading-spinner{width:49px;height:49px;border:4px solid #dcebe4;border-top-color:#16846a;background:transparent;box-shadow:none;border-radius:50%;animation:cards-loading-turn .9s linear infinite}
+@keyframes cards-loading-turn{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.conversation-screen #finishButton.creating-cards>.cards-loading-spinner{animation-duration:2s}}
