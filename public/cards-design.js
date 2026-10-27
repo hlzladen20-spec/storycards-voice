@@ -30,15 +30,13 @@ if (nav && window.ResizeObserver) new ResizeObserver(() => {
 }).observe(nav);
 const daily = document.getElementById('dailyPracticeButton');
 const free = document.getElementById('freePracticeButton');
-free.textContent = 'Frei üben';
 function update() {
   const text = progressText?.textContent || '';
   const match = text.match(/(\d+) von (\d+)/);
   const current = match ? Number(match[1]) : 0;
   const total = match ? Number(match[2]) : 0;
   const practice = text.startsWith('Freies Üben');
-  daily.setAttribute('aria-pressed', String(!practice));
-  free.setAttribute('aria-pressed', String(practice));
+  panel.querySelector('h2').textContent = practice ? 'Freies Üben' : 'Deine Tageslektion';
   progress.querySelector('.cards-progress-count').textContent = `${current} / ${total}`;
   progress.querySelector('.cards-progress-fill').style.width = `${total ? Math.min(100,current / total * 100) : 0}%`;
   const track = progress.querySelector('[role=progressbar]');

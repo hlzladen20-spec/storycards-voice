@@ -1,4 +1,15 @@
 /* Focused learning screen, shared by the desktop app and Android PWA. */
+.card-choice{max-width:480px;margin:20px auto;padding:22px 18px}
+.card-choice h2{font-size:1.4rem;margin:6px 0}
+.card-choice-intro{color:#62786e;font-size:.9rem;margin:8px 0 22px}
+.card-choice .card-choice-option{display:flex;align-items:center;gap:14px;width:100%;padding:22px 15px;margin:12px 0;border:1px solid #dce7dc;border-radius:17px;text-align:left;background:#f3f7ed;color:#153e37}
+.card-choice .card-choice-option:nth-of-type(2){background:#fffdf7}
+.card-choice-option svg{width:34px;height:34px;flex:none;fill:none;stroke:#16806b;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.card-choice-option span{display:grid;gap:7px;flex:1}
+.card-choice-option strong{font-size:1.12rem}
+.card-choice-option small{font-size:.82rem;font-weight:400;line-height:1.4;color:#60786f}
+.card-choice-option b{font-size:1.7rem;font-weight:400;color:#16806b}
+.card-choice-option:focus-visible{outline:3px solid #69b89d;outline-offset:3px}
 body:has(#cards:not(.hidden)){background:#fcfbf6;color:#103b3e}
 body:has(#cards:not(.hidden)) .app{max-width:680px;padding-top:24px}
 body:has(#cards:not(.hidden)) .app>header{padding:0 2px 20px}
