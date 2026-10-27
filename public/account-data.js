@@ -1,5 +1,5 @@
 export function isLearningKey(key) {
-  return /^(storycards:(?:[a-z]{2}):(?:[a-z]{2}):(?:cards|profile|stats|lesson)|storycards-(?:daily-limit|speaking-minutes|active-language))$/.test(key);
+  return /^(storycards:(?:[a-z]{2}):(?:[a-z]{2}):(?:cards|profile|stats|lesson)|storycards-(?:daily-limit|speaking-minutes|active-language|image-hints))$/.test(key);
 }
 export function validateSnapshot(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Ungültige Sicherung.');
@@ -12,7 +12,8 @@ export function validateSnapshot(data) {
     } else if (/:(profile|stats|lesson)$/.test(key)) {
       const parsed=JSON.parse(value);
       if (!parsed || typeof parsed!=='object' || Array.isArray(parsed)) throw new Error('Ungültiger Lernstand.');
-    } else if (key==='storycards-active-language' && !/^[a-z]{2}$/.test(value)) throw new Error('Ungültige Sprache.');
+    } else if (key==='storycards-image-hints' && !['on','off'].includes(value)) throw new Error('Ungültige Bildhilfe.');
+    else if (key==='storycards-active-language' && !/^[a-z]{2}$/.test(value)) throw new Error('Ungültige Sprache.');
     else if (/storycards-(daily-limit|speaking-minutes)$/.test(key) && (!Number.isFinite(Number(value)) || Number(value)<1 || Number(value)>100)) throw new Error('Ungültiges Lernziel.');
   }
   return data;

@@ -1,4 +1,8 @@
 /* Focused learning screen, shared by the desktop app and Android PWA. */
+#cards .learning-memory-image{display:block;width:100%;height:clamp(70px,15dvh,140px);object-fit:cover;border-radius:11px;margin:2px auto 0;flex:none}
+#cards .lesson-phase{font-size:.76rem!important;color:#788576!important;letter-spacing:.03em;font-weight:650!important}
+.image-hint-setting{display:flex!important;align-items:center;gap:10px;font-size:.85rem;line-height:1.4}
+.image-hint-setting input{width:19px;height:19px;accent-color:#16846a}
 .card-choice{max-width:480px;margin:20px auto;padding:22px 18px}
 .card-choice h2{font-size:1.4rem;margin:6px 0}
 .card-choice-intro{color:#62786e;font-size:.9rem;margin:8px 0 22px}

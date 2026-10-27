@@ -2,6 +2,8 @@ import { normaliseCards, prioritiseCards, rateCard } from "/cards.js";
 import { setupCardManager } from "/card-manager.js";
 import { createLearningStorage, getActiveCourse, showLanguageSettings } from "/learning-storage.js";
 import { initCloudAccount } from "/cloud-account.js";
+import { planDailyLesson, lessonQueue, retryAllowed } from "/lesson-planner.js";
+import { appendLearningImage } from "/learning-images.js";
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -21,6 +23,7 @@ let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
 let freePractice = false;
+let imageHintsEnabled = appStorage.getItem("storycards-image-hints") !== "off";
 let repairingCards = false;
 let repairFailed = false;
 new MutationObserver(() => { if (queue[0] && queue[0].cueLanguage !== "de" && !repairingCards && !repairFailed) ensureGermanCards(); }).observe($("card"), { childList:true });
@@ -41,7 +44,7 @@ async function ensureGermanCards() {
       batch.forEach((card, index) => { card.front = data.cards[index].front.trim(); card.cueLanguage = "de"; const stored = cards.find((item) => item.id === card.id); if (stored) { stored.front = card.front; stored.cueLanguage = "de"; } });
       saveCards();
     }
-    queue = queue.map((item) => cards.find((card) => card.id === item.id) || item);
+    queue = queue.map((item) => ({ ...item, ...(cards.find((card) => card.id === item.id) || {}) }));
     renderCard();
   } catch (error) {
     repairFailed = true;
@@ -56,10 +59,38 @@ const reviewNavigation = $("ratingButtons");
 reviewNavigation.innerHTML = '<button id="previousCardButton" class="secondary">← Zurück</button><button id="nextCardButton" class="primary">Weiter →</button>';
 function moveReviewCard(back = false) {
   if (reviewRecorder?.state === "recording" || $("recordAnswerButton").disabled) return;
-  if (back) { if (!reviewHistory.length) return; if (queue[0]) queue.unshift(reviewHistory.pop()); else queue.push(reviewHistory.pop()); }
-  else { if (!queue[0]) return; if (assessedCards.get(queue[0].id) === "assisted" && !freePractice && !queue[0].retryPractice) { cards = cards.map(c => c.id === queue[0].id ? rateCard(c, "no") : c); saveCards(); } if (!freePractice && assessedCards.has(queue[0].id)) rememberDailyCard(queue[0].id); const finished = queue.shift(); reviewHistory.push(finished); if (["incorrect", "assisted"].includes(assessedCards.get(finished.id)) && !finished.retryPractice) queue.splice(Math.min(2, queue.length), 0, { ...finished, retryPractice:true }); }
+  if(back) {
+    if(!reviewHistory.length) return;
+    const previous=reviewHistory.pop();
+    if(queue[0]) queue.unshift(previous); else queue.push(previous);
+  } else {
+    const card=queue[0];if(!card) return;
+    const result=assessedCards.get(card.id);
+    const introduction=!freePractice && card.lessonStage==="introduce";
+    if(!freePractice && !introduction && !result) {
+      $("voiceFeedback").className="voice-feedback close";
+      $("voiceFeedback").textContent="Versuche den Satz selbst zu sprechen oder decke die Antwort auf.";
+      return;
+    }
+    queue.shift();reviewHistory.push(card);
+    if(introduction) {
+      const plan=dailyLesson();plan.introduced=[...new Set([...(plan.introduced||[]),card.id])];learningStorage.save("lesson",plan);
+      assessedCards.delete(card.id);
+      if(!(plan.completed||[]).includes(card.id) && !queue.some(item=>item.id===card.id && item.lessonStage==="recall")) queue.splice(Math.min(2,queue.length),0,{...card,lessonStage:"recall"});
+    } else {
+      if(!freePractice) {
+        if(result==="assisted" && !card.retryPractice && !card.scheduleApplied) {card.scheduleApplied=true;cards=cards.map(c=>c.id===card.id?rateCard(c,"no"):c);saveCards();}
+        rememberDailyCard(card.id,result);
+      }
+      const plan=dailyLesson();
+      if(!freePractice && ["incorrect","assisted","close"].includes(result) && !card.retryPractice && retryAllowed(plan,card.id)) {
+        plan.retryUsed=(plan.retryUsed||0)+1;plan.retriedIds=[...(plan.retriedIds||[]),card.id];learningStorage.save("lesson",plan);
+        queue.splice(Math.min(2,queue.length),0,{...card,retryPractice:true,lessonStage:"recall"});
+      }
+    }
+  }
   renderCard();
-  if (!back && !queue.length) playLessonFanfare();
+  if(!back && !queue.length) playLessonFanfare();
 }
 function playLessonFanfare() {
   try {
@@ -91,7 +122,17 @@ new MutationObserver(() => {
 }).observe($("card"), { childList:true });
 $("previousCardButton").addEventListener("click", () => moveReviewCard(true));
 $("nextCardButton").addEventListener("click", () => moveReviewCard());
-new MutationObserver(() => { reviewNavigation.classList.remove("hidden"); $("previousCardButton").disabled = !reviewHistory.length; $("nextCardButton").disabled = !queue[0]; const count = dailyLesson().completed.length; lessonProgress.textContent = `${Math.min(count, dailyCardLimit)} von ${dailyCardLimit} Karten heute`; if (!queue[0] && !$("card").dataset.finished) { $("card").dataset.finished = "yes"; $("card").innerHTML = `<strong>${count >= dailyCardLimit ? "🎉 Lektion geschafft!" : "Für heute alles geschafft!"}</strong><small>${count >= dailyCardLimit ? "Deine nächste Lektion wartet morgen auf dich." : "Sobald weitere Karten fällig sind, findest du sie hier."}</small>`; } else if (queue[0]) delete $("card").dataset.finished; }).observe($("card"), { childList:true });
+new MutationObserver(() => {
+  reviewNavigation.classList.remove("hidden");$("previousCardButton").disabled=!reviewHistory.length;$("nextCardButton").disabled=!queue[0];
+  if(freePractice) return;
+  const plan=prepareDailyLesson();const total=plan.plannedIds.length;const count=(plan.completed||[]).filter(id=>plan.plannedIds.includes(id)).length;
+  lessonProgress.textContent=`${count} von ${total} Lernzielen`;
+  if(!queue[0] && !$("card").dataset.finished) {
+    $("card").dataset.finished="yes";
+    const correct=plan.plannedIds.filter(id=>plan.results?.[id]==="correct").length;
+    $("card").innerHTML=`<strong>🎉 Für heute geschafft!</strong><small>${total?`${correct} Formulierungen selbstständig abgerufen. Schwierige Karten üben wir später wieder.`:"Heute gibt es keine weitere kurze Lernrunde. Deine gesamte Sammlung findest du unter Frei üben."}</small>`;
+  } else if(queue[0]) delete $("card").dataset.finished;
+}).observe($("card"),{childList:true});
 let sessionWasEvaluated = false;
 let isPaused = false, pausedAt = 0, pausedDuration = 0;
 let emmaQuietTimer;
@@ -144,8 +185,17 @@ $("dailySpeakingMinutes").value = dailySpeakingMinutes;
 function refreshSpeakingGoal() { document.querySelector(".home-card h2").textContent = `${dailySpeakingMinutes} Minuten`; if (!hasActiveConversation()) { sessionDurationSeconds = dailySpeakingMinutes * 60; $("timerText").textContent = `${String(dailySpeakingMinutes).padStart(2, "0")}:00`; } const total = `${String(sessionDurationSeconds / 60).padStart(2, "0")}:00`; timer.querySelector("small").textContent = `/ ${total}`; document.querySelector(".home-countdown small").textContent = `/ ${total}`; document.querySelector(".home-countdown strong").textContent = $("timerText").textContent; }
 $("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinutes = Math.min(60, Math.max(1, Math.round(Number($("dailySpeakingMinutes").value) || 10))); $("dailySpeakingMinutes").value = dailySpeakingMinutes; appStorage.setItem("storycards-speaking-minutes", String(dailySpeakingMinutes)); refreshSpeakingGoal(); $("speakingMinutesSaved").textContent = hasActiveConversation() ? "Gespeichert – gilt ab dem nächsten Gespräch." : `Gespeichert: ${dailySpeakingMinutes} Minuten pro Tag.`; });
 function localLearningDay() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`; }
-function dailyLesson() { const saved = learningStorage.load("lesson", null); return saved?.day === localLearningDay() ? saved : { day:localLearningDay(), completed:[] }; }
-function rememberDailyCard(id) { const lesson = dailyLesson(); lesson.completed = [...new Set([...lesson.completed, id])]; learningStorage.save("lesson", lesson); }
+function dailyLesson() { const saved=learningStorage.load("lesson",null);return saved?.day===localLearningDay()?saved:{day:localLearningDay(),completed:[]}; }
+function prepareDailyLesson(persist=false) {
+  const plan=planDailyLesson(cards,dailyLesson(),localLearningDay(),dailyCardLimit);
+  if(persist && plan.plannedIds.length) learningStorage.save("lesson",plan);
+  return plan;
+}
+function rememberDailyCard(id,result) {
+  const lesson=dailyLesson();lesson.completed=[...new Set([...lesson.completed,id])];
+  lesson.results={...(lesson.results||{}),[id]:result||"assisted"};
+  learningStorage.save("lesson",lesson);
+}
 const dailySettings = document.createElement("div");
 dailySettings.className = "profile-card";
 dailySettings.innerHTML = '<label for="dailyCardLimit"><strong>Lernkarten pro Tag</strong></label><p>Deine tägliche Lektion</p><input id="dailyCardLimit" type="number" min="1" max="100" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="dailyLimitSaved" role="status"></p>';
@@ -159,6 +209,12 @@ const profileSaveArea = document.createElement("div");
 profileSaveArea.style.marginTop = "20px";
 profileSaveArea.innerHTML = '<button id="saveProfileButton" class="primary" type="button">Einstellungen speichern</button><p id="profileSavedStatus" role="status" style="color:#16806a;font-size:.85rem;text-align:center"></p>';
 $("profile").insertBefore(profileSaveArea, $("profile").querySelector(".profile-nav"));
+const imageSettings=document.createElement("div");imageSettings.className="profile-card";imageSettings.style.marginTop="12px";
+imageSettings.innerHTML='<label class="image-hint-setting"><input id="imageHintSetting" type="checkbox"> Bilder als Merkhilfe verwenden</label><p style="font-size:.75rem;line-height:1.4">Passende KI-Merkszenen beim Kennenlernen und Aufdecken. Beim selbstständigen Erinnern bleiben sie verborgen. Keine automatische kostenpflichtige Bilderstellung.</p>';
+$("profile").insertBefore(imageSettings,profileSaveArea);
+$("imageHintSetting").checked=imageHintsEnabled;
+$("imageHintSetting").addEventListener("change",()=>{imageHintsEnabled=$("imageHintSetting").checked;appStorage.setItem("storycards-image-hints",imageHintsEnabled?"on":"off");});
+
 $("saveProfileButton").addEventListener("click", () => {
   if (!$("dailySpeakingMinutes").reportValidity() || !$("dailyCardLimit").reportValidity()) return;
   try {
@@ -169,7 +225,7 @@ $("saveProfileButton").addEventListener("click", () => {
 });
 const lessonProgress = document.createElement("p"); lessonProgress.className = "speak-prompt"; $("cards").insertBefore(lessonProgress, $("card"));
 $("dailyPracticeButton").addEventListener("click", () => showReview());
-function startFreePractice() { showReview(); freePractice = true; reviewHistory = []; assessedCards.clear(); queue = prioritiseCards(cards); delete $("card").dataset.finished; renderCard(); }
+function startFreePractice() { showReview("free");freePractice=true;reviewHistory=[];assessedCards.clear();queue=prioritiseCards(cards).map(card=>({...card,lessonStage:"recall"}));delete $("card").dataset.finished;renderCard(); }
 $("freePracticeButton").addEventListener("click", startFreePractice);
 const repeatPracticeButton = document.createElement("button"); repeatPracticeButton.id = "repeatPracticeButton"; repeatPracticeButton.className = "secondary hidden"; repeatPracticeButton.textContent = "↻ Karten noch einmal üben"; finishLessonButton.after(repeatPracticeButton); repeatPracticeButton.addEventListener("click", startFreePractice);
 new MutationObserver(() => { repeatPracticeButton.classList.toggle("hidden", Boolean(queue.length) || !cards.length); if (freePractice) { lessonProgress.textContent = `Freies Üben · ${Math.min(reviewHistory.length + (queue.length ? 1 : 0), cards.length)} von ${cards.length} Karten`; if (!queue.length && $("card").dataset.finished !== "practice") { $("card").dataset.finished = "practice"; $("card").innerHTML = '<strong>🎉 Übungsrunde geschafft!</strong><small>Du kannst deine Karten jederzeit noch einmal üben.</small>'; } } }).observe($("card"), { childList:true });
@@ -321,10 +377,9 @@ function showCardChoice() {
   document.body.classList.remove("in-conversation");
   for (const id of ["home","practice","summary","cards","statistics","profile"]) $(id).classList.add("hidden");
   $("cardChoice").classList.remove("hidden");
-  const completed = dailyLesson().completed;
-  const due = cards.filter(card => card.nextReviewAt <= Date.now() && !completed.includes(card.id)).length;
-  const remaining = Math.min(due, Math.max(0, dailyCardLimit - completed.length));
-  $("dailyChoiceHint").textContent = remaining ? `${remaining} Karten für deine heutige Lernrunde` : "Für heute sind keine weiteren Karten fällig";
+  const plan=prepareDailyLesson();
+  const remaining=plan.plannedIds.filter(id=>!plan.completed.includes(id)).length;
+  $("dailyChoiceHint").textContent=remaining?`${remaining} Lernziele · höchstens 3 neue, Wiederholungen zuerst`:"Für heute ist deine Lernrunde geschafft. Weiterüben ist freiwillig.";
 }
 $("choiceHomeButton").addEventListener("click", showHome);
 $("choiceCardsButton").addEventListener("click", showCardChoice);
@@ -334,12 +389,38 @@ $("cards").querySelector(".cards-nav button.active").addEventListener("click", s
 
 function showHome() { $("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); }
 function showPractice() { $("cardChoice").classList.add("hidden"); document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
-function showReview(includeAll = false) { $("cardChoice").classList.add("hidden"); freePractice = false; reviewHistory = []; assessedCards.clear(); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("cards").classList.remove("hidden"); const lesson = dailyLesson(); queue = prioritiseCards(cards.filter(c => c.nextReviewAt <= Date.now() && !lesson.completed.includes(c.id))).slice(0, Math.max(0, dailyCardLimit - lesson.completed.length)); delete $("card").dataset.finished; renderCard(); }
+function showReview(includeAll = false) {
+  $("cardChoice").classList.add("hidden");freePractice=false;reviewHistory=[];assessedCards.clear();
+  document.body.classList.remove("in-conversation");
+  for(const id of ["home","practice","summary","statistics","profile"]) $(id).classList.add("hidden");
+  $("cards").classList.remove("hidden");
+  if(includeAll === "free") queue=[]; else { const plan=prepareDailyLesson(true);queue=lessonQueue(cards,plan); }
+  repairFailed=false;delete $("card").dataset.finished;renderCard();
+}
 function fillInsightList(id, items, kind) { const list = $(id); list.replaceChildren(); items.forEach((item) => { const row = document.createElement("li"); row.textContent = item; row.className = kind; list.append(row); }); }
 function showStatistics() { $("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = cards.filter((card) => Number(card.knownStreak || 0) > 0).length; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
 function showProfile() { $("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
-function renderCard() { const card = queue[0]; answerVisible = false; $("speakPrompt").textContent = "Sprich die englische Übersetzung laut ins Mikrofon."; $("revealButton").classList.add("hidden"); $("listenButton").classList.add("hidden"); $("ratingButtons").classList.add("hidden"); $("speakPrompt").classList.add("hidden"); $("recordAnswerButton").classList.add("hidden"); $("voiceFeedback").className = "voice-feedback hidden"; if (!card) { $("card").innerHTML = "<strong>Alles geschafft.</strong><small>Deine nächste Wiederholung erscheint hier automatisch.</small>"; return; } $("card").innerHTML = `<span>🇩🇪 ${escapeHtml(card.front)}</span>`; $("speakPrompt").classList.remove("hidden"); $("recordAnswerButton").classList.remove("hidden"); $("recordAnswerButton").disabled = false; $("recordAnswerButton").textContent = "🎙 Antwort sprechen"; $("revealButton").classList.remove("hidden"); }
-function revealAnswer() { const card = queue[0]; if (!card || answerVisible) return; if (!assessedCards.has(card.id)) assessedCards.set(card.id, "assisted"); answerVisible = true; $("card").innerHTML = `<span>🇩🇪 ${escapeHtml(card.front)}</span><span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`; $("revealButton").classList.add("hidden"); $("recordAnswerButton").classList.remove("hidden"); $("speakPrompt").classList.add("hidden"); $("listenButton").classList.remove("hidden"); $("ratingButtons").classList.remove("hidden"); }
+function renderCard() {
+  const card=queue[0];answerVisible=false;
+  $("revealButton").classList.add("hidden");$("listenButton").classList.add("hidden");$("ratingButtons").classList.add("hidden");
+  $("speakPrompt").classList.add("hidden");$("recordAnswerButton").classList.add("hidden");$("voiceFeedback").className="voice-feedback hidden";
+  if(!card) {$("card").innerHTML="<strong>Für heute geschafft!</strong>";return;}
+  const introduction=!freePractice && card.lessonStage==="introduce";
+    if(card.retryPractice || introduction) assessedCards.delete(card.id);
+  const phase=introduction?"Kennenlernen":card.retryPractice?"Noch einmal ohne Hilfe":"Selbst erinnern";
+  $("card").innerHTML=`<small class="lesson-phase">${phase}</small><span>🇩🇪 ${escapeHtml(card.front)}</span>${introduction?`<span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`:""}`;
+  if(introduction) {answerVisible=true;if(imageHintsEnabled) appendLearningImage($("card"),card);}
+  $("speakPrompt").textContent=introduction?"Höre den englischen Satz an und sprich ihn nach. Gleich versuchst du ihn ohne Hilfe.":"Sprich die englische Übersetzung aus dem Gedächtnis.";
+  $("speakPrompt").classList.remove("hidden");$("recordAnswerButton").classList.remove("hidden");$("recordAnswerButton").disabled=false;$("recordAnswerButton").textContent="🎙 Zum Sprechen gedrückt halten";
+  if(!introduction) $("revealButton").classList.remove("hidden");
+}
+function revealAnswer() {
+  const card=queue[0];if(!card||answerVisible) return;
+  if(!assessedCards.has(card.id)) assessedCards.set(card.id,"assisted");
+  answerVisible=true;$("card").innerHTML=`<span>🇩🇪 ${escapeHtml(card.front)}</span><span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`;
+  if(imageHintsEnabled) appendLearningImage($("card"),card);
+  $("revealButton").classList.add("hidden");$("recordAnswerButton").classList.remove("hidden");$("speakPrompt").classList.add("hidden");$("listenButton").classList.remove("hidden");$("ratingButtons").classList.remove("hidden");
+}
 function speakAnswer() { const card = queue[0]; if (!card || !window.speechSynthesis) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(card.back); utterance.lang = "en-GB"; utterance.rate = 0.85; speechSynthesis.speak(utterance); }
 function readCardSentence(element) {
   if (!window.speechSynthesis || !queue[0] || reviewRecorder?.state === "recording") return;
@@ -355,7 +436,7 @@ new MutationObserver(() => { $("card").querySelectorAll(":scope > span").forEach
 $("card").addEventListener("click", (event) => { const sentence = event.target.closest("#card > span"); if (sentence) readCardSentence(sentence); });
 $("card").addEventListener("keydown", (event) => { if (["Enter", " "].includes(event.key) && event.target.matches("#card > span")) { event.preventDefault(); readCardSentence(event.target); } });
 function audioBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); }
-async function reviewRecordedAnswer(blob) { const card = queue[0]; if (!card) return; const button = $("recordAnswerButton"); button.textContent = "Antwort wird geprüft …"; button.disabled = true; try { const audio = await audioBase64(blob); const response = await fetch("/api/card-answer", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ audio, mime:blob.type || "audio/webm", expected:card.back, front:card.front }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Die Aufnahme konnte nicht geprüft werden."); if (!String(data.transcript || "").trim()) throw new Error("Keine klare Sprache erkannt. Bitte versuche es noch einmal; die Karte wird nicht schlechter bewertet."); const rating = { correct:"yes", close:"hard", incorrect:"no" }[data.result]; if (!rating) throw new Error("Die Bewertung war nicht eindeutig. Bitte sprich die Antwort noch einmal."); if (queue[0]?.id !== card.id) return; if (!assessedCards.has(card.id)) { const updated = freePractice || card.retryPractice ? card : rateCard(cards.find(c => c.id === card.id) || card, rating); cards = cards.map((item) => item.id === card.id ? updated : item); assessedCards.set(card.id, data.result); saveCards(); } const feedback = $("voiceFeedback"); feedback.className = `voice-feedback ${data.result}`; feedback.textContent = data.feedback; revealAnswer(); const correction = document.createElement("button"); correction.className = "secondary"; correction.textContent = "Bewertung stimmt nicht – erneut versuchen"; correction.onclick = () => { cards = cards.map(item => item.id === card.id ? card : item); assessedCards.delete(card.id); saveCards(); renderCard(); }; feedback.append(document.createElement("br"), correction); } catch (error) { $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Die Aufnahme konnte nicht geprüft werden."; button.textContent = "🎙 Noch einmal sprechen"; } finally { button.disabled = false; } }
+async function reviewRecordedAnswer(blob) { const card = queue[0]; if (!card) return; const button = $("recordAnswerButton"); button.textContent = "Antwort wird geprüft …"; button.disabled = true; try { const audio = await audioBase64(blob); const response = await fetch("/api/card-answer", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ audio, mime:blob.type || "audio/webm", expected:card.back, front:card.front }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Die Aufnahme konnte nicht geprüft werden."); if (!String(data.transcript || "").trim()) throw new Error("Keine klare Sprache erkannt. Bitte versuche es noch einmal; die Karte wird nicht schlechter bewertet."); const rating = { correct:"yes", close:"hard", incorrect:"no" }[data.result]; if (!rating) throw new Error("Die Bewertung war nicht eindeutig. Bitte sprich die Antwort noch einmal."); if (queue[0]?.id !== card.id) return; if (!assessedCards.has(card.id) || card.retryPractice) { const updated = freePractice || card.retryPractice || card.lessonStage === "introduce" ? (cards.find(c => c.id === card.id) || card) : rateCard(cards.find(c => c.id === card.id) || card, rating); cards = cards.map((item) => item.id === card.id ? updated : item); assessedCards.set(card.id, data.result); if(!freePractice && !card.retryPractice && card.lessonStage !== "introduce") card.scheduleApplied=true; saveCards(); } const feedback = $("voiceFeedback"); feedback.className = `voice-feedback ${data.result}`; feedback.textContent = data.feedback; revealAnswer(); const correction = document.createElement("button"); correction.className = "secondary"; correction.textContent = "Bewertung stimmt nicht – erneut versuchen"; correction.onclick = () => { cards = cards.map(item => item.id === card.id ? card : item); assessedCards.delete(card.id); card.scheduleApplied=false; saveCards(); renderCard(); }; feedback.append(document.createElement("br"), correction); } catch (error) { $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Die Aufnahme konnte nicht geprüft werden."; button.textContent = "🎙 Noch einmal sprechen"; } finally { button.disabled = false; } }
 async function recordAnswer() { try { if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("Die Mikrofonaufnahme wird auf diesem Gerät nicht unterstützt."); reviewStream = await navigator.mediaDevices.getUserMedia({ audio:true }); if (!answerHeld) { reviewStream.getTracks().forEach((track) => track.stop()); return; } reviewChunks = []; reviewRecorder = new MediaRecorder(reviewStream); reviewRecorder.ondataavailable = (event) => { if (event.data.size) reviewChunks.push(event.data); }; reviewRecorder.onstop = () => { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); reviewRecordedAnswer(new Blob(reviewChunks, { type:reviewRecorder.mimeType || "audio/webm" })); }; reviewRecorder.start(); startReviewMeter(reviewStream); } catch (error) { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Das Mikrofon konnte nicht gestartet werden."; } }
 function escapeHtml(text) { const el=document.createElement("span"); el.textContent=text; return el.innerHTML; }
 document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => { if (!queue[0]) return; const updated=rateCard(queue[0], button.dataset.rating); cards=cards.map(c=>c.id===updated.id?updated:c); queue.shift(); saveCards(); renderCard(); }));
