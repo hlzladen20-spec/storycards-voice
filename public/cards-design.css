@@ -47,6 +47,7 @@ body:has(#cards:not(.hidden)) .app>header h1{font-size:1.5rem;letter-spacing:-.0
 #cards #nextCardButton{grid-column:2;grid-row:1}
 #cards #nextCardButton{background:linear-gradient(145deg,#168574,#0b6658);color:white;border-color:transparent!important}
 #cards #backToPractice{display:block;margin:9px auto 0;font-size:.75rem;color:#71857c}
+#cards #backToPractice.card-return-button{align-self:flex-start;flex:none;width:auto;margin:0;padding:5px 8px;min-height:28px;border:1px solid #dce6dc;border-radius:9px;background:#f0f5ed;color:#216b59;font-size:.73rem;font-weight:650;line-height:1.25;text-align:left}
 #cards .voice-feedback{font-size:.95rem;border-radius:15px;line-height:1.5;padding:16px;margin:14px 0;border:1px solid #d5e6db;background:#eff7ee;color:#164b3b;box-shadow:0 3px 10px #163c3309}
 #cards .voice-feedback.correct::before{content:'✓ Gut gemacht!';display:block;font-size:1.2rem;font-weight:800;margin-bottom:6px;color:#087b59}
 #cards .voice-feedback.close{background:#fff5de;border-color:#eddfb6;color:#695020}

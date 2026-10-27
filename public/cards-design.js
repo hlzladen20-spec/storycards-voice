@@ -11,6 +11,10 @@ progress.innerHTML = '<div class="cards-progress-track" role="progressbar" aria-
 panel.insertBefore(progress, card);
 // Keep one stable outer box. Rendering a new sentence replaces #card's contents,
 // but must never remove the feedback element or the recording event handlers.
+const returnToConversation = document.getElementById('backToPractice');
+returnToConversation.className = 'ghost card-return-button';
+returnToConversation.textContent = '← Zurück zum Gespräch';
+panel.insertBefore(returnToConversation, panel.querySelector('h2'));
 const stage = document.createElement('div');
 stage.className = 'cards-stage';
 panel.insertBefore(stage, card);
@@ -19,7 +23,7 @@ const controls = document.createElement('div');
 controls.className = 'cards-controls';
 controls.setAttribute('aria-label', 'Kartensteuerung');
 panel.insertBefore(controls, panel.querySelector('.cards-nav'));
-for (const id of ['backToPractice', 'revealButton', 'ratingButtons', 'finishLessonButton', 'repeatPracticeButton', 'recordAnswerButton']) {
+for (const id of ['revealButton', 'ratingButtons', 'finishLessonButton', 'repeatPracticeButton', 'recordAnswerButton']) {
   const control = document.getElementById(id);
   if (control) controls.append(control);
 }
