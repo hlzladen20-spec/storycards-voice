@@ -78,6 +78,7 @@ function playLessonFanfare() {
   } catch { /* Lesson completion must remain available when sound is unavailable. */ }
 }
 const finishLessonButton = document.createElement("button");
+finishLessonButton.id = "finishLessonButton";
 finishLessonButton.className = "primary hidden"; finishLessonButton.textContent = "Fertig";
 reviewNavigation.after(finishLessonButton);
 finishLessonButton.addEventListener("click", showHome);
@@ -173,7 +174,7 @@ $("cards").insertBefore(practiceSwitch, lessonProgress);
 $("dailyPracticeButton").addEventListener("click", () => showReview());
 function startFreePractice() { showReview(); freePractice = true; reviewHistory = []; assessedCards.clear(); queue = prioritiseCards(cards); delete $("card").dataset.finished; renderCard(); }
 $("freePracticeButton").addEventListener("click", startFreePractice);
-const repeatPracticeButton = document.createElement("button"); repeatPracticeButton.className = "secondary hidden"; repeatPracticeButton.textContent = "↻ Karten noch einmal üben"; finishLessonButton.after(repeatPracticeButton); repeatPracticeButton.addEventListener("click", startFreePractice);
+const repeatPracticeButton = document.createElement("button"); repeatPracticeButton.id = "repeatPracticeButton"; repeatPracticeButton.className = "secondary hidden"; repeatPracticeButton.textContent = "↻ Karten noch einmal üben"; finishLessonButton.after(repeatPracticeButton); repeatPracticeButton.addEventListener("click", startFreePractice);
 new MutationObserver(() => { repeatPracticeButton.classList.toggle("hidden", Boolean(queue.length) || !cards.length); if (freePractice) { lessonProgress.textContent = `Freies Üben · ${Math.min(reviewHistory.length + (queue.length ? 1 : 0), cards.length)} von ${cards.length} Karten`; if (!queue.length && $("card").dataset.finished !== "practice") { $("card").dataset.finished = "practice"; $("card").innerHTML = '<strong>🎉 Übungsrunde geschafft!</strong><small>Du kannst deine Karten jederzeit noch einmal üben.</small>'; } } }).observe($("card"), { childList:true });
 let installPrompt;
 

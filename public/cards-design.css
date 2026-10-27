@@ -47,3 +47,44 @@ body:has(#cards:not(.hidden)) .app>header h1{font-size:1.5rem;letter-spacing:-.0
 @media(min-width:560px){#cards{max-width:480px;margin:10px auto 0!important}body:has(#cards:not(.hidden)) .app>header{max-width:480px;margin:auto}#cards #card{min-height:290px}}
 @media(max-width:380px){body:has(#cards:not(.hidden)) .app{padding-left:10px;padding-right:10px}#cards #card{min-height:225px;font-size:1.35rem}}
 @media(prefers-reduced-motion:reduce){.cards-progress-fill{transition:none}}
+
+/* The learning screen is one viewport; controls never move with the sentence. */
+body:has(#cards:not(.hidden)){height:100dvh;overflow:hidden;overscroll-behavior:none}
+body:has(#cards:not(.hidden)) .app{display:flex;flex-direction:column;height:100dvh;min-height:0;overflow:hidden;padding:8px 12px calc(var(--cards-nav-height,76px) + 8px);gap:6px}
+body:has(#cards:not(.hidden)) .app>header{flex:none;width:100%;max-width:480px;margin:0 auto;padding:0 2px 3px}
+body:has(#cards:not(.hidden)) .app>header h1{font-size:1.2rem}
+#cards.panel:not(.hidden){display:flex;flex-direction:column;flex:1;width:100%;max-width:480px;min-height:0;gap:7px;margin:0 auto!important;padding:0}
+#cards>.eyebrow{display:none}
+#cards>h2{flex:none;font-size:1.03rem;margin:0 2px 3px}
+#cards>.rating:first-of-type{display:grid;grid-template-columns:1fr 1fr;flex:none;gap:8px;margin:0!important}
+#cards #dailyPracticeButton,#cards #freePracticeButton{min-height:38px;padding:7px 10px;font-size:.82rem}
+#cards .cards-progress{flex:none;margin:2px 3px 3px}
+#cards .cards-stage{display:flex;flex-direction:column;flex:1;min-height:0;gap:8px;padding:12px;border:1px solid #e4e9df;border-radius:18px;background:linear-gradient(135deg,#fffffc,#fafcf6);box-shadow:0 3px 9px #163c3309;overflow:auto;overscroll-behavior:contain;overflow-wrap:anywhere;scrollbar-width:thin}
+#cards #card{flex:1;flex-shrink:0;min-height:0!important;padding:4px 5px;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:clamp(1.2rem,3.1dvh,1.65rem);line-height:1.35;gap:12px}
+#cards .card-language-flag{font-size:1.5rem;margin-bottom:8px}
+#cards #card .back{font-size:clamp(1.15rem,2.8dvh,1.45rem);line-height:1.4}
+#cards #speakPrompt{flex:none;margin:0;padding:5px;font-size:.9rem;line-height:1.4;text-align:center}
+#cards .cards-stage .voice-feedback{flex:none;padding:11px 12px;margin:0;font-size:1rem;line-height:1.4;border-radius:12px;box-shadow:none}
+#cards .cards-stage .voice-feedback.correct::before,#cards .cards-stage .voice-feedback.close::before{font-size:1.2rem;margin-bottom:4px}
+#cards .voice-feedback button.secondary{margin-top:6px;padding:7px;font-size:.76rem}
+#cards .cards-controls{flex:none;display:flex;flex-direction:column;gap:7px;width:100%;padding-top:2px;background:#fcfbf6}
+#cards .cards-controls #backToPractice{margin:0 auto;padding:2px 8px;min-height:22px;font-size:.72rem;line-height:1.3}
+#cards .cards-controls #revealButton{min-height:37px;margin:0;padding:8px;font-size:.84rem}
+#cards .cards-controls #ratingButtons{gap:8px;margin:0;width:100%}
+#cards .cards-controls #ratingButtons button{min-height:43px;margin:0;padding:10px 8px;font-size:.86rem}
+#cards .cards-controls #recordAnswerButton{flex:none;min-height:77px;height:77px;margin:0;padding:48px 8px 9px;border-radius:14px;font-size:.85rem}
+#cards .cards-controls #recordAnswerButton:not(.recording)::before{top:7px;width:36px;height:36px;background-size:29px}
+#cards .cards-controls #recordAnswerButton:not(.recording)::after{top:11px;font-size:21px}
+#cards .cards-controls #recordAnswerButton.recording{padding:8px;justify-content:center}
+#cards .cards-controls #finishLessonButton,#cards .cards-controls #repeatPracticeButton{margin:0;min-height:43px;font-size:.86rem}
+@media(max-height:650px){
+  body:has(#cards:not(.hidden)) .app{padding-top:4px;gap:4px}
+  body:has(#cards:not(.hidden)) .app>header{display:none}
+  #cards.panel:not(.hidden){gap:5px}
+  #cards .cards-stage{padding:9px;gap:5px}
+  #cards #card{font-size:1.2rem;gap:8px}
+  #cards #card .back{font-size:1.15rem}
+  #cards .card-language-flag{font-size:1.2rem;margin-bottom:5px}
+  #cards .cards-controls{gap:5px}
+  #cards .cards-controls #recordAnswerButton{height:68px;min-height:68px;padding-top:42px}
+}

@@ -2,7 +2,6 @@
 const panel = document.getElementById('cards');
 const card = document.getElementById('card');
 const feedback = document.getElementById('voiceFeedback');
-panel.insertBefore(feedback, document.getElementById('recordAnswerButton'));
 feedback.setAttribute('role', 'status');
 feedback.setAttribute('aria-live', 'polite');
 const progressText = panel.querySelector(':scope > .speak-prompt:not(#speakPrompt)');
@@ -10,6 +9,25 @@ const progress = document.createElement('div');
 progress.className = 'cards-progress';
 progress.innerHTML = '<div class="cards-progress-track" role="progressbar" aria-label="Lernfortschritt" aria-valuemin="0"><div class="cards-progress-fill"></div></div><span class="cards-progress-count"></span>';
 panel.insertBefore(progress, card);
+// Keep one stable outer box. Rendering a new sentence replaces #card's contents,
+// but must never remove the feedback element or the recording event handlers.
+const stage = document.createElement('div');
+stage.className = 'cards-stage';
+panel.insertBefore(stage, card);
+stage.append(card, document.getElementById('speakPrompt'), feedback);
+const controls = document.createElement('div');
+controls.className = 'cards-controls';
+controls.setAttribute('aria-label', 'Kartensteuerung');
+panel.insertBefore(controls, panel.querySelector('.cards-nav'));
+for (const id of ['backToPractice', 'revealButton', 'ratingButtons', 'finishLessonButton', 'repeatPracticeButton', 'recordAnswerButton']) {
+  const control = document.getElementById(id);
+  if (control) controls.append(control);
+}
+const nav = panel.querySelector('.cards-nav');
+if (nav && window.ResizeObserver) new ResizeObserver(() => {
+  const height = nav.getBoundingClientRect().height;
+  if (height) document.documentElement.style.setProperty('--cards-nav-height', height + 'px');
+}).observe(nav);
 const daily = document.getElementById('dailyPracticeButton');
 const free = document.getElementById('freePracticeButton');
 free.textContent = 'Frei üben';
