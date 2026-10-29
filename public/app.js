@@ -358,8 +358,10 @@ async function startSession() {
     await pc.setRemoteDescription({ type:"answer", sdp:await response.text() });
     startedAt = Date.now(); sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;sessionCountedSeconds=0; interval = setInterval(updateTimer, 1000); updateTimer();
     startButton.textContent = "🔴 Aufnahme läuft";
+    $("practice").dataset.keepAwake="true";
     status.textContent = "Du bist verbunden – sprich einfach Englisch."; setMicState("Ich höre zu …", true); pauseButton.disabled = false; setPauseLabel(false); finishButton.disabled = false;
   } catch (error) {
+    $("practice").dataset.keepAwake="false";
     const hint = error?.name === "NotAllowedError" ? "Windows hat den Mikrofonzugriff blockiert. Erlaube das Mikrofon für Desktop-Apps in den Windows-Einstellungen." : `${error?.name ? error.name + ": " : ""}${error?.message || "Unbekannter Fehler"}`;
     status.textContent = `${phase} fehlgeschlagen: ${hint}`;
     startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; pauseButton.disabled = true; setMicState("Bereit für dein Gespräch"); stream?.getTracks().forEach((t) => t.stop());
@@ -400,6 +402,7 @@ function handleEvent(event) {
 function togglePause() {
   if (!hasActiveConversation()) return;
   isPaused = !isPaused;
+  $("practice").dataset.keepAwake=String(!isPaused);
   if (isPaused) {
     pausedAt = Date.now(); clearInterval(interval); checkpointSpeakingTime(true); stream.getAudioTracks().forEach((track) => track.enabled = false); remoteAudio?.pause();
     if (dataChannel?.readyState === "open") dataChannel.send(JSON.stringify({ type:"session.input_audio.mute" }));
@@ -424,6 +427,7 @@ new MutationObserver(() => {
 
 async function finishSession() {
   if (finishingSession) return;
+  $("practice").dataset.keepAwake="false";
   checkpointSpeakingTime(true);
   sessionBudgetDate=null;
   finishingSession = true; timeExpired = false; clearTimeout(finishAfterAudioTimer);
