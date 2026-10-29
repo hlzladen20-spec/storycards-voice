@@ -5,6 +5,7 @@ import { initCloudAccount } from "/cloud-account.js";
 import { planDailyLesson, lessonQueue, retryAllowed, difficultCards } from "/lesson-planner.js";
 import { appendLearningImage } from "/learning-images.js";
 import { learningStreak, addPracticeDay, recoverPracticeDays } from "/learning-streak.js";
+import { speakingGoal, remainingSpeakingSeconds, addSpeakingSeconds, approveAnotherSpeakingLesson } from "/speaking-goal.js";
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -199,13 +200,24 @@ if (JSON.stringify(recoveredStats.practiceDays) !== JSON.stringify(learningStats
 let dailyCardLimit = Math.min(10, Math.max(1, Number(appStorage.getItem("storycards-daily-limit")) || 10));
 let dailySpeakingMinutes = Math.min(60, Math.max(1, Number(appStorage.getItem("storycards-speaking-minutes")) || 10));
 let sessionDurationSeconds = dailySpeakingMinutes * 60;
+let sessionCountedSeconds=0, sessionBudgetDate=null, sessionBudgetMinutes=dailySpeakingMinutes;
 const speakingSettings = document.createElement("div");
 speakingSettings.className = "profile-card";
 speakingSettings.innerHTML = '<label for="dailySpeakingMinutes"><strong>Sprechminuten pro Tag</strong></label><p>Wie lange möchtest du täglich Englisch sprechen?</p><input id="dailySpeakingMinutes" type="number" min="1" max="60" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="speakingMinutesSaved" role="status"></p>';
 $("profile").insertBefore(speakingSettings, $("profile").querySelector(".profile-section-title"));
 $("dailySpeakingMinutes").value = dailySpeakingMinutes;
-function refreshSpeakingGoal() { document.querySelector(".home-card h2").textContent = `${dailySpeakingMinutes} Minuten`; if (!hasActiveConversation()) { sessionDurationSeconds = dailySpeakingMinutes * 60; $("timerText").textContent = `${String(dailySpeakingMinutes).padStart(2, "0")}:00`; } const total = `${String(sessionDurationSeconds / 60).padStart(2, "0")}:00`; timer.querySelector("small").textContent = `/ ${total}`; document.querySelector(".home-countdown small").textContent = `/ ${total}`; document.querySelector(".home-countdown strong").textContent = $("timerText").textContent; }
-$("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinutes = Math.min(60, Math.max(1, Math.round(Number($("dailySpeakingMinutes").value) || 10))); $("dailySpeakingMinutes").value = dailySpeakingMinutes; appStorage.setItem("storycards-speaking-minutes", String(dailySpeakingMinutes)); refreshSpeakingGoal(); $("speakingMinutesSaved").textContent = hasActiveConversation() ? "Gespeichert – gilt ab dem nächsten Gespräch." : `Gespeichert: ${dailySpeakingMinutes} Minuten pro Tag.`; });
+function clockText(seconds) {return `${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;}
+function refreshSpeakingGoal() {
+  document.querySelector(".home-card h2").textContent=`${dailySpeakingMinutes} Minuten`;
+  if (!hasActiveConversation() && !sessionBudgetDate) {
+    sessionDurationSeconds=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes);
+    $("timerText").textContent=clockText(sessionDurationSeconds);
+  }
+  timer.querySelector("small").textContent=`/ ${clockText(sessionDurationSeconds)}`;
+  document.querySelector(".home-countdown small").textContent=`/ ${clockText(dailySpeakingMinutes*60)}`;
+  syncConversationClocks();
+}
+$("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinutes = Math.min(60, Math.max(1, Math.round(Number($("dailySpeakingMinutes").value) || 10))); $("dailySpeakingMinutes").value = dailySpeakingMinutes; appStorage.setItem("storycards-speaking-minutes", String(dailySpeakingMinutes)); if (!hasActiveConversation()) {learningStats={...learningStats,speakingGoal:speakingGoal(learningStats,dailySpeakingMinutes)};saveStats();} refreshSpeakingGoal(); $("speakingMinutesSaved").textContent = hasActiveConversation() ? "Gespeichert – gilt ab dem nächsten Gespräch." : `Gespeichert: ${dailySpeakingMinutes} Minuten pro Tag.`; });
 function localLearningDay() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`; }
 function dailyLesson() { const saved=learningStorage.load("lesson",null);return saved?.day===localLearningDay()?saved:{day:localLearningDay(),completed:[]}; }
 function prepareDailyLesson(persist=false) {
@@ -297,10 +309,28 @@ function showEmmaFrame(frame) { $("emmaAvatar").src = frame; document.querySelec
 function setEmmaSpeaking(speaking) { clearTimeout(emmaQuietTimer); const stage = $("coachStage"); stage.classList.toggle("speaking", speaking); if (!speaking) { showEmmaFrame("/emma-coach.png"); return; } showEmmaFrame("/emma-coach-talking.png"); emmaQuietTimer = setTimeout(() => setEmmaSpeaking(false), 1250); }
 function scheduleEmmaBlink() { clearTimeout(emmaBlinkTimer); emmaBlinkTimer = setTimeout(() => { if (!$("coachStage").classList.contains("speaking")) { showEmmaFrame("/emma-coach-blink.png"); setTimeout(() => showEmmaFrame("/emma-coach.png"), 150); } scheduleEmmaBlink(); }, 3200 + Math.floor(Math.random() * 2200)); }
 function addMessage(role, text) { if (!text?.trim()) return; const el = document.createElement("p"); el.className = `message ${role}`; if (role === "coach") { const avatar = document.createElement("img"); avatar.className = "emma-mini"; avatar.src = $("emmaAvatar").src; avatar.alt = "Emma"; const bubble = document.createElement("span"); bubble.textContent = text; el.append(avatar, bubble); } else { el.textContent = text; } messages.append(el); messages.scrollTop = messages.scrollHeight; }
-function updateTimer() { const elapsed = Date.now() - startedAt - pausedDuration - (isPaused ? Date.now() - pausedAt : 0); const remaining = Math.max(0, sessionDurationSeconds - Math.floor(elapsed / 1000)); $("timerText").textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`; timer.style.background = `conic-gradient(#1d8b71 ${(sessionDurationSeconds - remaining) / sessionDurationSeconds * 360}deg,#dcece7 0deg)`; if (!remaining) finishWhenEmmaIsDone(); }
+function updateTimer() { const elapsed = Date.now() - startedAt - pausedDuration - (isPaused ? Date.now() - pausedAt : 0); checkpointSpeakingTime(); const remaining = Math.max(0, sessionDurationSeconds - Math.floor(elapsed / 1000)); $("timerText").textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`; timer.style.background = `conic-gradient(#1d8b71 ${(sessionDurationSeconds - remaining) / sessionDurationSeconds * 360}deg,#dcece7 0deg)`; if (!remaining) finishWhenEmmaIsDone(); }
+
+function checkpointSpeakingTime(force=false) {
+  if (!sessionBudgetDate || !startedAt) return;
+  const elapsed=Math.max(0,Math.min(sessionDurationSeconds,Math.floor((Date.now()-startedAt-pausedDuration-(isPaused?Date.now()-pausedAt:0))/1000)));
+  const delta=elapsed-sessionCountedSeconds;
+  if(delta<=0 || (!force && delta<15)) return;
+  learningStats=addSpeakingSeconds(learningStats,sessionBudgetMinutes,delta,sessionBudgetDate);
+  sessionCountedSeconds=elapsed;
+  saveStats();
+}
+window.addEventListener("pagehide",()=>checkpointSpeakingTime(true));
 
 async function startSession() {
-  if (hasActiveConversation()) { if (isPaused) togglePause(); return; }
+  if (hasActiveConversation()) { if (isPaused && !timeExpired) togglePause(); return; }
+  if (timeExpired || finishButton.classList.contains("creating-cards")) return;
+  if (!remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)) {
+    if (!window.confirm(`Deine eingestellte Lernzeit ist geschafft! Möchtest du ausdrücklich eine weitere Lektion mit ${dailySpeakingMinutes} Minuten starten?`)) { showHome(); return; }
+    learningStats=approveAnotherSpeakingLesson(learningStats,dailySpeakingMinutes);
+    saveStats();
+  }
+  sessionBudgetDate=null;
   timeExpired = false; responseActive = false; outputPlaying = false; finishingSession = false; clearTimeout(finishAfterAudioTimer);
   refreshSpeakingGoal();
   let phase = "Mikrofon";
@@ -326,7 +356,7 @@ async function startSession() {
     const response = await fetch("/api/realtime/session", { method:"POST", headers:{"Content-Type":"application/sdp"}, body: offer.sdp });
     if (!response.ok) { const data = await response.json(); throw new Error(typeof data.error === "string" ? data.error : (data.error?.message || data.detail || "Verbindung fehlgeschlagen")); }
     await pc.setRemoteDescription({ type:"answer", sdp:await response.text() });
-    startedAt = Date.now(); interval = setInterval(updateTimer, 1000); updateTimer();
+    startedAt = Date.now(); sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;sessionCountedSeconds=0; interval = setInterval(updateTimer, 1000); updateTimer();
     startButton.textContent = "🔴 Aufnahme läuft";
     status.textContent = "Du bist verbunden – sprich einfach Englisch."; setMicState("Ich höre zu …", true); pauseButton.disabled = false; setPauseLabel(false); finishButton.disabled = false;
   } catch (error) {
@@ -371,7 +401,7 @@ function togglePause() {
   if (!hasActiveConversation()) return;
   isPaused = !isPaused;
   if (isPaused) {
-    pausedAt = Date.now(); clearInterval(interval); stream.getAudioTracks().forEach((track) => track.enabled = false); remoteAudio?.pause();
+    pausedAt = Date.now(); clearInterval(interval); checkpointSpeakingTime(true); stream.getAudioTracks().forEach((track) => track.enabled = false); remoteAudio?.pause();
     if (dataChannel?.readyState === "open") dataChannel.send(JSON.stringify({ type:"session.input_audio.mute" }));
     setPauseLabel(true); status.textContent = "Pausiert – das Mikrofon hört gerade nicht zu."; setMicState("Gespräch pausiert"); setEmmaSpeaking(false); $("coachStage").classList.add("paused");
   } else {
@@ -382,7 +412,7 @@ function togglePause() {
 }
 
 function hasActiveConversation() { return Boolean(stream?.getAudioTracks().some((track) => track.readyState === "live") && pc && pc.connectionState !== "closed" && !finishButton.disabled); }
-function syncConversationClocks() { const homeClock = document.querySelector(".home-countdown strong"); if (homeClock) homeClock.textContent = $("timerText").textContent; const button = $("homeStartButton"); if (hasActiveConversation()) button.innerHTML = '🎙 Gespräch fortsetzen <span>›</span>'; else button.innerHTML = '🎙 Gespräch starten <span>›</span>'; }
+function syncConversationClocks() { const homeClock = document.querySelector(".home-countdown strong"); if (homeClock) homeClock.textContent = $("timerText").textContent; const button = $("homeStartButton"); if (hasActiveConversation()) button.innerHTML = '🎙 Gespräch fortsetzen <span>›</span>'; else button.innerHTML = remainingSpeakingSeconds(learningStats,dailySpeakingMinutes) ? '🎙 Gespräch starten <span>›</span>' : '✓ Lernzeit geschafft · weitere Lektion <span>›</span>'; }
 new MutationObserver(syncConversationClocks).observe($("timerText"), { childList:true });
 new MutationObserver(() => {
   if (!hasActiveConversation()) return;
@@ -394,11 +424,13 @@ new MutationObserver(() => {
 
 async function finishSession() {
   if (finishingSession) return;
+  checkpointSpeakingTime(true);
+  sessionBudgetDate=null;
   finishingSession = true; timeExpired = false; clearTimeout(finishAfterAudioTimer);
   clearInterval(interval); isPaused = false; setEmmaSpeaking(false); $("coachStage").classList.remove("paused"); pauseButton.disabled = true; finishButton.disabled = true; setFinishBusy(true); startButton.textContent = "Gespräch beendet"; setMicState("Gespräch wird ausgewertet …"); stream?.getTracks().forEach((t) => t.stop()); pc?.close();
   if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; setFinishBusy(false); return; }
   status.textContent = "Ich erstelle deine persönlichen Karten …";
-  try { const response = await fetch("/api/flashcards", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ transcript }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error); const newCards = normaliseCards(data.cards); if (!newCards.length) throw new Error("Aus diesem Gespräch konnte ich noch keine passenden Karten ableiten."); cards = [...cards, ...newCards]; rememberFocus(data.focus); saveCards(); recordCompletedSession(); sessionWasEvaluated = true; status.textContent = `${newCards.length} neue Karten sind bereit.`; startButton.disabled = false; startButton.textContent = "🎙 Weiter sprechen"; setMicState("Du kannst weiter sprechen oder deine Karten üben."); showSummary(newCards.length, cleanFocus(data.focus).length); } catch(error) { status.textContent = error.message; startButton.disabled = false; startButton.textContent = "🎙 Weiter sprechen"; setMicState("Du kannst das Gespräch fortsetzen."); } finally { setFinishBusy(false); }
+  try { const response = await fetch("/api/flashcards", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ transcript }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error); const newCards = normaliseCards(data.cards); if (!newCards.length) throw new Error("Aus diesem Gespräch konnte ich noch keine passenden Karten ableiten."); cards = [...cards, ...newCards]; rememberFocus(data.focus); saveCards(); recordCompletedSession(); sessionWasEvaluated = true; status.textContent = `${newCards.length} neue Karten sind bereit.`; startButton.disabled = false; startButton.textContent = "🎙 Weiter sprechen"; setMicState("Du kannst weiter sprechen oder deine Karten üben."); showSummary(newCards.length, cleanFocus(data.focus).length); } catch(error) { status.textContent = error.message; startButton.disabled = false; startButton.textContent = "🎙 Weiter sprechen"; setMicState("Du kannst das Gespräch fortsetzen."); } finally { setFinishBusy(false); refreshSpeakingGoal(); }
 }
 
 function showSummary(cardCount, focusCount) { $("cardChoice").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.remove("hidden"); const minutes = Math.max(1, Math.round((Date.now() - startedAt - pausedDuration) / 60000)); const focus = cleanFocus(learningProfile.focus); $("summaryText").textContent = `Du hast ${minutes} Minuten Englisch gesprochen.`; $("summaryMinutes").textContent = minutes; $("summaryCards").textContent = cardCount; $("summaryFocus").textContent = focusCount; const topics = $("summaryTopics"); topics.replaceChildren(); (focus.length ? focus : [{ pattern:"Freies Sprechen" }]).forEach((item) => { const chip = document.createElement("span"); chip.className = "summary-topic"; chip.textContent = item.pattern; topics.append(chip); }); const focusCard = $("summaryFocusCard"), first = focus[0]; $("summaryFocusText").textContent = first ? `Dein nächster Fokus: ${first.pattern}. ${first.practice}` : "Heute ging es vor allem darum, frei und verständlich zu sprechen."; focusCard.classList.remove("hidden"); }
@@ -419,7 +451,7 @@ $("choiceProgressButton").addEventListener("click", showStatistics);
 $("choiceProfileButton").addEventListener("click", showProfile);
 $("cards").querySelector(".cards-nav button.active").addEventListener("click", showCardChoice);
 
-function showHome() { $("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); }
+function showHome() { $("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); refreshSpeakingGoal(); }
 function showPractice() { $("cardChoice").classList.add("hidden"); document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
 function showReview(includeAll = false) {
   $("cardChoice").classList.add("hidden");freePractice=false;weakPractice=includeAll==="weak";reviewHistory=[];assessedCards.clear();
@@ -482,4 +514,5 @@ $("conversationCardsButton").addEventListener("click", () => { if (stream?.getAu
 $("subtitleButton").addEventListener("click", () => { const visible = $("subtitleButton").getAttribute("aria-pressed") !== "true"; $("subtitleButton").setAttribute("aria-pressed", String(visible)); $("practice").classList.toggle("subtitles-off", !visible); messages.setAttribute("aria-hidden", String(!visible)); });
 startButton.addEventListener("click", startSession); pauseButton.addEventListener("click", togglePause); finishButton.addEventListener("click", finishSession); $("conversationBackButton").addEventListener("click", () => { if (stream && !isPaused) togglePause(); showHome(); }); $("conversationSettingsButton").addEventListener("click", () => $("modePicker").classList.toggle("hidden")); $("keyboardButton").addEventListener("click", () => { status.textContent = "Sprich einfach weiter – die Tastatur kommt als Nächstes."; }); $("summaryBackButton").addEventListener("click", showHome); $("summaryCloseButton").addEventListener("click", showHome); $("statisticsBackButton").addEventListener("click", showHome); $("profileBackButton").addEventListener("click", showHome); $("continueButton").addEventListener("click", () => { showPractice(); startSession(); }); $("homeNavButton").addEventListener("click", showHome); $("cardsNavButton").addEventListener("click", () => showCardChoice()); $("progressNavButton").addEventListener("click", showStatistics); $("profileNavButton").addEventListener("click", showProfile); $("statisticsHomeButton").addEventListener("click", showHome); $("statisticsCardsButton").addEventListener("click", () => showCardChoice()); $("statisticsProfileButton").addEventListener("click", showProfile); $("cardsHomeButton").addEventListener("click", showHome); $("cardsProgressButton").addEventListener("click", showStatistics); $("cardsProfileButton").addEventListener("click", showProfile); $("profileHomeButton").addEventListener("click", showHome); $("profileCardsButton").addEventListener("click", () => showCardChoice()); $("profileProgressButton").addEventListener("click", showStatistics); $("toCardsButton").addEventListener("click", () => showCardChoice()); $("recordAnswerButton").addEventListener("click", recordAnswer); $("revealButton").addEventListener("click", revealAnswer); $("listenButton").addEventListener("click", speakAnswer); $("backToPractice").addEventListener("click", showPractice); updateDue(); updateFocusHint(); scheduleEmmaBlink();
 account.mount($("profile"), () => hasActiveConversation() || reviewRecorder?.state === "recording" || answerStarting || $("recordAnswerButton").disabled);
+refreshSpeakingGoal();
 await import("/cards-design.js");
