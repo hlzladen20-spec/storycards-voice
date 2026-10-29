@@ -311,16 +311,19 @@ function scheduleEmmaBlink() { clearTimeout(emmaBlinkTimer); emmaBlinkTimer = se
 function addMessage(role, text) { if (!text?.trim()) return; const el = document.createElement("p"); el.className = `message ${role}`; if (role === "coach") { const avatar = document.createElement("img"); avatar.className = "emma-mini"; avatar.src = $("emmaAvatar").src; avatar.alt = "Emma"; const bubble = document.createElement("span"); bubble.textContent = text; el.append(avatar, bubble); } else { el.textContent = text; } messages.append(el); messages.scrollTop = messages.scrollHeight; }
 function updateTimer() { const elapsed = Date.now() - startedAt - pausedDuration - (isPaused ? Date.now() - pausedAt : 0); checkpointSpeakingTime(); const remaining = Math.max(0, sessionDurationSeconds - Math.floor(elapsed / 1000)); $("timerText").textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`; timer.style.background = `conic-gradient(#1d8b71 ${(sessionDurationSeconds - remaining) / sessionDurationSeconds * 360}deg,#dcece7 0deg)`; if (!remaining) finishWhenEmmaIsDone(); }
 
-function checkpointSpeakingTime(force=false) {
+function checkpointSpeakingTime() {
   if (!sessionBudgetDate || !startedAt) return;
   const elapsed=Math.max(0,Math.min(sessionDurationSeconds,Math.floor((Date.now()-startedAt-pausedDuration-(isPaused?Date.now()-pausedAt:0))/1000)));
   const delta=elapsed-sessionCountedSeconds;
-  if(delta<=0 || (!force && delta<15)) return;
+  // Save before displaying each elapsed second, not just every 15 seconds.
+  if(delta<=0) return;
   learningStats=addSpeakingSeconds(learningStats,sessionBudgetMinutes,delta,sessionBudgetDate);
   sessionCountedSeconds=elapsed;
   saveStats();
 }
 window.addEventListener("pagehide",()=>checkpointSpeakingTime(true));
+window.addEventListener("beforeunload",()=>checkpointSpeakingTime(true));
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")checkpointSpeakingTime(true);});
 
 async function startSession() {
   if (hasActiveConversation()) { if (isPaused && !timeExpired) togglePause(); return; }
