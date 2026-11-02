@@ -1,88 +1,87 @@
-import {initialVocabulary,addVocabulary,vocabularyLesson,introduceVocabulary,rateVocabulary,finishVocabulary,VOCABULARY_SECONDS} from './vocabulary.js';
+import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,swipeRating,VOCABULARY_SECONDS} from './vocabulary.js';
 
-export function setupVocabularyTrainer({storage,onOpen,onPractice}) {
- let state=storage.load('vocabulary',null)||initialVocabulary(),revealed=false,independent=false,lastTick=Date.now();
+export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[]}) {
+ let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null;
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
- panel.innerHTML=`<button class="ghost vocab-back" type="button">← Zurück zu den Karten</button><p class="eyebrow">WÖRTER SCHRITT FÜR SCHRITT</p><h2>Dein Vokabeltrainer</h2>
- <p>Erinnern statt nur lesen: am nächsten Tag, nach 3 Tagen, nach einer Woche. Vergessenes kommt früher zurück.</p>
- <p class="vocab-progress" role="status"></p><div class="vocab-word"></div>
- <form class="vocab-answer"><label>Englisches Wort aus dem Gedächtnis<input name="answer" autocomplete="off" autocapitalize="none" spellcheck="false"></label><button class="secondary" type="submit">Antwort aufdecken</button></form>
- <button class="primary vocab-introduce" type="button">Gelernt – später ohne Hilfe versuchen</button>
- <div class="vocab-ratings"><button type="button" data-grade="no" class="secondary">Nicht gewusst</button><button type="button" data-grade="hard" class="secondary">Unsicher</button><button type="button" data-grade="yes" class="primary">Gewusst</button></div>
+ panel.innerHTML=`<button class="ghost vocab-back" type="button">← Zurück zu den Karten</button><p class="eyebrow">DEINE PERSÖNLICHEN KURZSÄTZE</p><h2>Vokabeltrainer</h2>
+ <p>Aus erkannten Schwierigkeiten deiner Gespräche · höchstens 6 Wörter pro Satz.</p>
+ <p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Heute nach SRS gelernt" max="15" value="0"></progress>
+ <div class="vocab-word" tabindex="0" aria-label="Kurzer Satz: rechts gewusst, links nicht gewusst"></div>
+ <p class="vocab-swipe-hint">← Nicht gewusst · Gewusst →</p>
+ <div class="vocab-ratings"><button type="button" data-grade="no" class="secondary">← Nicht gewusst</button><button type="button" data-grade="yes" class="primary">Gewusst →</button></div>
+ <button class="primary vocab-next" type="button" hidden>Weiter – noch einmal ohne Hilfe</button>
  <p class="vocab-status" role="status" aria-live="polite"></p>
- <details class="vocab-manager"><summary>Wörter hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch<input name="front" required maxlength="160"></label><label>Englisch<input name="back" required maxlength="160"></label><button class="primary" type="submit">＋ Wort hinzufügen</button></form><div class="vocab-list"></div></details>
+ <details class="vocab-learned"><summary>Gelernte Karten nach SRS <span class="vocab-learned-count"></span></summary><div class="vocab-learned-list"></div></details>
+ <details class="vocab-manager"><summary>Kurze Sätze hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch (2–6 Wörter)<input name="front" required maxlength="70"></label><label>Englisch (2–6 Wörter)<input name="back" required maxlength="70"></label><button class="primary" type="submit">＋ Kurzen Satz hinzufügen</button></form><p class="vocab-archive"></p><div class="vocab-list"></div></details>
  <nav class="bottom-nav" aria-label="Hauptmenü"><button type="button" data-target="choiceHomeButton">⌂<small>Home</small></button><button type="button" data-target="choiceCardsButton" class="active">▣<small>Karten</small></button><button type="button" data-target="choiceProgressButton">▥<small>Statistiken</small></button><button type="button" data-target="choiceProfileButton">♙<small>Profil</small></button></nav>`;
  document.querySelector('main.app').append(panel);
  const $=selector=>panel.querySelector(selector),save=()=>storage.save('vocabulary',state);
  const button=document.createElement('button');button.type='button';button.className='card-choice-option';button.id='vocabularyChoiceButton';
- button.innerHTML='<span><strong>Vokabeltrainer</strong><small>Neue Wörter und passende Wiederholungen · bis zu 15 Minuten</small></span><b aria-hidden="true">›</b>';
+ button.innerHTML='<span><strong>Vokabeltrainer</strong><small>Deine kurzen Gesprächssätze · mit Wischen lernen</small></span><b aria-hidden="true">›</b>';
  document.getElementById('cardChoice').insertBefore(button,document.getElementById('cardChoice').querySelector('nav'));
- function say(text,lang) {
-  if(!window.speechSynthesis) return;
-  speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang=lang;utterance.rate=.85;speechSynthesis.speak(utterance);
- }
- function line(text,tag='p') {const node=document.createElement(tag);node.textContent=text;return node;}
- function wordView(word,answer=false) {
+ function line(text,tag='p'){const node=document.createElement(tag);node.textContent=text;return node;}
+ function say(text){if(!window.speechSynthesis)return;speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang='en-GB';utterance.rate=.85;speechSynthesis.speak(utterance);}
+ function wordView(word,answer=false){
   const box=$('.vocab-word');box.replaceChildren(line(word.front,'h3'));
-  if(answer) {
-   const english=line(`🇬🇧 ${word.back}`,'button');english.type='button';english.className='ghost';english.title='Englisches Wort vorlesen';english.textContent+=' 🔊';english.onclick=()=>say(word.back,'en-GB');box.append(english);
-   if(word.example) box.append(line(word.example));
-  }
+  if(answer){const english=line(`🇬🇧 ${word.back} 🔊`,'button');english.type='button';english.className='ghost';english.setAttribute('aria-label','Englischen kurzen Satz anhören');english.onclick=()=>say(word.back);box.append(english);}
  }
- function renderList() {
-  const list=$('.vocab-list');list.replaceChildren();
-  for(const word of state.words) {
-   const row=document.createElement('div');row.append(line(`${word.front} – ${word.back} · ${word.attempts?`Wiederholung: ${new Date(word.nextReviewAt).toLocaleDateString('de-DE')}`:'neu'}`,'span'));
+ function progress(){
+  const p=vocabularyProgress(state);$('.vocab-progress').textContent=`Heute ${p.learned}/${p.total} Vokabelkarten gelernt · ${Math.floor((state.lesson?.activeMs||0)/60000)}/15 Minuten`;
+  $('.vocab-bar').max=p.total||1;$('.vocab-bar').value=p.learned;
+ }
+ function renderLists(){
+  const list=$('.vocab-list'),learned=$('.vocab-learned-list');list.replaceChildren();learned.replaceChildren();
+  const known=state.words.filter(w=>w.stage>0 && w.lastRating==='yes').sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+  $('.vocab-learned-count').textContent=`(${known.length})`;
+  for(const w of known){const row=line(`${w.front} – ${w.back} · SRS-Stufe ${w.stage} · wieder am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(w.back);row.append(audio);learned.append(row);}
+  if(!known.length)learned.append(line('Noch keine Karte sicher erinnert. Aufgedeckte Lösungen zählen nicht als gelernt.'));
+  for(const word of state.words){
+   const row=document.createElement('div');row.append(line(`${word.front} – ${word.back}`,'span'));
    const remove=line('Entfernen','button');remove.type='button';remove.className='ghost';
-   remove.onclick=()=>{if(!window.confirm(`„${word.back}“ aus dem Vokabeltrainer entfernen?`))return;state={...state,words:state.words.filter(w=>w.id!==word.id)};if(state.lesson)state.lesson.queue=state.lesson.queue.filter(item=>item.id!==word.id);save();renderList();render();};
+   remove.onclick=()=>{if(!window.confirm('Diesen kurzen Satz entfernen?'))return;state={...state,words:state.words.filter(w=>w.id!==word.id),ignoredSourceIds:[...(state.ignoredSourceIds||[]),word.sourceCardId].filter(Boolean)};if(state.lesson){state.lesson.queue=state.lesson.queue.filter(i=>i.id!==word.id);state.lesson.ids=state.lesson.ids.filter(id=>id!==word.id);}answerCard=null;render();};
    row.append(remove);list.append(row);
   }
+  $('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
  }
- function render() {
-  state=vocabularyLesson(state);revealed=false;independent=false;$('.vocab-answer').reset();
-  if(!state.lesson.queue.length && !state.lesson.closed) state=finishVocabulary(state);
-  save();const lesson=state.lesson,item=lesson.queue[0],word=state.words.find(w=>w.id===item?.id);
-  const done=lesson.ids.filter(id=>lesson.rated.includes(id)).length;
-  $('.vocab-progress').textContent=`${done} von ${lesson.ids.length} Wörtern · ${Math.floor(lesson.activeMs/60000)} / 15 Minuten · bis zu ${state.newLimit} neue Wörter pro Tag`;
-  const ended=lesson.closed || !word;
-  $('.vocab-answer').hidden=ended || Boolean(item?.introduce);$('.vocab-introduce').hidden=ended || !item?.introduce;$('.vocab-ratings').hidden=true;
-  if(ended) {
-   $('.vocab-word').replaceChildren(line(lesson.activeMs>=VOCABULARY_SECONDS*1000?'Deine 15 Minuten sind geschafft!':'Für heute geschafft!','h3'),line('Deine nächsten Wiederholungen sind gespeichert. Morgen geht es weiter.'));
-   $('.vocab-status').textContent='Wörter kannst du unten jederzeit ergänzen. Neue Wörter verlängern die heutige Runde nicht.';return;
+ function render(){
+  state=vocabularyLesson(state);
+  if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
+  save();progress();renderLists();
+  const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
+  $('.vocab-ratings').hidden=ended||Boolean(answerCard);$('.vocab-next').hidden=ended||!answerCard;$('.vocab-swipe-hint').hidden=ended||Boolean(answerCard);
+  if(ended){
+   $('.vocab-word').replaceChildren(line(!state.words.length?'Noch keine persönlichen Kurzsätze':state.lesson.activeMs>=900000?'Deine 15 Minuten sind geschafft!':'Runde geschafft!','h3'));
+   $('.vocab-status').textContent=!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Schwierige Karten bleiben früher fällig.';return;
   }
-  wordView(word,item.introduce);
-  $('.vocab-status').textContent=item.introduce?'Höre dir das neue Wort an und lerne es kennen. Später versuchst du es ohne Hilfe.':item.retry?'Noch einmal ohne Hilfe: Dieses Wort war gerade schwierig.':'Versuche erst, dich selbst zu erinnern. Mit Aufdecken allein gilt ein Wort noch nicht als gewusst.';
+  wordView(word,Boolean(answerCard));
+  $('.vocab-status').textContent=answerCard?'Höre die englische Lösung an und sprich sie nach. Danach geht es ohne sichtbare Lösung weiter.':'Übersetze im Kopf oder sprich den Satz. Rechts: ohne Hilfe gewusst. Links: Lösung lernen.';
  }
- function tick() {
+ function tick(){
   const now=Date.now(),delta=now-lastTick;lastTick=now;
-  if(panel.classList.contains('hidden') || document.visibilityState!=='visible' || !state.lesson || state.lesson.closed) return;
+  if(panel.classList.contains('hidden')||document.visibilityState!=='visible'||!state.lesson||state.lesson.closed)return;
   state.lesson.activeMs=Math.min(VOCABULARY_SECONDS*1000,state.lesson.activeMs+Math.max(0,delta));
-  if(state.lesson.activeMs>=VOCABULARY_SECONDS*1000) {state=finishVocabulary(state);render();}
-  else {save();$('.vocab-progress').textContent=`${state.lesson.ids.filter(id=>state.lesson.rated.includes(id)).length} von ${state.lesson.ids.length} Wörtern · ${Math.floor(state.lesson.activeMs/60000)} / 15 Minuten · bis zu ${state.newLimit} neue Wörter pro Tag`;}
+  if(state.lesson.activeMs>=VOCABULARY_SECONDS*1000){answerCard=null;state=finishVocabulary(state);render();}
+  else{save();progress();}
  }
- button.onclick=()=>{onOpen();panel.classList.remove('hidden');lastTick=Date.now();render();renderList();};
+ function rate(rating){
+  tick();if(answerCard||state.lesson?.closed)return;
+  const word=state.words.find(w=>w.id===state.lesson.queue[0]?.id);if(!word)return;
+  state=rateVocabulary(state,rating);onPractice();if(rating==='no')answerCard=word;render();
+ }
+ function syncCards(){state=importConversationVocabulary(state,getCards());save();}
+ button.onclick=()=>{syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;render();};
  $('.vocab-back').onclick=()=>document.getElementById('choiceCardsButton').click();
- panel.querySelectorAll('[data-target]').forEach(node=>node.onclick=()=>document.getElementById(node.dataset.target).click());
- $('.vocab-introduce').onclick=()=>{tick();if(state.lesson.closed)return;state=introduceVocabulary(state);onPractice();render();};
- $('.vocab-answer').onsubmit=event=>{
-  event.preventDefault();tick();if(state.lesson.closed)return;
-  const word=state.words.find(w=>w.id===state.lesson.queue[0]?.id);if(!word || revealed)return;
-  independent=Boolean($('.vocab-answer input').value.trim());revealed=true;wordView(word,true);
-  if(independent) $('.vocab-word').append(line(`Deine Antwort: ${$('.vocab-answer input').value.trim()}`));
-  $('.vocab-answer').hidden=true;$('.vocab-ratings').hidden=false;
-  panel.querySelector('[data-grade=yes]').disabled=!independent;panel.querySelector('[data-grade=hard]').disabled=!independent;
-  $('.vocab-status').textContent=independent?'Vergleiche deine Antwort mit der Lösung und bewerte ehrlich, wie sicher du warst.':'Mit Hilfe aufgedeckt: Sprich das Wort nach. Es bleibt als noch nicht gewusst vorgemerkt.';
- };
- panel.querySelectorAll('[data-grade]').forEach(node=>node.onclick=()=>{tick();if(!revealed || state.lesson.closed || (!independent && node.dataset.grade!=='no'))return;state=rateVocabulary(state,node.dataset.grade);onPractice();render();});
- $('.vocab-add').onsubmit=event=>{
-  event.preventDefault();try{const data=new FormData(event.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();event.target.reset();renderList();$('.vocab-status').textContent='Wort gespeichert. Es kommt in eine kommende Tagesportion.';}catch(error){$('.vocab-status').textContent=error.message;}
- };
- document.addEventListener('storycards-save-vocabulary',event=>{
-  try{state=addVocabulary(state,event.detail.front,event.detail.back,event.detail.example);save();event.detail.onResult?.('Im Vokabeltrainer gespeichert');}
-  catch(error){event.detail.onResult?.(error.message);}
- });
- // Reset the sampling point on return: background time is not learning time.
+ panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());
+ panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
+ $('.vocab-next').onclick=()=>{answerCard=null;render();};
+ const box=$('.vocab-word');
+ box.addEventListener('pointerdown',e=>{if(e.button!==0||answerCard)return;gesture={id:e.pointerId,x:e.clientX,y:e.clientY};box.setPointerCapture?.(e.pointerId);});
+ box.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);gesture=null;if(rating)rate(rating);});
+ box.addEventListener('pointercancel',()=>{gesture=null;});
+ box.addEventListener('keydown',e=>{if(e.target!==box)return;if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();rate(e.key==='ArrowRight'?'yes':'no');}});
+ $('.vocab-add').onsubmit=e=>{e.preventDefault();try{const data=new FormData(e.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();e.target.reset();renderLists();$('.vocab-status').textContent='Kurzer Satz gespeichert. Er kommt in eine kommende Tagesportion.';}catch(error){$('.vocab-status').textContent=error.message;}};
+ document.addEventListener('storycards-cards-updated',syncCards);
  document.addEventListener('visibilitychange',()=>{lastTick=Date.now();});
- window.addEventListener('pagehide',tick);setInterval(tick,1000);save();
+ window.addEventListener('pagehide',tick);setInterval(tick,1000);syncCards();
  return {panel};
 }

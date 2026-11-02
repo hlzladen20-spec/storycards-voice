@@ -1,4 +1,4 @@
-const CACHE = "storycards-shell-persistent-difficult-cards-v17";
+const CACHE = "storycards-shell-personal-swipe-srs-v18";
 const SHELL = ["/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 
 SHELL.push("/keep-awake.js", "/speaking-goal.js", "/learning-streak.js", "/lesson-planner.js", "/learning-images.js", "/learning-images/workshop-v1.png", "/learning-images/restaurant-v1.png", "/learning-images/travel-v1.png", "/learning-images/shopping-v1.png");

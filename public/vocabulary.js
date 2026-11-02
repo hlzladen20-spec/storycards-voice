@@ -1,25 +1,46 @@
 import {calendarDayKey} from './learning-streak.js';
 export const VOCABULARY_SECONDS=900;
 const intervals=[1,3,7,14,30];
-const seeds=[['langsam','slow'],['schnell','fast'],['heute','today'],['morgen','tomorrow'],['gestern','yesterday'],['brauchen','need'],['verstehen','understand'],['wiederholen','repeat'],['fragen','ask'],['antworten','answer'],['Werkzeug','tool'],['Werkstatt','workshop'],['bestellen','order'],['Rechnung','bill'],['Bahnhof','train station']];
 export function addVocabulary(state,front,back,example='',now=Date.now()) {
  front=String(front||'').trim();back=String(back||'').trim();
- if(!front || !back || front.length>160 || back.length>160) throw Error('Bitte ein deutsches und ein englisches Wort mit höchstens 160 Zeichen eingeben.');
+ if(!isShortVocabulary({front,back})) throw Error('Bitte wirklich kurze Sätze: je 2–6 Wörter und höchstens 70 Zeichen auf Deutsch und Englisch.');
  if(state.words.some(w=>w.front.toLocaleLowerCase()===front.toLocaleLowerCase() && w.back.toLocaleLowerCase()===back.toLocaleLowerCase())) throw Error('Dieses Wort ist schon im Trainer.');
  return {...state,words:[...state.words,{id:crypto.randomUUID(),front,back,example:String(example).slice(0,500),stage:0,attempts:0,nextReviewAt:now}]};
 }
 export function initialVocabulary(now=Date.now()) {
- let state={words:[],newLimit:3,history:[]};
- for(const [front,back] of seeds) state=addVocabulary(state,front,back,'',now);
- return state;
+ return {version:2,words:[],newLimit:3,history:[]};
 }
+export function isShortVocabulary(card) {
+ return ['front','back'].every(key=>typeof card?.[key]==='string' && card[key].trim().length<=70 && card[key].trim().split(/\s+/).length>=2 && card[key].trim().split(/\s+/).length<=6);
+}
+export function personalVocabulary(state) {
+ if(state.version===2)return state;
+ const keep=state.words.filter(isShortVocabulary);
+ return {...state,version:2,words:keep,archivedWords:[...(state.archivedWords||[]),...state.words.filter(w=>!keep.includes(w))],archivedLesson:state.lesson,lesson:null};
+}
+export function importConversationVocabulary(state,cards,now=Date.now()) {
+ let next=state;
+ for(const card of cards) {
+  if(card.source!=='conversation' || !isShortVocabulary(card) || card.lastRating==='yes' || card.knownStreak>0 || (state.ignoredSourceIds||[]).includes(card.id))continue;
+  if(next.words.some(w=>w.sourceCardId===card.id || (w.front.toLowerCase()===card.front.trim().toLowerCase() && w.back.toLowerCase()===card.back.trim().toLowerCase())))continue;
+  next=addVocabulary(next,card.front,card.back,'',now);
+  next.words[next.words.length-1].sourceCardId=card.id;
+ }
+ if(next!==state && next.lesson?.ids.length===0)next={...next,lesson:null};
+ return next;
+}
+export function vocabularyProgress(state) {
+ const ids=new Set(state.lesson?.ids||[]);
+ return {total:ids.size,learned:state.words.filter(w=>ids.has(w.id) && state.lesson.rated.includes(w.id) && w.lastRating==='yes').length};
+}
+export function swipeRating(dx,dy) {return Math.abs(dx)>=70 && Math.abs(dx)>Math.abs(dy)*1.5 ? dx>0?'yes':'no':null;}
 export function vocabularyLesson(state,now=Date.now()) {
  const day=calendarDayKey(now);
- if(state.lesson?.day===day) return state;
+ if(state.lesson?.day===day) return {...state,lesson:{...state.lesson,queue:state.lesson.queue.map(item=>({...item,introduce:false}))}};
  const due=state.words.filter(w=>w.attempts>0 && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
  const fresh=state.words.filter(w=>!w.attempts).slice(0,Math.max(3,Math.min(10,state.newLimit||3)));
- const selected=[...due,...fresh].slice(0,20);
- return {...state,lesson:{day,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id,introduce:!w.attempts})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
+ const selected=[...due,...fresh].slice(0,15);
+ return {...state,lesson:{day,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
 }
 export function introduceVocabulary(state) {
  const lesson=structuredClone(state.lesson),item=lesson.queue.shift();
