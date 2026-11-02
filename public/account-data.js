@@ -1,5 +1,5 @@
 export function isLearningKey(key) {
-  return /^(storycards:(?:[a-z]{2}):(?:[a-z]{2}):(?:cards|profile|stats|lesson)|storycards-(?:daily-limit|speaking-minutes|active-language|image-hints))$/.test(key);
+  return /^(storycards:(?:[a-z]{2}):(?:[a-z]{2}):(?:cards|profile|stats|lesson|vocabulary)|storycards-(?:daily-limit|speaking-minutes|active-language|image-hints))$/.test(key);
 }
 export function validateSnapshot(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Ungültige Sicherung.');
@@ -9,6 +9,9 @@ export function validateSnapshot(data) {
     if (key.endsWith(':cards')) {
       const cards=JSON.parse(value);
       if (!Array.isArray(cards) || cards.some(c=>!c || typeof c.id!=='string' || typeof c.front!=='string' || typeof c.back!=='string')) throw new Error('Ungültige Karten in der Sicherung.');
+    } else if (key.endsWith(':vocabulary')) {
+      const parsed=JSON.parse(value);
+      if(!parsed || !Array.isArray(parsed.words) || parsed.words.some(w=>!w || typeof w.id!=='string' || typeof w.front!=='string' || typeof w.back!=='string' || w.front.length>160 || w.back.length>160)) throw new Error('Ungültige Vokabeldaten.');
     } else if (/:(profile|stats|lesson)$/.test(key)) {
       const parsed=JSON.parse(value);
       if (!parsed || typeof parsed!=='object' || Array.isArray(parsed)) throw new Error('Ungültiger Lernstand.');

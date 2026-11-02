@@ -8,7 +8,8 @@ const LEGACY_KEYS = Object.freeze({
   cards:'storycards',
   profile:'storycards-learning-profile',
   stats:'storycards-learning-stats',
-  lesson:'storycards-daily-lesson'
+  lesson:'storycards-daily-lesson',
+  vocabulary:null
 });
 
 export function createLearningStorage(storage, target = 'en', source = 'de') {
@@ -20,7 +21,7 @@ export function createLearningStorage(storage, target = 'en', source = 'de') {
   }
   function load(name, fallback) {
     let raw = storage.getItem(key(name));
-    if (raw === null && source === 'de' && target === 'en') {
+    if (raw === null && source === 'de' && target === 'en' && LEGACY_KEYS[name]) {
       raw = storage.getItem(LEGACY_KEYS[name]);
       if (raw !== null) {
         // Validate before migration. Never remove or overwrite the original data.

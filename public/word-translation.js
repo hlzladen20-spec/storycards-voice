@@ -28,6 +28,11 @@ messages.addEventListener('click', async (event) => {
   try {
     let meaning = cache.get(key);
     if (!meaning) { const response = await fetch('/api/translate-word',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(20000),body:JSON.stringify({word:selected,sentence:message.dataset.sentence})}); const data = await response.json(); if (!response.ok || typeof data.translation !== 'string' || !data.translation.trim()) throw new Error(); meaning = data.translation; cache.set(key,meaning); }
-    if (translation.dataset.selected === key) translation.textContent = `${selected} → ${meaning}`;
+    if (translation.dataset.selected === key) {
+      translation.textContent = `${selected} → ${meaning}`;
+      const save=document.createElement('button');save.type='button';save.className='vocab-save-word';save.textContent='＋ Im Vokabeltrainer lernen';
+      save.onclick=()=>document.dispatchEvent(new CustomEvent('storycards-save-vocabulary',{detail:{front:meaning,back:selected,example:message.dataset.sentence,onResult:text=>{save.textContent=text;save.disabled=true;}}}));
+      translation.append(save);
+    }
   } catch { if (translation.dataset.selected === key) translation.textContent = 'Übersetzung gerade nicht verfügbar. Tippe das Wort erneut an.'; }
 });
