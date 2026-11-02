@@ -8,7 +8,14 @@ export function addVocabulary(state,front,back,example='',now=Date.now()) {
  return {...state,words:[...state.words,{id:crypto.randomUUID(),front,back,example:String(example).slice(0,500),stage:0,attempts:0,nextReviewAt:now}]};
 }
 export function initialVocabulary(now=Date.now()) {
- return {version:2,words:[],newLimit:3,history:[]};
+ return {version:2,words:[],dailyLimit:15,newLimit:3,autoIncrease:true,history:[]};
+}
+export function setVocabularySettings(state,{dailyLimit,newLimit,autoIncrease}) {
+ if(!Number.isInteger(dailyLimit)||dailyLimit<1||dailyLimit>50)throw Error('Bitte 1 bis 50 Vokabelkarten pro Tag wählen.');
+ if(!Number.isInteger(newLimit)||newLimit<0||newLimit>15||newLimit>dailyLimit)throw Error('Neue Karten: 0 bis 15, höchstens so viele wie dein Tagesziel.');
+ const lesson=state.lesson;
+ const unstarted=lesson && (!(lesson.rated||[]).length && !lesson.activeMs || !lesson.ids.length);
+ return {...state,dailyLimit,newLimit,autoIncrease:Boolean(autoIncrease),lesson:unstarted?null:lesson};
 }
 export function isShortVocabulary(card) {
  return ['front','back'].every(key=>typeof card?.[key]==='string' && card[key].trim().length<=70 && card[key].trim().split(/\s+/).length>=2 && card[key].trim().split(/\s+/).length<=6);
@@ -38,8 +45,8 @@ export function vocabularyLesson(state,now=Date.now()) {
  const day=calendarDayKey(now);
  if(state.lesson?.day===day) return {...state,lesson:{...state.lesson,queue:state.lesson.queue.map(item=>({...item,introduce:false}))}};
  const due=state.words.filter(w=>w.attempts>0 && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
- const fresh=state.words.filter(w=>!w.attempts).slice(0,Math.max(3,Math.min(10,state.newLimit||3)));
- const selected=[...due,...fresh].slice(0,15);
+ const fresh=state.words.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,state.newLimit??3)));
+ const selected=[...due,...fresh].slice(0,Math.max(1,Math.min(50,state.dailyLimit||15)));
  return {...state,lesson:{day,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
 }
 export function introduceVocabulary(state) {
@@ -72,6 +79,6 @@ export function finishVocabulary(state) {
  const result={day:lesson.day,reviews:lesson.reviewCount,accuracy:lesson.reviewCount?lesson.correctCount/lesson.reviewCount:0,seconds:Math.ceil(lesson.activeMs/1000)};
  const history=[...(state.history||[]).filter(h=>h.day!==lesson.day),result].slice(-90);
  const last=history.slice(-3),since=state.lastIncreaseDay;
- const increase=last.length===3 && last.every(h=>h.reviews>=3 && h.accuracy>=.85 && h.seconds<VOCABULARY_SECONDS && (!since || h.day>since));
- return {...state,lesson,history,newLimit:Math.min(10,(state.newLimit||3)+Number(increase)),lastIncreaseDay:increase?lesson.day:since||null};
+ const increase=state.autoIncrease!==false && state.newLimit!==0 && last.length===3 && last.every(h=>h.reviews>=3 && h.accuracy>=.85 && h.seconds<VOCABULARY_SECONDS && (!since || h.day>since));
+ return {...state,lesson,history,newLimit:increase?Math.min(15,state.dailyLimit||15,(state.newLimit??3)+1):(state.newLimit??3),lastIncreaseDay:increase?lesson.day:since||null};
 }

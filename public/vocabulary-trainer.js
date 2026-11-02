@@ -1,4 +1,4 @@
-import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,swipeRating,VOCABULARY_SECONDS} from './vocabulary.js';
+import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,swipeRating,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[]}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null;
@@ -16,6 +16,19 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  <nav class="bottom-nav" aria-label="Hauptmenü"><button type="button" data-target="choiceHomeButton">⌂<small>Home</small></button><button type="button" data-target="choiceCardsButton" class="active">▣<small>Karten</small></button><button type="button" data-target="choiceProgressButton">▥<small>Statistiken</small></button><button type="button" data-target="choiceProfileButton">♙<small>Profil</small></button></nav>`;
  document.querySelector('main.app').append(panel);
  const $=selector=>panel.querySelector(selector),save=()=>storage.save('vocabulary',state);
+ const settings=document.createElement('section');settings.className='profile-card vocab-settings';
+ settings.innerHTML=`<h3>Dein Vokabelziel</h3><form><label for="vocabDailyLimit">Vokabelkarten pro Tag (inklusive Wiederholungen)<input id="vocabDailyLimit" type="number" min="1" max="50" step="1" required></label><label for="vocabNewLimit">Davon höchstens neue Karten (0 = nur Wiederholungen)<input id="vocabNewLimit" type="number" min="0" max="15" step="1" required></label><label class="vocab-auto-label"><input id="vocabAutoIncrease" type="checkbox">Neue Karten bei guten Lernergebnissen langsam steigern</label><p>Fällige Wiederholungen zuerst. Maximal 15 Minuten. Eine angefangene Tagesrunde bleibt unverändert; Änderungen gelten für die nächste Runde.</p><button class="primary" type="submit">Vokabelziel speichern</button></form><p class="vocab-setting-status" role="status"></p>`;
+ document.getElementById('profile').insertBefore(settings,document.getElementById('profile').querySelector('nav'));
+ function refreshSettings(){settings.querySelector('#vocabDailyLimit').value=state.dailyLimit||15;settings.querySelector('#vocabNewLimit').value=state.newLimit??3;settings.querySelector('#vocabAutoIncrease').checked=state.autoIncrease!==false;}
+ function saveSettings(){
+  if(!settings.querySelector('form').reportValidity())return;
+  try{state=setVocabularySettings(state,{dailyLimit:Number(settings.querySelector('#vocabDailyLimit').value),newLimit:Number(settings.querySelector('#vocabNewLimit').value),autoIncrease:settings.querySelector('#vocabAutoIncrease').checked});save();refreshSettings();settings.querySelector('.vocab-setting-status').textContent=`Gespeichert: bis zu ${state.dailyLimit} Karten pro Tag, davon bis zu ${state.newLimit} neue. Angefangene Runden bleiben unverändert.`;}
+  catch(error){settings.querySelector('.vocab-setting-status').textContent=error.message;}
+ }
+ settings.querySelector('form').onsubmit=e=>{e.preventDefault();saveSettings();};
+ settings.querySelectorAll('input').forEach(input=>input.addEventListener('change',saveSettings));
+ document.getElementById('saveProfileButton')?.addEventListener('click',saveSettings);
+ refreshSettings();
  const button=document.createElement('button');button.type='button';button.className='card-choice-option';button.id='vocabularyChoiceButton';
  button.innerHTML='<span><strong>Vokabeltrainer</strong><small>Deine kurzen Gesprächssätze · mit Wischen lernen</small></span><b aria-hidden="true">›</b>';
  document.getElementById('cardChoice').insertBefore(button,document.getElementById('cardChoice').querySelector('nav'));
@@ -46,7 +59,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  function render(){
   state=vocabularyLesson(state);
   if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
-  save();progress();renderLists();
+  save();progress();renderLists();refreshSettings();
   const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
   $('.vocab-ratings').hidden=ended||Boolean(answerCard);$('.vocab-next').hidden=ended||!answerCard;$('.vocab-swipe-hint').hidden=ended||Boolean(answerCard);
   if(ended){
