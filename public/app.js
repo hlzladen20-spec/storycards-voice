@@ -88,6 +88,10 @@ function moveReviewCard(back = false) {
         if(!weakPractice) rememberDailyCard(card.id,result);
       }
       const plan=dailyLesson();
+      if(weakPractice && result!=="correct") {
+        const stored=cards.find(item=>item.id===card.id)||card;
+        queue.splice(Math.min(2,queue.length),0,{...stored,weakRetry:true,scheduleApplied:false,lessonStage:"recall"});
+      }
       if(!freePractice && !weakPractice && card.retryPractice) {
         plan.pendingRetries=(plan.pendingRetries||[]).filter(id=>id!==card.id);
         learningStorage.save("lesson",plan);
@@ -135,7 +139,7 @@ $("nextCardButton").addEventListener("click", () => moveReviewCard());
 new MutationObserver(() => {
   reviewNavigation.classList.remove("hidden");$("previousCardButton").disabled=!reviewHistory.length;$("nextCardButton").disabled=!queue[0];
   if(weakPractice) {
-    lessonProgress.textContent=`Schwierige Karten · ${reviewHistory.length} von ${weakRoundTotal} Karten`;
+    lessonProgress.textContent=`Schwierige Karten · ${Math.max(0,weakRoundTotal-new Set(queue.map(card=>card.id)).size)} von ${weakRoundTotal} Karten`;
     if(!queue.length && $("card").dataset.finished!=="weak") {
       $("card").dataset.finished="weak";
       const remaining=difficultCards(cards).length;
@@ -263,8 +267,8 @@ $("dailyPracticeButton").addEventListener("click", () => showReview());
 $("weakPracticeButton").addEventListener("click", () => showReview("weak"));
 function startFreePractice() { showReview("free");freePractice=true;reviewHistory=[];assessedCards.clear();queue=prioritiseCards(cards).map(card=>({...card,lessonStage:"recall"}));delete $("card").dataset.finished;renderCard(); }
 $("freePracticeButton").addEventListener("click", startFreePractice);
-const repeatPracticeButton = document.createElement("button"); repeatPracticeButton.id = "repeatPracticeButton"; repeatPracticeButton.className = "secondary hidden"; repeatPracticeButton.textContent = "↻ Karten noch einmal üben"; finishLessonButton.after(repeatPracticeButton); repeatPracticeButton.addEventListener("click", startFreePractice);
-new MutationObserver(() => { repeatPracticeButton.classList.toggle("hidden", Boolean(queue.length) || !cards.length); if (freePractice) { lessonProgress.textContent = `Freies Üben · ${Math.min(reviewHistory.length + (queue.length ? 1 : 0), cards.length)} von ${cards.length} Karten`; if (!queue.length && $("card").dataset.finished !== "practice") { $("card").dataset.finished = "practice"; $("card").innerHTML = '<strong>🎉 Übungsrunde geschafft!</strong><small>Du kannst deine Karten jederzeit noch einmal üben.</small>'; } } }).observe($("card"), { childList:true });
+const repeatPracticeButton = document.createElement("button"); repeatPracticeButton.id = "repeatPracticeButton"; repeatPracticeButton.className = "secondary hidden"; repeatPracticeButton.textContent = "↻ Schwierige Karten wiederholen"; finishLessonButton.after(repeatPracticeButton); repeatPracticeButton.addEventListener("click", () => showReview("weak"));
+new MutationObserver(() => { repeatPracticeButton.classList.toggle("hidden", Boolean(queue.length) || !difficultCards(cards).length); if (freePractice) { lessonProgress.textContent = `Freies Üben · ${Math.min(reviewHistory.length + (queue.length ? 1 : 0), cards.length)} von ${cards.length} Karten`; if (!queue.length && $("card").dataset.finished !== "practice") { $("card").dataset.finished = "practice"; $("card").innerHTML = '<strong>🎉 Übungsrunde geschafft!</strong><small>Du kannst deine Karten jederzeit noch einmal üben.</small>'; } } }).observe($("card"), { childList:true });
 let installPrompt;
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -466,7 +470,7 @@ function showReview(includeAll = false) {
   document.body.classList.remove("in-conversation");
   for(const id of ["home","practice","summary","statistics","profile"]) $(id).classList.add("hidden");
   $("cards").classList.remove("hidden");
-  if(weakPractice) {queue=difficultCards(cards).slice(0,dailyCardLimit).map(card=>({...card,lessonStage:"recall"}));weakRoundTotal=queue.length;}
+  if(weakPractice) {queue=difficultCards(cards).map(card=>({...card,lessonStage:"recall"}));weakRoundTotal=queue.length;}
   else if(includeAll === "free") queue=[]; else { const plan=prepareDailyLesson(true);queue=lessonQueue(cards,plan); }
   repairFailed=false;delete $("card").dataset.finished;renderCard();
 }
@@ -479,7 +483,7 @@ function renderCard() {
   $("speakPrompt").classList.add("hidden");$("recordAnswerButton").classList.add("hidden");$("voiceFeedback").className="voice-feedback hidden";
   if(!card) {$("card").innerHTML="<strong>Für heute geschafft!</strong>";return;}
   const introduction=!freePractice && card.lessonStage==="introduce";
-    if(card.retryPractice || introduction) assessedCards.delete(card.id);
+    if(card.retryPractice || card.weakRetry || introduction) assessedCards.delete(card.id);
   const phase=introduction?"Kennenlernen":card.retryPractice?"Noch einmal ohne Hilfe":"Selbst erinnern";
   $("card").innerHTML=`<small class="lesson-phase">${phase}</small><span>🇩🇪 ${escapeHtml(card.front)}</span>${introduction?`<span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`:""}`;
   if(introduction) {answerVisible=true;if(imageHintsEnabled) appendLearningImage($("card"),card);}
@@ -489,7 +493,7 @@ function renderCard() {
 }
 function revealAnswer() {
   const card=queue[0];if(!card||answerVisible) return;
-  if(!assessedCards.has(card.id)) assessedCards.set(card.id,"assisted");
+  if(!assessedCards.has(card.id)) {assessedCards.set(card.id,"assisted");cards=cards.map(item=>item.id===card.id?{...item,needsPractice:true}:item);saveCards();}
   answerVisible=true;$("card").innerHTML=`<span>🇩🇪 ${escapeHtml(card.front)}</span><span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`;
   if(imageHintsEnabled) appendLearningImage($("card"),card);
   $("revealButton").classList.add("hidden");$("recordAnswerButton").classList.remove("hidden");$("speakPrompt").classList.add("hidden");$("listenButton").classList.remove("hidden");$("ratingButtons").classList.remove("hidden");
@@ -509,7 +513,7 @@ new MutationObserver(() => { $("card").querySelectorAll(":scope > span").forEach
 $("card").addEventListener("click", (event) => { const sentence = event.target.closest("#card > span"); if (sentence) readCardSentence(sentence); });
 $("card").addEventListener("keydown", (event) => { if (["Enter", " "].includes(event.key) && event.target.matches("#card > span")) { event.preventDefault(); readCardSentence(event.target); } });
 function audioBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); }
-async function reviewRecordedAnswer(blob) { const card = queue[0]; if (!card) return; const button = $("recordAnswerButton"); button.textContent = "Antwort wird geprüft …"; button.disabled = true; try { const audio = await audioBase64(blob); const response = await fetch("/api/card-answer", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ audio, mime:blob.type || "audio/webm", expected:card.back, front:card.front }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Die Aufnahme konnte nicht geprüft werden."); if (!String(data.transcript || "").trim()) throw new Error("Keine klare Sprache erkannt. Bitte versuche es noch einmal; die Karte wird nicht schlechter bewertet."); const rating = { correct:"yes", close:"hard", incorrect:"no" }[data.result]; if (!rating) throw new Error("Die Bewertung war nicht eindeutig. Bitte sprich die Antwort noch einmal."); if (queue[0]?.id !== card.id) return; recordPracticeDay(); const beforeReview = cards.find(c => c.id === card.id) || card; if (!assessedCards.has(card.id)) { card.reviewBefore=beforeReview; const updated = freePractice || card.lessonStage === "introduce" ? (cards.find(c => c.id === card.id) || card) : rateCard(cards.find(c => c.id === card.id) || card, rating); cards = cards.map((item) => item.id === card.id ? updated : item); assessedCards.set(card.id, data.result); if(!freePractice && card.lessonStage !== "introduce") card.scheduleApplied=true; saveCards(); } const feedback = $("voiceFeedback"); feedback.className = `voice-feedback ${data.result}`; feedback.textContent = data.feedback; revealAnswer(); const correction = document.createElement("button"); correction.className = "secondary"; correction.textContent = "Bewertung stimmt nicht – erneut versuchen"; correction.onclick = () => { cards = cards.map(item => item.id === card.id ? (card.reviewBefore || beforeReview) : item); assessedCards.delete(card.id); card.scheduleApplied=false; saveCards(); renderCard(); }; feedback.append(document.createElement("br"), correction); } catch (error) { $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Die Aufnahme konnte nicht geprüft werden."; button.textContent = "🎙 Noch einmal sprechen"; } finally { button.disabled = false; } }
+async function reviewRecordedAnswer(blob) { const card = queue[0]; if (!card) return; const button = $("recordAnswerButton"); button.textContent = "Antwort wird geprüft …"; button.disabled = true; try { const audio = await audioBase64(blob); const response = await fetch("/api/card-answer", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ audio, mime:blob.type || "audio/webm", expected:card.back, front:card.front }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Die Aufnahme konnte nicht geprüft werden."); if (!String(data.transcript || "").trim()) throw new Error("Keine klare Sprache erkannt. Bitte versuche es noch einmal; die Karte wird nicht schlechter bewertet."); const rating = { correct:"yes", close:"hard", incorrect:"no" }[data.result]; if (!rating) throw new Error("Die Bewertung war nicht eindeutig. Bitte sprich die Antwort noch einmal."); if (queue[0]?.id !== card.id) return; recordPracticeDay(); const beforeReview = cards.find(c => c.id === card.id) || card; if (!assessedCards.has(card.id)) { card.reviewBefore=beforeReview; const updated = freePractice ? {...beforeReview,needsPractice:data.result!=="correct"} : card.lessonStage === "introduce" ? (data.result==="correct"?beforeReview:{...beforeReview,needsPractice:true}) : rateCard(beforeReview, rating); cards = cards.map((item) => item.id === card.id ? updated : item); assessedCards.set(card.id, data.result); if(!freePractice && card.lessonStage !== "introduce") card.scheduleApplied=true; saveCards(); } const feedback = $("voiceFeedback"); feedback.className = `voice-feedback ${data.result}`; feedback.textContent = data.feedback; revealAnswer(); const correction = document.createElement("button"); correction.className = "secondary"; correction.textContent = "Bewertung stimmt nicht – erneut versuchen"; correction.onclick = () => { cards = cards.map(item => item.id === card.id ? (card.reviewBefore || beforeReview) : item); assessedCards.delete(card.id); card.scheduleApplied=false; saveCards(); renderCard(); }; feedback.append(document.createElement("br"), correction); } catch (error) { $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Die Aufnahme konnte nicht geprüft werden."; button.textContent = "🎙 Noch einmal sprechen"; } finally { button.disabled = false; } }
 async function recordAnswer() { try { if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("Die Mikrofonaufnahme wird auf diesem Gerät nicht unterstützt."); reviewStream = await navigator.mediaDevices.getUserMedia({ audio:true }); if (!answerHeld) { reviewStream.getTracks().forEach((track) => track.stop()); return; } reviewChunks = []; reviewRecorder = new MediaRecorder(reviewStream); reviewRecorder.ondataavailable = (event) => { if (event.data.size) reviewChunks.push(event.data); }; reviewRecorder.onstop = () => { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); reviewRecordedAnswer(new Blob(reviewChunks, { type:reviewRecorder.mimeType || "audio/webm" })); }; reviewRecorder.start(); startReviewMeter(reviewStream); } catch (error) { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Das Mikrofon konnte nicht gestartet werden."; } }
 function escapeHtml(text) { const el=document.createElement("span"); el.textContent=text; return el.innerHTML; }
 document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => { if (!queue[0]) return; const updated=rateCard(queue[0], button.dataset.rating); cards=cards.map(c=>c.id===updated.id?updated:c); queue.shift(); saveCards(); renderCard(); }));

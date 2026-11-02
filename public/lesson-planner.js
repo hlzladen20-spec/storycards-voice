@@ -4,6 +4,7 @@ export const MAX_EXTRA_RETRIES = 3;
 // Use the latest assessment, not lifetime misses: recovered cards leave this list.
 export function difficultCards(cards) {
   return cards.filter(card => {
+    if(typeof card.needsPractice==='boolean') return card.needsPractice;
     const latest=card.lastRating || ({1:'no',2:'hard',3:'yes',4:'yes'}[card.reviewLog?.at(-1)?.rating]);
     return latest ? ['no','hard'].includes(latest) : Number(card.attempts)>0 && !Number(card.knownStreak) && Number(card.misses)>0;
   }).sort((a,b)=>(Number(a.lastReviewedAt)||0)-(Number(b.lastReviewedAt)||0));
