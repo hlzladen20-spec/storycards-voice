@@ -37,8 +37,22 @@ export function importConversationVocabulary(state,cards,now=Date.now()) {
  return next;
 }
 export function vocabularyProgress(state) {
- const ids=new Set(state.lesson?.ids||[]);
- return {total:ids.size,learned:state.words.filter(w=>ids.has(w.id) && state.lesson.rated.includes(w.id) && w.lastRating==='yes').length};
+ const ids=new Set([...(state.lesson?.previousIds||[]),...(state.lesson?.ids||[])]);
+ const rated=new Set([...(state.lesson?.previousRated||[]),...(state.lesson?.rated||[])]);
+ return {total:ids.size,learned:state.words.filter(w=>ids.has(w.id) && rated.has(w.id) && w.lastRating==='yes').length};
+}
+export function additionalVocabularyLesson(state,now=Date.now()) {
+ if(state.lesson && !state.lesson.closed && state.lesson.queue.length)return state;
+ const day=calendarDayKey(now),same=state.lesson?.day===day;
+ const finished=finishVocabulary(state);
+ const weak=finished.words.filter(w=>w.attempts>0 && w.lastRating!=='yes').sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+ const due=finished.words.filter(w=>w.attempts>0 && w.lastRating==='yes' && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+ const fresh=finished.words.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,finished.newLimit??3)));
+ let selected=[...weak,...due,...fresh].slice(0,Math.max(1,Math.min(50,finished.dailyLimit||15))),practiceOnly=false;
+ if(!selected.length){selected=finished.words.filter(w=>w.attempts>0).sort((a,b)=>(a.lastReviewedAt||0)-(b.lastReviewedAt||0)).slice(0,finished.dailyLimit||15);practiceOnly=true;}
+ if(!selected.length)return finished;
+ const previous=finished.lesson;
+ return {...finished,lesson:{day,extraRound:true,previousIds:same?[...new Set([...(previous?.previousIds||[]),...(previous?.ids||[])])]:[],previousRated:same?[...new Set([...(previous?.previousRated||[]),...(previous?.rated||[])])]:[],ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id,practiceOnly})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
 }
 export function swipeRating(dx,dy) {return Math.abs(dx)>=70 && Math.abs(dx)>Math.abs(dy)*1.5 ? dx>0?'yes':'no':null;}
 export function vocabularyLesson(state,now=Date.now()) {
@@ -65,9 +79,9 @@ export function rateVocabulary(state,rating,now=Date.now()) {
  const due=new Date(now);
  if(rating==='no') due.setTime(now+10*60*1000);
  else {due.setDate(due.getDate()+intervals[stage-1]);due.setHours(9,0,0,0);}
- const updated={...word,stage,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now,nextReviewAt:due.getTime()};
+ const updated=item.practiceOnly && rating==='yes'?word:{...word,stage,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now,nextReviewAt:due.getTime()};
  lesson.queue.shift();lesson.rated.push(item.id);
- if(!item.retry && word.attempts>0) {lesson.reviewCount++;lesson.correctCount+=Number(rating==='yes');}
+ if(!item.retry && !item.practiceOnly && word.attempts>0) {lesson.reviewCount++;lesson.correctCount+=Number(rating==='yes');}
  if(rating!=='yes' && !item.retry && lesson.retryIds.length<3) {
   lesson.retryIds.push(item.id);lesson.queue.splice(Math.min(2,lesson.queue.length),0,{id:item.id,retry:true});
  }
@@ -76,6 +90,7 @@ export function rateVocabulary(state,rating,now=Date.now()) {
 export function finishVocabulary(state) {
  if(!state.lesson || state.lesson.closed) return state;
  const lesson={...state.lesson,closed:true};
+ if(lesson.extraRound)return {...state,lesson};
  const result={day:lesson.day,reviews:lesson.reviewCount,accuracy:lesson.reviewCount?lesson.correctCount/lesson.reviewCount:0,seconds:Math.ceil(lesson.activeMs/1000)};
  const history=[...(state.history||[]).filter(h=>h.day!==lesson.day),result].slice(-90);
  const last=history.slice(-3),since=state.lastIncreaseDay;

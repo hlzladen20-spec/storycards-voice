@@ -1,4 +1,4 @@
-import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,swipeRating,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
+import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,additionalVocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,swipeRating,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[]}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null;
@@ -10,6 +10,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  <p class="vocab-swipe-hint">← Nicht gewusst · Gewusst →</p>
  <div class="vocab-ratings"><button type="button" data-grade="no" class="secondary">← Nicht gewusst</button><button type="button" data-grade="yes" class="primary">Gewusst →</button></div>
  <button class="primary vocab-next" type="button" hidden>Weiter – noch einmal ohne Hilfe</button>
+ <button class="primary vocab-continue" type="button" hidden>Weiterlernen →</button>
  <p class="vocab-status" role="status" aria-live="polite"></p>
  <details class="vocab-learned"><summary>Gelernte Karten nach SRS <span class="vocab-learned-count"></span></summary><div class="vocab-learned-list"></div></details>
  <details class="vocab-manager"><summary>Kurze Sätze hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch (2–6 Wörter)<input name="front" required maxlength="70"></label><label>Englisch (2–6 Wörter)<input name="back" required maxlength="70"></label><button class="primary" type="submit">＋ Kurzen Satz hinzufügen</button></form><p class="vocab-archive"></p><div class="vocab-list"></div></details>
@@ -62,9 +63,10 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   save();progress();renderLists();refreshSettings();
   const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
   $('.vocab-ratings').hidden=ended||Boolean(answerCard);$('.vocab-next').hidden=ended||!answerCard;$('.vocab-swipe-hint').hidden=ended||Boolean(answerCard);
+  $('.vocab-continue').hidden=!ended || !state.words.length;
   if(ended){
    $('.vocab-word').replaceChildren(line(!state.words.length?'Noch keine persönlichen Kurzsätze':state.lesson.activeMs>=900000?'Deine 15 Minuten sind geschafft!':'Runde geschafft!','h3'));
-   $('.vocab-status').textContent=!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Schwierige Karten bleiben früher fällig.';return;
+   $('.vocab-status').textContent=!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Mit „Weiterlernen“ startest du freiwillig eine weitere Runde – schwierige Karten zuerst.';return;
   }
   wordView(word,Boolean(answerCard));
   $('.vocab-status').textContent=answerCard?'Höre die englische Lösung an und sprich sie nach. Danach geht es ohne sichtbare Lösung weiter.':'Übersetze im Kopf oder sprich den Satz. Rechts: ohne Hilfe gewusst. Links: Lösung lernen.';
@@ -87,6 +89,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
  $('.vocab-next').onclick=()=>{answerCard=null;render();};
+ $('.vocab-continue').onclick=()=>{syncCards();state=additionalVocabularyLesson(state);answerCard=null;lastTick=Date.now();render();if(state.lesson.closed && state.words.length)$('.vocab-status').textContent='Es gibt noch keine Wiederholungen. Im Profil kannst du neue Karten aktivieren (aktuell 0).';};
  const box=$('.vocab-word');
  box.addEventListener('pointerdown',e=>{if(e.button!==0||answerCard)return;gesture={id:e.pointerId,x:e.clientX,y:e.clientY};box.setPointerCapture?.(e.pointerId);});
  box.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);gesture=null;if(rating)rate(rating);});
