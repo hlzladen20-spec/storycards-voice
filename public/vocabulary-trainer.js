@@ -3,20 +3,25 @@ import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVoc
 export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[]}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null;
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
- panel.innerHTML=`<button class="ghost vocab-back" type="button">← Zurück zu den Karten</button><p class="eyebrow">DEINE PERSÖNLICHEN KURZSÄTZE</p><h2>Vokabeltrainer</h2>
- <p>Aus erkannten Schwierigkeiten deiner Gespräche · höchstens 6 Wörter pro Satz.</p>
+ panel.setAttribute('aria-label','Vokabeltrainer');
+ panel.innerHTML=`<button class="ghost vocab-back" type="button">← Zurück zu den Karten</button>
  <p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Heute nach SRS gelernt" max="15" value="0"></progress>
  <div class="vocab-word" tabindex="0" aria-label="Kurzer Satz zur Selbstkontrolle"></div>
+ <div class="vocab-controls">
+ <p class="vocab-status" role="status" aria-live="polite"></p>
  <button class="primary vocab-reveal" type="button">Antwort aufdecken</button>
- <p class="vocab-swipe-hint" hidden>Vergleiche zuerst deine Antwort. Dann: ← Nicht gewusst · Gewusst →</p>
+ <p class="vocab-swipe-hint" hidden>← Nicht gewusst · Gewusst →</p>
  <div class="vocab-ratings" hidden><button type="button" data-grade="no" class="secondary">← Nicht gewusst</button><button type="button" data-grade="yes" class="primary">Gewusst →</button></div>
  <button class="primary vocab-continue" type="button" hidden>Weiterlernen →</button>
- <p class="vocab-status" role="status" aria-live="polite"></p>
- <details class="vocab-learned"><summary>Gelernte Karten nach SRS <span class="vocab-learned-count"></span></summary><div class="vocab-learned-list"></div></details>
- <details class="vocab-manager"><summary>Kurze Sätze hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch (2–6 Wörter)<input name="front" required maxlength="70"></label><label>Englisch (2–6 Wörter)<input name="back" required maxlength="70"></label><button class="primary" type="submit">＋ Kurzen Satz hinzufügen</button></form><p class="vocab-archive"></p><div class="vocab-list"></div></details>
+ </div>
  <nav class="bottom-nav" aria-label="Hauptmenü"><button type="button" data-target="choiceHomeButton">⌂<small>Home</small></button><button type="button" data-target="choiceCardsButton" class="active">▣<small>Karten</small></button><button type="button" data-target="choiceProgressButton">▥<small>Statistiken</small></button><button type="button" data-target="choiceProfileButton">♙<small>Profil</small></button></nav>`;
  document.querySelector('main.app').append(panel);
  const $=selector=>panel.querySelector(selector),save=()=>storage.save('vocabulary',state);
+ const management=document.createElement('section');management.className='profile-card vocab-management';
+ management.innerHTML=`<h3>Deine Vokabelkarten</h3><details class="vocab-learned"><summary>Gelernte Karten nach SRS <span class="vocab-learned-count"></span></summary><div class="vocab-learned-list"></div></details>
+ <details class="vocab-manager"><summary>Kurze Sätze hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch (2–6 Wörter)<input name="front" required maxlength="70"></label><label>Englisch (2–6 Wörter)<input name="back" required maxlength="70"></label><button class="primary" type="submit">＋ Kurzen Satz hinzufügen</button></form><p class="vocab-archive"></p><div class="vocab-list"></div><p class="vocab-management-status" role="status"></p></details>`;
+ document.getElementById('profile').insertBefore(management,document.getElementById('profile').querySelector('nav'));
+ const manage=selector=>management.querySelector(selector);
  const settings=document.createElement('section');settings.className='profile-card vocab-settings';
  settings.innerHTML=`<h3>Dein Vokabelziel</h3><form><label for="vocabDailyLimit">Vokabelkarten pro Tag (inklusive Wiederholungen)<input id="vocabDailyLimit" type="number" min="1" max="50" step="1" required></label><label for="vocabNewLimit">Davon höchstens neue Karten (0 = nur Wiederholungen)<input id="vocabNewLimit" type="number" min="0" max="15" step="1" required></label><label class="vocab-auto-label"><input id="vocabAutoIncrease" type="checkbox">Neue Karten bei guten Lernergebnissen langsam steigern</label><p>Fällige Wiederholungen zuerst. Maximal 15 Minuten. Eine angefangene Tagesrunde bleibt unverändert; Änderungen gelten für die nächste Runde.</p><button class="primary" type="submit">Vokabelziel speichern</button></form><p class="vocab-setting-status" role="status"></p>`;
  document.getElementById('profile').insertBefore(settings,document.getElementById('profile').querySelector('nav'));
@@ -44,9 +49,9 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   $('.vocab-bar').max=p.total||1;$('.vocab-bar').value=p.learned;
  }
  function renderLists(){
-  const list=$('.vocab-list'),learned=$('.vocab-learned-list');list.replaceChildren();learned.replaceChildren();
+  const list=manage('.vocab-list'),learned=manage('.vocab-learned-list');list.replaceChildren();learned.replaceChildren();
   const known=state.words.filter(w=>w.stage>0 && w.lastRating==='yes').sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
-  $('.vocab-learned-count').textContent=`(${known.length})`;
+  manage('.vocab-learned-count').textContent=`(${known.length})`;
   for(const w of known){const row=line(`${w.front} – ${w.back} · SRS-Stufe ${w.stage} · wieder am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(w.back);row.append(audio);learned.append(row);}
   if(!known.length)learned.append(line('Noch keine Karte sicher erinnert. Nur Aufdecken zählt noch nicht: Erst vergleichen und ehrlich bewerten.'));
   for(const word of state.words){
@@ -55,7 +60,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
    remove.onclick=()=>{if(!window.confirm('Diesen kurzen Satz entfernen?'))return;state={...state,words:state.words.filter(w=>w.id!==word.id),ignoredSourceIds:[...(state.ignoredSourceIds||[]),word.sourceCardId].filter(Boolean)};if(state.lesson){state.lesson.queue=state.lesson.queue.filter(i=>i.id!==word.id);state.lesson.ids=state.lesson.ids.filter(id=>id!==word.id);}answerCard=null;render();};
    row.append(remove);list.append(row);
   }
-  $('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
+  manage('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
  }
  function render(){
   state=vocabularyLesson(state);
@@ -70,7 +75,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
    $('.vocab-status').textContent=!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Mit „Weiterlernen“ startest du freiwillig eine weitere Runde – schwierige Karten zuerst.';return;
   }
   wordView(word,Boolean(answerCard));
-  $('.vocab-status').textContent=answerCard?'Vergleiche die Lösung mit deiner eigenen Antwort. Du kannst sie auch anhören. Dann ehrlich bewerten: gewusst oder nicht gewusst.':'Übersetze den Satz erst im Kopf oder sprich ihn laut. Decke danach die Antwort zur Selbstkontrolle auf.';
+  $('.vocab-status').textContent='';
  }
  function tick(){
   const now=Date.now(),delta=now-lastTick;lastTick=now;
@@ -102,9 +107,9 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  box.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);gesture=null;if(rating)rate(rating);});
  box.addEventListener('pointercancel',()=>{gesture=null;});
  box.addEventListener('keydown',e=>{if(e.target!==box)return;if(e.key===' '||e.key==='Enter'){e.preventDefault();revealCurrent();}else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();rate(e.key==='ArrowRight'?'yes':'no');}});
- $('.vocab-add').onsubmit=e=>{e.preventDefault();try{const data=new FormData(e.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();e.target.reset();renderLists();$('.vocab-status').textContent='Kurzer Satz gespeichert. Er kommt in eine kommende Tagesportion.';}catch(error){$('.vocab-status').textContent=error.message;}};
+ manage('.vocab-add').onsubmit=e=>{e.preventDefault();try{const data=new FormData(e.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();e.target.reset();renderLists();manage('.vocab-management-status').textContent='Kurzer Satz gespeichert. Er kommt in eine kommende Tagesportion.';}catch(error){manage('.vocab-management-status').textContent=error.message;}};
  document.addEventListener('storycards-cards-updated',syncCards);
  document.addEventListener('visibilitychange',()=>{lastTick=Date.now();});
- window.addEventListener('pagehide',tick);setInterval(tick,1000);syncCards();
+ window.addEventListener('pagehide',tick);setInterval(tick,1000);syncCards();renderLists();
  return {panel};
 }
