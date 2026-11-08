@@ -95,7 +95,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   const word=state.words.find(w=>w.id===state.lesson.queue[0]?.id);if(!word || word.id!==answerCard.id)return;
   state=rateVocabulary(state,rating);answerCard=null;onPractice();render();
  }
- function syncCards(){state=importConversationVocabulary(state,getCards());save();}
+ function syncCards(){state=importConversationVocabulary(state,getCards());save();renderLists();}
  button.onclick=()=>{syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;render();};
  $('.vocab-back').onclick=()=>document.getElementById('choiceCardsButton').click();
  panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());

@@ -1,4 +1,7 @@
 body:has(#home:not(.hidden)) .app>header{display:none}
+.home-progress-grid>button{display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:flex-start;padding:0 4px;border-right:1px solid #dedfd5;border-radius:0;background:transparent;color:inherit;min-width:0;font-weight:inherit}
+.home-progress-grid>button:focus-visible{outline:3px solid #69b89d;outline-offset:3px;border-radius:6px}
+.home-mode-hint{margin:10px 4px 0;color:#42695e;font-size:.85rem;line-height:1.5}
 body:has(#home:not(.hidden)) .app{padding-top:0}
 .home-screen{margin-top:0;background:#f4f1e7;padding-bottom:85px}
 .home-scenery{padding:18px 16px 14px;min-height:0;background:linear-gradient(180deg,#fff7e230 0%,#eaf1e300 45%,#f4f1e7 100%),url('/home-mountains.png') center 34%/cover}

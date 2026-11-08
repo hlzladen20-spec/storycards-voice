@@ -31,14 +31,14 @@
   </head>
   <body>
     <main class="app">
-      <header><div><p class="eyebrow">ENGLISCH · A1 → B1</p><h1>StoryCards Voice</h1></div><div class="header-actions"><button id="installButton" class="ghost hidden">App installieren</button></div></header>
+      <header><div><p class="eyebrow">ENGLISCH</p><h1>StoryCards Voice</h1></div><div class="header-actions"><button id="installButton" class="ghost hidden">App installieren</button></div></header>
       <section id="home" class="home-screen">
         <div class="home-scenery">
           <div class="home-brand"><img src="/icon-192.png" alt="StoryCards Voice Logo"><h1>StoryCards<br>Voice</h1></div>
           <div class="home-card"><div class="home-countdown"><strong>10:00</strong><small>/ 10:00</small></div><p class="home-today">Heute deine</p><h2>10 Minuten</h2><p>Sprich mit deiner KI, erhalte persönliche Lernkarten und verbessere dein Englisch.</p><button id="homeStartButton" class="primary">🎙 Gespräch starten <span>›</span></button></div>
         </div>
-        <section class="home-progress"><div class="home-progress-heading"><h2>▥ Dein Fortschritt</h2><button id="homeDetailsButton">Alle Details ›</button></div><div class="home-progress-grid"><div><span>🎯</span><strong>A1 → B1</strong><small>Dein Lernziel</small></div><div><span>🔥</span><strong id="homeStreak">0 Tage</strong><small>Lernserie</small></div><div><span>📚</span><strong id="homeLearned">0</strong><small>Gelernte Karten</small></div><div><span>◷</span><strong id="homeMinutes">0 min</strong><small>Gesprochene Zeit</small></div></div></section>
-        <p class="home-section-title">▦ Deine Lernmodi</p>
+        <section class="home-progress"><div class="home-progress-heading"><h2>▥ Dein Fortschritt</h2><button id="homeDetailsButton">Alle Details ›</button></div><div class="home-progress-grid"><button id="homeVocabularyButton" type="button"><span>🗂️</span><strong id="homeVocabulary">0/0</strong><small>Vokabeln gelernt ›</small></button><div><span>🔥</span><strong id="homeStreak">0 Tage</strong><small>Lernserie</small></div><div><span>📚</span><strong id="homeLearned">0</strong><small>Gelernte Karten</small></div><div><span>◷</span><strong id="homeMinutes">0 min</strong><small>Gesprochene Zeit</small></div></div></section>
+        <h2 class="home-section-title">Worüber möchtest du sprechen?</h2>
         <div class="mode-grid" aria-label="Gesprächsmodus auswählen">
           <button class="mode-tile active" data-home-mode="alltag"><span>☕</span><strong>Alltag</strong></button>
           <button class="mode-tile" data-home-mode="beruf"><span>🚚</span><strong>Beruf</strong></button>
@@ -47,6 +47,7 @@
           <button class="mode-tile" data-home-mode="einkaufen"><span>🛒</span><strong>Einkaufen</strong></button>
           <button class="mode-tile" data-home-mode="ueberraschung"><span>🎲</span><strong>Überraschung</strong></button>
         </div>
+        <p id="homeModeHint" class="home-mode-hint" role="status">Alltag: Dein Tag, Hobbys und Dinge aus deinem Alltag.</p>
         <aside class="home-tip"><span>💡</span><div><strong>Tipp des Tages</strong><p>Sprich deine Karten laut aus. So übst du Erinnern und Sprechen zusammen.</p></div><span>🎧</span></aside>
         <nav class="bottom-nav" aria-label="Hauptmenü"><button class="active" id="homeNavButton">⌂<small>Home</small></button><button id="cardsNavButton">▣<small>Karten</small></button><button id="progressNavButton">▥<small>Statistiken</small></button><button id="profileNavButton">♙<small>Profil</small></button></nav>
       </section>
@@ -56,7 +57,7 @@
         <div id="coachStage" class="coach-stage"><img id="emmaAvatar" src="/emma-coach.png" alt="Emma, deine virtuelle Englischtrainerin" /></div>
         <label id="modePicker" class="mode-picker hidden">Gesprächsmodus<select id="conversationMode"><option value="alltag">☕ Alltag</option><option value="reisen">✈️ Reisen</option><option value="beruf">💼 Beruf</option><option value="einkaufen">🛒 Einkaufen</option><option value="rollenspiel">🎭 Rollenspiel</option><option value="ueberraschung">🎲 Überraschung</option><option value="schwaechen">🎯 Schwächen trainieren</option></select></label>
         <div id="micState" class="mic-state"><span class="mic-dot" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M4 12v4m5-8v12m5-16v20m5-16v12m5-8v4"/></svg></span><span class="listening-wave" aria-hidden="true">▂▅▇▃▆▂</span><span id="micStateText">Ich höre zu …</span></div>
-        <div id="messages" class="messages" aria-live="polite"><p class="message coach"><img class="emma-mini" src="/emma-coach.png" alt="Emma" /><span>What did you do today?</span></p></div>
+        <div id="messages" class="messages" aria-live="polite"></div>
         <p id="status" class="status">Bereit, wenn du es bist.</p>
         <p id="focusHint" class="focus-hint hidden"></p>
         <button id="startButton" class="hidden">🎙️ Gespräch starten</button>

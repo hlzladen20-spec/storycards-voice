@@ -7,6 +7,7 @@ import { appendLearningImage } from "/learning-images.js";
 import { learningStreak, addPracticeDay, recoverPracticeDays } from "/learning-streak.js";
 import { speakingGoal, remainingSpeakingSeconds, addSpeakingSeconds, approveAnotherSpeakingLesson } from "/speaking-goal.js";
 import { setupVocabularyTrainer } from "/vocabulary-trainer.js";
+import { conversationMode, conversationModeInstructions } from "/conversation-modes.js";
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -221,6 +222,7 @@ function refreshSpeakingGoal() {
   timer.querySelector("small").textContent=`/ ${clockText(sessionDurationSeconds)}`;
   document.querySelector(".home-countdown small").textContent=`/ ${clockText(dailySpeakingMinutes*60)}`;
   syncConversationClocks();
+  updateHomeProgress();
 }
 $("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinutes = Math.min(60, Math.max(1, Math.round(Number($("dailySpeakingMinutes").value) || 10))); $("dailySpeakingMinutes").value = dailySpeakingMinutes; appStorage.setItem("storycards-speaking-minutes", String(dailySpeakingMinutes)); if (!hasActiveConversation()) {learningStats={...learningStats,speakingGoal:speakingGoal(learningStats,dailySpeakingMinutes)};saveStats();} refreshSpeakingGoal(); $("speakingMinutesSaved").textContent = hasActiveConversation() ? "Gespeichert – gilt ab dem nächsten Gespräch." : `Gespeichert: ${dailySpeakingMinutes} Minuten pro Tag.`; });
 function localLearningDay() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`; }
@@ -286,22 +288,45 @@ setupCardManager(() => cards, updated => {
   saveCards();
 });
 function saveStats() { learningStorage.save("stats", learningStats); updateHomeProgress(); }
-function updateHomeProgress() { $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`; $("homeLearned").textContent = cards.filter((card) => Number(card.knownStreak || 0) > 0).length; $("homeMinutes").textContent = `${Number(learningStats.minutes || 0)} min`; }
+function updateHomeProgress() {
+ $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`;
+ $("homeLearned").textContent = cards.filter((card) => Number(card.knownStreak || 0) > 0).length;
+ $("homeMinutes").textContent = `${Number(learningStats.minutes || 0)} min`;
+ const vocabulary=learningStorage.load("vocabulary",{words:[]});
+ const words=Array.isArray(vocabulary.words)?vocabulary.words:[];
+ const known=words.filter(word=>word.stage>0 && word.lastRating==='yes').length;
+ $("homeVocabulary").textContent=`${known}/${words.length}`;
+ $("homeVocabularyButton").setAttribute("aria-label",`${known} von ${words.length} Vokabelkarten gelernt. Alle Vokabelkarten anzeigen`);
+}
 function recordPracticeDay() {
   const updated = addPracticeDay(learningStats);
   if (JSON.stringify(updated.practiceDays) !== JSON.stringify(learningStats.practiceDays)) {
     learningStats = updated;
     saveStats();
   }
+  updateHomeProgress();
 }
 function recordCompletedSession() { const minutes = Math.max(1, Math.round((Date.now() - startedAt - pausedDuration) / 60000)); learningStats.conversations = Number(learningStats.conversations || 0) + 1; learningStats.minutes = Number(learningStats.minutes || 0) + minutes; learningStats = addPracticeDay(learningStats); saveStats(); }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHomeProgress(); });
 function updateDue() { $("dueCount").textContent = cards.filter((card) => card.nextReviewAt <= Date.now()).length; }
 function cleanFocus(focus) { return Array.isArray(focus) ? focus.filter((item) => item && typeof item.pattern === "string" && typeof item.practice === "string").map((item) => ({ pattern:item.pattern.trim().slice(0, 90), practice:item.practice.trim().slice(0, 140), example:typeof item.example === "string" ? item.example.trim().slice(0, 120) : "" })).filter((item) => item.pattern && item.practice) : []; }
 function updateFocusHint() { const focus = cleanFocus(learningProfile.focus); const hint = $("focusHint"); if (!focus.length) { hint.classList.add("hidden"); return; } hint.textContent = `Dein nächster Fokus: ${focus[0].pattern} – ${focus[0].practice}`; hint.classList.remove("hidden"); }
-function rememberFocus(newFocus) { const merged = [...cleanFocus(newFocus), ...cleanFocus(learningProfile.focus)]; const seen = new Set(); learningProfile = { focus:merged.filter((item) => !seen.has(item.pattern.toLowerCase()) && seen.add(item.pattern.toLowerCase())).slice(0, 3), updatedAt:Date.now() }; learningStorage.save("profile", learningProfile); updateFocusHint(); }
+function rememberFocus(newFocus) { const merged = [...cleanFocus(newFocus), ...cleanFocus(learningProfile.focus)]; const seen = new Set(); learningProfile = { ...learningProfile, focus:merged.filter((item) => !seen.has(item.pattern.toLowerCase()) && seen.add(item.pattern.toLowerCase())).slice(0, 3), updatedAt:Date.now() }; learningStorage.save("profile", learningProfile); updateFocusHint(); }
 function coachInstructions() { const focus = cleanFocus(learningProfile.focus); const modes = { alltag:"a relaxed everyday conversation about Mark's day and interests", reisen:"a practical travel conversation, for example a hotel, airport, restaurant, or directions", beruf:"a friendly workplace conversation or a simple job-related role play", einkaufen:"a practical shopping conversation", rollenspiel:"a vivid but simple role play where you take a fitting role", ueberraschung:"a pleasant, everyday surprise topic", schwaechen:"a natural conversation that gives small chances to practise Mark's known learning focus" }; const modeText = ` Today's conversation mode is ${modes[$("conversationMode").value] || modes.alltag}.`; const weakCards = cards.filter(c => c.misses > 0).sort((a,b) => b.misses-a.misses).slice(0,3); const personalContext = weakCards.length ? ` Previously difficult sentences from actual conversations: ${weakCards.map(c => c.back).join("; ")}. Naturally revisit these meanings in new short questions, not rote repetition.` : ""; const focusText = focus.length ? ` Mark's current learning focus is: ${focus.map((item) => `${item.pattern} (${item.practice})`).join("; ")}. Naturally invite brief chances to practise this when it fits, but never announce a lesson or force it.` : ""; return "You are Mark's friendly English conversation coach for A1 to B1. The goal is confidence and understandable communication, not native-level English. Speak mainly English at a calm, clear, natural pace. Use short sentences and make a small pause between ideas so Mark can repeat them. Keep a natural chat going. Let Mark finish speaking. Do not correct every mistake and do not give grammar lessons. Correct only errors that prevent understanding, repeatedly block an important pattern, or create a phrase Mark is likely to reuse incorrectly. At most give one short correction in a turn; often give none. Prefer a gentle natural rephrasing at the end of your reply. Praise successful communication. Ask one concise question at a time. Near ten minutes, warmly conclude the practice." + modeText + focusText + personalContext; }
 function setMicState(text, listening = false) { $("micStateText").textContent = text; $("micState").classList.toggle("listening", listening); }
+function sendCoachInstructions() {
+ if(dataChannel?.readyState!=="open")return;
+ dataChannel.send(JSON.stringify({type:"session.update",session:{type:"realtime",instructions:coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Keep every spoken turn very brief: one short reaction and at most one simple question, about 10 to 25 words total. Then let the learner speak. Avoid repeated praise and unsolicited examples. Give a longer explanation only if explicitly asked."}}));
+}
+function selectConversationMode(value,persist=true) {
+ const mode=conversationMode(value);
+ const option=Array.from($("conversationMode").options).find(option=>conversationMode(option.value)===mode);
+ $("conversationMode").value=option?.value||"alltag";
+ document.querySelectorAll("[data-home-mode]").forEach(tile=>{const active=tile.dataset.homeMode===$("conversationMode").value;tile.classList.toggle("active",active);tile.setAttribute("aria-pressed",String(active));});
+ $("homeModeHint").textContent=`${mode.label}: ${mode.hint}`;
+ if(persist){learningProfile={...learningProfile,conversationMode:$("conversationMode").value};learningStorage.save("profile",learningProfile);}
+ sendCoachInstructions();
+}
 function setPauseLabel(paused) { pauseButton.innerHTML = paused ? "<span>▶</span><small>Fortsetzen</small>" : "<span>Ⅱ</span><small>Pause</small>"; }
 function setFinishLabel() { finishButton.classList.remove("creating-cards"); finishButton.removeAttribute("aria-busy"); finishButton.innerHTML = "<span>×</span><small>Gespräch beenden</small>"; }
 function setFinishBusy(busy) {
@@ -359,7 +384,7 @@ async function startSession() {
       dataChannel.send(JSON.stringify({ type:"session.update", session:{ type:"realtime", audio:{ input:{ noise_reduction:{ type:"near_field" }, turn_detection:{ type:"server_vad", threshold:0.7, prefix_padding_ms:300, silence_duration_ms:1000, create_response:true, interrupt_response:false, idle_timeout_ms:null } } } } }));
     });
     dataChannel.onmessage = event => handleEvent(JSON.parse(event.data));
-    dataChannel.onopen = () => dataChannel.send(JSON.stringify({ type:"session.update", session:{ type:"realtime", instructions:coachInstructions() + " Keep every spoken turn very brief: normally one short reaction and at most one simple question, about 10 to 25 words total. Then stop and let Mark speak. Never repeat his whole answer or add a summary. Avoid repeated praise and unsolicited examples. Give a longer explanation only if Mark explicitly asks for it. Example: 'That sounds nice! What did you make?'" } }));
+    dataChannel.onopen = sendCoachInstructions;
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
     const response = await fetch("/api/realtime/session", { method:"POST", headers:{"Content-Type":"application/sdp"}, body: offer.sdp });
     if (!response.ok) { const data = await response.json(); throw new Error(typeof data.error === "string" ? data.error : (data.error?.message || data.detail || "Verbindung fehlgeschlagen")); }
@@ -517,7 +542,10 @@ async function reviewRecordedAnswer(blob) { const card = queue[0]; if (!card) re
 async function recordAnswer() { try { if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("Die Mikrofonaufnahme wird auf diesem Gerät nicht unterstützt."); reviewStream = await navigator.mediaDevices.getUserMedia({ audio:true }); if (!answerHeld) { reviewStream.getTracks().forEach((track) => track.stop()); return; } reviewChunks = []; reviewRecorder = new MediaRecorder(reviewStream); reviewRecorder.ondataavailable = (event) => { if (event.data.size) reviewChunks.push(event.data); }; reviewRecorder.onstop = () => { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); reviewRecordedAnswer(new Blob(reviewChunks, { type:reviewRecorder.mimeType || "audio/webm" })); }; reviewRecorder.start(); startReviewMeter(reviewStream); } catch (error) { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Das Mikrofon konnte nicht gestartet werden."; } }
 function escapeHtml(text) { const el=document.createElement("span"); el.textContent=text; return el.innerHTML; }
 document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => { if (!queue[0]) return; const updated=rateCard(queue[0], button.dataset.rating); cards=cards.map(c=>c.id===updated.id?updated:c); queue.shift(); saveCards(); renderCard(); }));
-document.querySelectorAll("[data-home-mode]").forEach((button) => button.addEventListener("click", () => { $("conversationMode").value = button.dataset.homeMode; document.querySelectorAll("[data-home-mode]").forEach((tile) => tile.classList.toggle("active", tile === button)); }));
+document.querySelectorAll("[data-home-mode]").forEach(button=>button.addEventListener("click",()=>selectConversationMode(button.dataset.homeMode)));
+$("conversationMode").addEventListener("change",()=>selectConversationMode($("conversationMode").value));
+selectConversationMode(learningProfile.conversationMode||"alltag",false);
+$("homeVocabularyButton").addEventListener("click",()=>{showProfile();const list=document.querySelector(".vocab-management .vocab-manager");if(list){list.open=true;list.scrollIntoView({block:"start",behavior:"smooth"});}});
 $("homeStartButton").addEventListener("click", () => { showPractice(); if (!hasActiveConversation()) startSession(); });
 $("homeDetailsButton").addEventListener("click", showStatistics);
 updateHomeProgress();
