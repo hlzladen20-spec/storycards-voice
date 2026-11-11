@@ -11,6 +11,7 @@ import { conversationMode, conversationModeInstructions } from "/conversation-mo
 import {setupConversationSummary} from '/conversation-summary.js';
 import {setupLearningStrategy} from '/learning-strategy.js';
 import {setupVocabularyMark} from '/card-vocabulary.js';
+import {showLearningTip} from '/learning-tips.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -18,6 +19,8 @@ document.querySelector(".app > header").after(bootNotice);
 const account = await initCloudAccount(localStorage);
 bootNotice.remove();
 const appStorage = account.storage;
+showLearningTip(document.getElementById('learningTipText'),localStorage);
+window.addEventListener('pageshow',event=>{if(event.persisted)showLearningTip(document.getElementById('learningTipText'),localStorage);});
 const activeCourse = getActiveCourse(appStorage);
 const learningStorage = createLearningStorage(appStorage, activeCourse.target, activeCourse.source);
 

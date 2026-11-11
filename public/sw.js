@@ -1,9 +1,10 @@
-const CACHE = "storycards-shell-conversation-summary-v24";
+const CACHE = "storycards-shell-learning-tips-v25";
 const SHELL = ["/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 
 SHELL.push("/keep-awake.js", "/speaking-goal.js", "/learning-streak.js", "/lesson-planner.js", "/learning-images.js", "/learning-images/workshop-v1.png", "/learning-images/restaurant-v1.png", "/learning-images/travel-v1.png", "/learning-images/shopping-v1.png");
 SHELL.push("/vocabulary.js", "/vocabulary-trainer.js", "/vocabulary.css", "/word-translation.js", "/conversation-modes.js", "/home.css");
 SHELL.push('/conversation-summary.js','/learning-strategy.js','/card-vocabulary.js','/learning-summary.css');
+SHELL.push('/learning-tips.js');
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL))));
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (event) => {
