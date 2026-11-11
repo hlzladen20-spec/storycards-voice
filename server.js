@@ -29,7 +29,7 @@ function sessionConfig() {
       output: { voice: "marin", speed: 0.85 },
       input: { transcription: { model: "gpt-4o-mini-transcribe", language: "en" } }
     },
-    instructions: "You are Mark's friendly English conversation coach for A1 to B1. The goal is confidence and understandable communication, not native-level English. Speak mainly English at a calm, clear, natural pace. Use short sentences and make a small pause between ideas so Mark can repeat them. Keep a natural chat going about daily life, timber transport, sawmills, and paragliding when useful. Let Mark finish speaking. Do not correct every mistake and do not give grammar lessons. Correct only errors that prevent understanding, repeatedly block an important pattern, or create a phrase Mark is likely to reuse incorrectly. At most give one short correction in a turn; often give none. Prefer a gentle natural rephrasing at the end of your reply. Praise successful communication. Ask one concise question at a time. Near ten minutes, warmly conclude the practice."
+    instructions: "You are a friendly English conversation coach for learners from A1 to C2. Adapt to the learner's demonstrated language, starting with accessible questions if unknown. Use one concise question at a time and let the learner finish. Do not correct every mistake. Keep natural conversation going. More specific learner and topic instructions will follow."
   };
 }
 
@@ -59,11 +59,12 @@ async function createFlashcards(req, res) {
   if (!Array.isArray(transcript) || transcript.length === 0) return json(res, 400, { error: "There is no conversation to turn into cards yet." });
 
   const conversation = transcript.slice(-80).map((line) => `${line.role}: ${line.text}`).join("\n");
+  const proficiencyInstructions=await readFile(join(projectDir,'lib','proficiency-prompt.txt'),'utf8')+await readFile(join(publicDir,'proficiency-goals.js'),'utf8');
   const prompt = `Create 1 to 6 carefully selected short, personal English flashcards from this learner's voice conversation. Only include demonstrated learner errors, explicit requests for missing vocabulary, or evidenced hesitations from this actual conversation. Never add generic vocabulary or corrections of already-correct speech. If evidence is absent, return no cards. Each card teaches exactly one reusable phrase or one language difficulty. Use one complete short German sentence and one natural English equivalent, STRICTLY 2 to 6 words and at most 70 characters per side. Shorten naturally to one tiny complete sentence without changing the specific difficulty. Do not copy whole dialogue turns, lists, sentence fragments or several independent ideas. Prefer fewer high-value cards over padding the collection. The learner is German A1–B1. Make front German or a simple cue; make back natural English. Also identify up to three recurring, evidenced learning focuses for future conversations. Return JSON only: {"cards":[{"front":"...","back":"...","note":"brief German explanation"}],"focus":[{"pattern":"short German label, e.g. Simple Past","practice":"what to practise next, in German","example":"optional short example"}]}. Do not invent errors that are not supported by the conversation.\n\nConversation:\n${conversation}`;
   const upstream = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "gpt-4.1-mini", input: Array.isArray(repairCards) ? `Translate every English back into a complete natural German sentence as front. Return exactly one card per input in the same order with back unchanged. JSON only: {"cards":[{"front":"German sentence","back":"English sentence","note":""}],"focus":[]}. Input: ${JSON.stringify(repairCards.slice(0,15))}` : prompt + " Every front must be a complete natural German sentence translating back. Never use an English cue on front. " + await readFile(join(projectDir,'lib','conversation-review-prompt.txt'),'utf8'), text: { format: { type: "json_object" } } })
+    body: JSON.stringify({ model: "gpt-4.1-mini", input: Array.isArray(repairCards) ? `Translate every English back into a complete natural German sentence as front. Return exactly one card per input in the same order with back unchanged. JSON only: {"cards":[{"front":"German sentence","back":"English sentence","note":""}],"focus":[]}. Input: ${JSON.stringify(repairCards.slice(0,15))}` : prompt.replace('The learner is German A1–B1.','The learner is German and may be anywhere from A1 to C2.') + " Every front must be a complete natural German sentence translating back. Never use an English cue on front. " + await readFile(join(projectDir,'lib','conversation-review-prompt.txt'),'utf8')+'\n'+proficiencyInstructions, text: { format: { type: "json_object" } } })
   });
   const result = await upstream.json();
   if (!upstream.ok) return json(res, upstream.status, { error: "Could not create flashcards.", detail: JSON.stringify(result).slice(0, 500) });
@@ -71,7 +72,7 @@ async function createFlashcards(req, res) {
     const outputText = result.output_text || (result.output || []).flatMap((item) => item.content || []).filter((item) => item.type === "output_text").map((item) => item.text).join("");
     const parsed = JSON.parse(outputText);
     const focus = Array.isArray(parsed.focus) ? parsed.focus.filter((item) => item && typeof item.pattern === "string" && typeof item.practice === "string").slice(0, 3) : [];
-    return json(res, 200, { cards: normaliseCards(parsed.cards), focus, review:cleanConversationReview(parsed.review) });
+    return json(res, 200, { cards: normaliseCards(parsed.cards), focus, review:cleanConversationReview(parsed.review),assessment:parsed.assessment||null });
   } catch { return json(res, 502, { error: "The card response was not usable. Please try again." }); }
 }
 

@@ -12,6 +12,8 @@ import {setupConversationSummary} from '/conversation-summary.js';
 import {setupLearningStrategy} from '/learning-strategy.js';
 import {setupVocabularyMark} from '/card-vocabulary.js';
 import {showLearningTip} from '/learning-tips.js';
+import {recordProficiency,proficiencyCoachInstructions} from '/proficiency.js';
+import {setupProficiencyUI} from '/proficiency-ui.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -30,6 +32,7 @@ timer.style.position = "relative";
 let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
 let timeExpired = false, responseActive = false, outputPlaying = false, finishingSession = false, finishAfterAudioTimer;
 let vocabularyMark, learningStrategy;
+let proficiencyUI;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
@@ -319,7 +322,13 @@ function updateDue() { $("dueCount").textContent = cards.filter((card) => card.n
 function cleanFocus(focus) { return Array.isArray(focus) ? focus.filter((item) => item && typeof item.pattern === "string" && typeof item.practice === "string").map((item) => ({ pattern:item.pattern.trim().slice(0, 90), practice:item.practice.trim().slice(0, 140), example:typeof item.example === "string" ? item.example.trim().slice(0, 120) : "" })).filter((item) => item.pattern && item.practice) : []; }
 function updateFocusHint() { const focus = cleanFocus(learningProfile.focus); const hint = $("focusHint"); if (!focus.length) { hint.classList.add("hidden"); return; } hint.textContent = `Dein nächster Fokus: ${focus[0].pattern} – ${focus[0].practice}`; hint.classList.remove("hidden"); }
 function rememberFocus(newFocus) { const merged = [...cleanFocus(newFocus), ...cleanFocus(learningProfile.focus)]; const seen = new Set(); learningProfile = { ...learningProfile, focus:merged.filter((item) => !seen.has(item.pattern.toLowerCase()) && seen.add(item.pattern.toLowerCase())).slice(0, 3), updatedAt:Date.now() }; learningStorage.save("profile", learningProfile); updateFocusHint(); }
-function coachInstructions() { const focus = cleanFocus(learningProfile.focus); const modes = { alltag:"a relaxed everyday conversation about Mark's day and interests", reisen:"a practical travel conversation, for example a hotel, airport, restaurant, or directions", beruf:"a friendly workplace conversation or a simple job-related role play", einkaufen:"a practical shopping conversation", rollenspiel:"a vivid but simple role play where you take a fitting role", ueberraschung:"a pleasant, everyday surprise topic", schwaechen:"a natural conversation that gives small chances to practise Mark's known learning focus" }; const modeText = ` Today's conversation mode is ${modes[$("conversationMode").value] || modes.alltag}.`; const weakCards = cards.filter(c => c.misses > 0).sort((a,b) => b.misses-a.misses).slice(0,3); const personalContext = weakCards.length ? ` Previously difficult sentences from actual conversations: ${weakCards.map(c => c.back).join("; ")}. Naturally revisit these meanings in new short questions, not rote repetition.` : ""; const focusText = focus.length ? ` Mark's current learning focus is: ${focus.map((item) => `${item.pattern} (${item.practice})`).join("; ")}. Naturally invite brief chances to practise this when it fits, but never announce a lesson or force it.` : ""; return "You are Mark's friendly English conversation coach for A1 to B1. The goal is confidence and understandable communication, not native-level English. Speak mainly English at a calm, clear, natural pace. Use short sentences and make a small pause between ideas so Mark can repeat them. Keep a natural chat going. Let Mark finish speaking. Do not correct every mistake and do not give grammar lessons. Correct only errors that prevent understanding, repeatedly block an important pattern, or create a phrase Mark is likely to reuse incorrectly. At most give one short correction in a turn; often give none. Prefer a gentle natural rephrasing at the end of your reply. Praise successful communication. Ask one concise question at a time. Near ten minutes, warmly conclude the practice." + modeText + focusText + personalContext; }
+function coachInstructions() {
+ const focus=cleanFocus(learningProfile.focus);
+ const weakCards=cards.filter(card=>card.needsPractice || card.lastRating==='no' || card.lastRating==='hard').slice(0,3);
+ const personalContext=weakCards.length?` Previously difficult sentences: ${weakCards.map(card=>card.back).join('; ')}. Revisit their meanings naturally in the selected topic.`:'';
+ const focusText=focus.length?` Current learning focus: ${focus.map(item=>`${item.pattern} (${item.practice})`).join('; ')}. Offer natural chances to practise it without forcing a lesson.`:'';
+ return "You are a friendly English conversation coach for learners from A1 to C2. Encourage understandable communication and adapt to demonstrated ability. Let the learner finish. Keep a natural chat going, mainly in English. Do not correct every mistake or give unsolicited grammar lessons. At most give one concise correction per turn, mainly for recurring or communication-blocking errors. Ask one question at a time. Do not end on an assumed ten-minute timer; the app controls duration."+proficiencyCoachInstructions(learningProfile)+focusText+personalContext;
+}
 function setMicState(text, listening = false) { $("micStateText").textContent = text; $("micState").classList.toggle("listening", listening); }
 function sendCoachInstructions() {
  if(dataChannel?.readyState!=="open")return;
@@ -491,7 +500,9 @@ async function finishSession() {
     const data=await response.json();if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'Die Auswertung konnte nicht geladen werden.');
     if(!Array.isArray(data.cards))throw new Error('Die Karten-Antwort konnte nicht gelesen werden.');
     const newCards=normaliseCards(data.cards),focus=cleanFocus(data.focus);
+    learningProfile=recordProficiency(learningProfile,data.assessment,{id:String(startedAt),transcript,mode:$("conversationMode").value});
     cards=[...cards,...newCards];rememberFocus(focus);saveCards();recordCompletedSession();sessionWasEvaluated=true;
+    proficiencyUI?.render();
     status.textContent=`${newCards.length} neue Karten sind bereit.`;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';
     showSummary(newCards,focus,data.review);
   } catch(error){status.textContent=error.message;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';finishButton.disabled=false;setMicState('Auswertung fehlgeschlagen · erneut beenden zum Wiederholen');}
@@ -595,5 +606,6 @@ learningStrategy=setupLearningStrategy();
 setupVocabularyTrainer({storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
+proficiencyUI=setupProficiencyUI({getProfile:()=>learningProfile,onDetails:showStatistics});
 refreshSpeakingGoal();
 await import("/cards-design.js");
