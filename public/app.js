@@ -507,8 +507,9 @@ function showCardChoice() {
   for (const id of ["home","practice","summary","cards","statistics","profile","vocabulary"]) $(id)?.classList.add("hidden");
   $("cardChoice").classList.remove("hidden");
   const plan=prepareDailyLesson();
-  const remaining=plan.plannedIds.filter(id=>!plan.completed.includes(id)).length;
-  $("dailyChoiceHint").textContent=remaining?`${remaining} Lernziele · höchstens 3 neue, Wiederholungen zuerst`:"Für heute ist deine Lernrunde geschafft. Weiterüben ist freiwillig.";
+  const remaining=lessonQueue(cards,plan).length;
+  $("dailyPracticeButton").disabled=remaining===0;
+  $("dailyChoiceHint").textContent=remaining?`${remaining} Aufgaben · höchstens 3 neue, Wiederholungen zuerst`:plan.plannedIds.length?"✓ Tagesziel erreicht · morgen geht’s weiter. Wiederholung und Frei üben bleiben verfügbar.":"Heute keine fälligen Karten. Wiederholung und Frei üben bleiben verfügbar.";
   const weakCount=difficultCards(cards).length;
   $("weakChoiceHint").textContent=weakCount?`${weakCount} unsichere Karten · auch heute wiederholen, Lernabstände verbessern`:"Keine schwierigen Karten offen – gut gemacht!";
   $("weakPracticeButton").disabled=!weakCount;
@@ -522,6 +523,7 @@ $("cards").querySelector(".cards-nav button.active").addEventListener("click", s
 function showHome() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); refreshSpeakingGoal(); }
 function showPractice() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
 function showReview(includeAll = false) {
+  if(!includeAll && !lessonQueue(cards,prepareDailyLesson()).length){showCardChoice();return;}
   learningStrategy?.reset();
   $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden");freePractice=false;weakPractice=includeAll==="weak";reviewHistory=[];assessedCards.clear();
   document.body.classList.remove("in-conversation");
