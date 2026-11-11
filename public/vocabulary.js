@@ -41,6 +41,15 @@ export function vocabularyProgress(state) {
  const rated=new Set([...(state.lesson?.previousRated||[]),...(state.lesson?.rated||[])]);
  return {total:ids.size,learned:state.words.filter(w=>ids.has(w.id) && rated.has(w.id) && w.lastRating==='yes').length};
 }
+// Round completion is not mastery: failed cards remain pending until their retry.
+// Earlier rounds and already-known words must never pre-fill a new round's bar.
+export function vocabularyRoundProgress(state) {
+ const available=new Set(state.words.map(word=>word.id));
+ const ids=new Set((state.lesson?.ids||[]).filter(id=>available.has(id)));
+ const rated=new Set(state.lesson?.rated||[]);
+ const pending=new Set((state.lesson?.queue||[]).map(item=>item.id));
+ return {total:ids.size,completed:[...ids].filter(id=>rated.has(id) && !pending.has(id)).length};
+}
 export function additionalVocabularyLesson(state,now=Date.now()) {
  if(state.lesson && !state.lesson.closed && state.lesson.queue.length)return state;
  const day=calendarDayKey(now),same=state.lesson?.day===day;
