@@ -8,6 +8,9 @@ import { learningStreak, addPracticeDay, recoverPracticeDays } from "/learning-s
 import { speakingGoal, remainingSpeakingSeconds, addSpeakingSeconds, approveAnotherSpeakingLesson } from "/speaking-goal.js";
 import { setupVocabularyTrainer } from "/vocabulary-trainer.js";
 import { conversationMode, conversationModeInstructions } from "/conversation-modes.js";
+import {setupConversationSummary} from '/conversation-summary.js';
+import {setupLearningStrategy} from '/learning-strategy.js';
+import {setupVocabularyMark} from '/card-vocabulary.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -23,6 +26,7 @@ const startButton = $("startButton"), pauseButton = $("pauseButton"), finishButt
 timer.style.position = "relative";
 let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
 let timeExpired = false, responseActive = false, outputPlaying = false, finishingSession = false, finishAfterAudioTimer;
+let vocabularyMark, learningStrategy;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
@@ -306,7 +310,7 @@ function recordPracticeDay() {
   }
   updateHomeProgress();
 }
-function recordCompletedSession() { const minutes = Math.max(1, Math.round((Date.now() - startedAt - pausedDuration) / 60000)); learningStats.conversations = Number(learningStats.conversations || 0) + 1; learningStats.minutes = Number(learningStats.minutes || 0) + minutes; learningStats = addPracticeDay(learningStats); saveStats(); }
+function recordCompletedSession() { const minutes = Math.max(1, Math.round(sessionCountedSeconds / 60)); learningStats.conversations = Number(learningStats.conversations || 0) + 1; learningStats.minutes = Number(learningStats.minutes || 0) + minutes; learningStats = addPracticeDay(learningStats); saveStats(); }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHomeProgress(); });
 function updateDue() { $("dueCount").textContent = cards.filter((card) => card.nextReviewAt <= Date.now()).length; }
 function cleanFocus(focus) { return Array.isArray(focus) ? focus.filter((item) => item && typeof item.pattern === "string" && typeof item.practice === "string").map((item) => ({ pattern:item.pattern.trim().slice(0, 90), practice:item.practice.trim().slice(0, 140), example:typeof item.example === "string" ? item.example.trim().slice(0, 120) : "" })).filter((item) => item.pattern && item.practice) : []; }
@@ -408,6 +412,10 @@ function finishWhenEmmaIsDone() {
     stream?.getAudioTracks().forEach(track => track.enabled = false);
     pauseButton.disabled = true;
     finishButton.disabled = true;
+    if(dataChannel?.readyState==='open') {
+      dataChannel.send(JSON.stringify({type:'session.update',session:{type:'realtime',audio:{input:{turn_detection:null}}}}));
+      dataChannel.send(JSON.stringify({type:'input_audio_buffer.clear'}));
+    }
     status.textContent = "Die Zeit ist um. Emma spricht noch zu Ende …";
     setMicState("Emma spricht noch zu Ende …");
   }
@@ -415,11 +423,17 @@ function finishWhenEmmaIsDone() {
   if (!responseActive && !outputPlaying) {
     // Allow the WebRTC playback tail and any final transcript event to arrive.
     finishAfterAudioTimer = setTimeout(() => {
-      if (timeExpired && !responseActive && !outputPlaying) finishSession();
+      if (timeExpired && !responseActive && !outputPlaying) {
+        finishButton.disabled=false;
+        status.textContent='Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';
+        setMicState('Zeit geschafft · bitte Gespräch beenden');
+        $('practice').dataset.keepAwake='false';
+      }
     }, 700);
   }
 }
 function handleEvent(event) {
+  if(timeExpired && event.type==='response.created' && !responseActive){if(dataChannel?.readyState==='open')dataChannel.send(JSON.stringify({type:'response.cancel',response_id:event.response?.id}));return;}
   if (event.type === "response.created") { responseActive = true; clearTimeout(finishAfterAudioTimer); }
   if (event.type === "output_audio_buffer.started") { outputPlaying = true; clearTimeout(finishAfterAudioTimer); }
   if (event.type === "response.done") responseActive = false;
@@ -433,6 +447,7 @@ function handleEvent(event) {
 }
 
 function togglePause() {
+  if(timeExpired)return;
   if (!hasActiveConversation()) return;
   isPaused = !isPaused;
   $("practice").dataset.keepAwake=String(!isPaused);
@@ -460,17 +475,30 @@ new MutationObserver(() => {
 
 async function finishSession() {
   if (finishingSession) return;
+  if(timeExpired && (responseActive || outputPlaying))return;
   $("practice").dataset.keepAwake="false";
   checkpointSpeakingTime(true);
   sessionBudgetDate=null;
   finishingSession = true; timeExpired = false; clearTimeout(finishAfterAudioTimer);
   clearInterval(interval); isPaused = false; setEmmaSpeaking(false); $("coachStage").classList.remove("paused"); pauseButton.disabled = true; finishButton.disabled = true; setFinishBusy(true); startButton.textContent = "Gespräch beendet"; setMicState("Gespräch wird ausgewertet …"); stream?.getTracks().forEach((t) => t.stop()); pc?.close();
-  if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; setFinishBusy(false); return; }
+  if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; setFinishBusy(false); finishingSession=false; return; }
   status.textContent = "Ich erstelle deine persönlichen Karten …";
-  try { const response = await fetch("/api/flashcards", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ transcript }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error); const newCards = normaliseCards(data.cards); if (!newCards.length) throw new Error("Aus diesem Gespräch konnte ich noch keine passenden Karten ableiten."); cards = [...cards, ...newCards]; rememberFocus(data.focus); saveCards(); recordCompletedSession(); sessionWasEvaluated = true; status.textContent = `${newCards.length} neue Karten sind bereit.`; startButton.disabled = false; startButton.textContent = "🎙 Weiter sprechen"; setMicState("Du kannst weiter sprechen oder deine Karten üben."); showSummary(newCards.length, cleanFocus(data.focus).length); } catch(error) { status.textContent = error.message; startButton.disabled = false; startButton.textContent = "🎙 Weiter sprechen"; setMicState("Du kannst das Gespräch fortsetzen."); } finally { setFinishBusy(false); refreshSpeakingGoal(); }
+  try {
+    const response=await fetch('/api/flashcards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript})});
+    const data=await response.json();if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'Die Auswertung konnte nicht geladen werden.');
+    if(!Array.isArray(data.cards))throw new Error('Die Karten-Antwort konnte nicht gelesen werden.');
+    const newCards=normaliseCards(data.cards),focus=cleanFocus(data.focus);
+    cards=[...cards,...newCards];rememberFocus(focus);saveCards();recordCompletedSession();sessionWasEvaluated=true;
+    status.textContent=`${newCards.length} neue Karten sind bereit.`;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';
+    showSummary(newCards,focus,data.review);
+  } catch(error){status.textContent=error.message;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';finishButton.disabled=false;setMicState('Auswertung fehlgeschlagen · erneut beenden zum Wiederholen');}
+  finally{setFinishBusy(false);refreshSpeakingGoal();finishingSession=false;}
 }
 
-function showSummary(cardCount, focusCount) { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.remove("hidden"); const minutes = Math.max(1, Math.round((Date.now() - startedAt - pausedDuration) / 60000)); const focus = cleanFocus(learningProfile.focus); $("summaryText").textContent = `Du hast ${minutes} Minuten Englisch gesprochen.`; $("summaryMinutes").textContent = minutes; $("summaryCards").textContent = cardCount; $("summaryFocus").textContent = focusCount; const topics = $("summaryTopics"); topics.replaceChildren(); (focus.length ? focus : [{ pattern:"Freies Sprechen" }]).forEach((item) => { const chip = document.createElement("span"); chip.className = "summary-topic"; chip.textContent = item.pattern; topics.append(chip); }); const focusCard = $("summaryFocusCard"), first = focus[0]; $("summaryFocusText").textContent = first ? `Dein nächster Fokus: ${first.pattern}. ${first.practice}` : "Heute ging es vor allem darum, frei und verständlich zu sprechen."; focusCard.classList.remove("hidden"); }
+function showSummary(newCards,focus,review) {
+ $('vocabulary')?.classList.add('hidden');$('cardChoice').classList.add('hidden');$('practice').classList.add('hidden');$('summary').classList.remove('hidden');document.body.classList.remove('in-conversation');
+ conversationSummary.render({cards:newCards,focus,review,seconds:sessionCountedSeconds});
+}
 function showCardChoice() {
   document.body.classList.remove("in-conversation");
   for (const id of ["home","practice","summary","cards","statistics","profile","vocabulary"]) $(id)?.classList.add("hidden");
@@ -491,6 +519,7 @@ $("cards").querySelector(".cards-nav button.active").addEventListener("click", s
 function showHome() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); refreshSpeakingGoal(); }
 function showPractice() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
 function showReview(includeAll = false) {
+  learningStrategy?.reset();
   $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden");freePractice=false;weakPractice=includeAll==="weak";reviewHistory=[];assessedCards.clear();
   document.body.classList.remove("in-conversation");
   for(const id of ["home","practice","summary","statistics","profile"]) $(id).classList.add("hidden");
@@ -504,17 +533,19 @@ function showStatistics() { $("vocabulary")?.classList.add("hidden");$("cardChoi
 function showProfile() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
 function renderCard() {
   const card=queue[0];answerVisible=false;
+  window.speechSynthesis?.cancel();vocabularyMark?.refresh(card);
   $("revealButton").classList.add("hidden");$("listenButton").classList.add("hidden");$("ratingButtons").classList.add("hidden");
   $("speakPrompt").classList.add("hidden");$("recordAnswerButton").classList.add("hidden");$("voiceFeedback").className="voice-feedback hidden";
   if(!card) {$("card").innerHTML="<strong>Für heute geschafft!</strong>";return;}
   const introduction=!freePractice && card.lessonStage==="introduce";
     if(card.retryPractice || card.weakRetry || introduction) assessedCards.delete(card.id);
-  const phase=introduction?"Kennenlernen":card.retryPractice?"Noch einmal ohne Hilfe":"Selbst erinnern";
-  $("card").innerHTML=`<small class="lesson-phase">${phase}</small><span>🇩🇪 ${escapeHtml(card.front)}</span>${introduction?`<span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`:""}`;
+  const phase=introduction?"Hören und nachsprechen":card.retryPractice?"Noch einmal ohne Hilfe":"Aus dem Gedächtnis";
+  $("card").innerHTML=`<small class="lesson-phase">${phase}</small>${introduction?`<span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`:`<span>🇩🇪 ${escapeHtml(card.front)}</span>`}`;
   if(introduction) {answerVisible=true;if(imageHintsEnabled) appendLearningImage($("card"),card);}
   $("speakPrompt").textContent=introduction?"Höre den englischen Satz an und sprich ihn nach. Gleich versuchst du ihn ohne Hilfe.":"Sprich die englische Übersetzung aus dem Gedächtnis.";
   $("speakPrompt").classList.remove("hidden");$("recordAnswerButton").classList.remove("hidden");$("recordAnswerButton").disabled=false;$("recordAnswerButton").textContent="🎙 Zum Sprechen gedrückt halten";
   if(!introduction) $("revealButton").classList.remove("hidden");
+  learningStrategy?.announce(introduction?'listen':'recall',()=>{if(introduction && queue[0]?.id===card.id)speakAnswer();});
 }
 function revealAnswer() {
   const card=queue[0];if(!card||answerVisible) return;
@@ -554,6 +585,10 @@ $("conversationCardsButton").addEventListener("click", () => { if (stream?.getAu
 $("subtitleButton").addEventListener("click", () => { const visible = $("subtitleButton").getAttribute("aria-pressed") !== "true"; $("subtitleButton").setAttribute("aria-pressed", String(visible)); $("practice").classList.toggle("subtitles-off", !visible); messages.setAttribute("aria-hidden", String(!visible)); });
 startButton.addEventListener("click", startSession); pauseButton.addEventListener("click", togglePause); finishButton.addEventListener("click", finishSession); $("conversationBackButton").addEventListener("click", () => { if (stream && !isPaused) togglePause(); showHome(); }); $("conversationSettingsButton").addEventListener("click", () => $("modePicker").classList.toggle("hidden")); $("keyboardButton").addEventListener("click", () => { status.textContent = "Sprich einfach weiter – die Tastatur kommt als Nächstes."; }); $("summaryBackButton").addEventListener("click", showHome); $("summaryCloseButton").addEventListener("click", showHome); $("statisticsBackButton").addEventListener("click", showHome); $("profileBackButton").addEventListener("click", showHome); $("continueButton").addEventListener("click", () => { showPractice(); startSession(); }); $("homeNavButton").addEventListener("click", showHome); $("cardsNavButton").addEventListener("click", () => showCardChoice()); $("progressNavButton").addEventListener("click", showStatistics); $("profileNavButton").addEventListener("click", showProfile); $("statisticsHomeButton").addEventListener("click", showHome); $("statisticsCardsButton").addEventListener("click", () => showCardChoice()); $("statisticsProfileButton").addEventListener("click", showProfile); $("cardsHomeButton").addEventListener("click", showHome); $("cardsProgressButton").addEventListener("click", showStatistics); $("cardsProfileButton").addEventListener("click", showProfile); $("profileHomeButton").addEventListener("click", showHome); $("profileCardsButton").addEventListener("click", () => showCardChoice()); $("profileProgressButton").addEventListener("click", showStatistics); $("toCardsButton").addEventListener("click", () => showCardChoice()); $("recordAnswerButton").addEventListener("click", recordAnswer); $("revealButton").addEventListener("click", revealAnswer); $("listenButton").addEventListener("click", speakAnswer); $("backToPractice").addEventListener("click", showPractice); updateDue(); updateFocusHint(); scheduleEmmaBlink();
 account.mount($("profile"), () => hasActiveConversation() || reviewRecorder?.state === "recording" || answerStarting || $("recordAnswerButton").disabled);
+const conversationSummary=setupConversationSummary({onCelebrate:playLessonFanfare});
+learningStrategy=setupLearningStrategy();
 setupVocabularyTrainer({storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
+vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
+vocabularyMark.refresh();
 refreshSpeakingGoal();
 await import("/cards-design.js");
