@@ -5,7 +5,7 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck}){
  document.querySelector('.home-progress').after(home);
  const panel=document.querySelector('#statistics .level-card');panel.className='level-card proficiency-card';
  document.querySelector('#statistics .statistics-topbar>strong').textContent='A1 → C2';
- const profileGoal=document.querySelector('#profile .profile-card');
+ const profileGoal=document.querySelector('#profileLearningPath');
  profileGoal.replaceChildren();const goalTitle=document.createElement('strong');goalTitle.textContent='Dein Lernweg';const goalText=document.createElement('p');goalText.textContent='A1 bis C2 · kleine Etappen · persönliche Sprechziele';profileGoal.append(goalTitle,goalText);
  function node(tag,text){const element=document.createElement(tag);element.textContent=text;return element;}
  function checkButton(){const button=node('button','🎙 Englisch-Check · ca. 5 Minuten');button.type='button';button.className='secondary proficiency-check-button';button.onclick=onCheck;return button;}

@@ -17,6 +17,7 @@ import {setupProficiencyUI} from '/proficiency-ui.js';
 import {createConversationBookends} from '/conversation-bookends.js';
 import {setupDeveloperTools,resetDailyState} from '/developer-tools.js';
 import {englishCheckInstructions,englishCheckGreeting,englishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
+import {setupProfileLayout,revealProfileTarget} from '/profile-layout.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -30,6 +31,7 @@ const activeCourse = getActiveCourse(appStorage);
 const learningStorage = createLearningStorage(appStorage, activeCourse.target, activeCourse.source);
 
 const $ = (id) => document.getElementById(id);
+document.querySelector('#profile .profile-card').id='profileLearningPath';
 const startButton = $("startButton"), pauseButton = $("pauseButton"), finishButton = $("finishButton"), status = $("status"), messages = $("messages"), timer = $("timer");
 timer.style.position = "relative";
 let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
@@ -224,6 +226,7 @@ let sessionDurationSeconds = dailySpeakingMinutes * 60;
 let sessionCountedSeconds=0, sessionBudgetDate=null, sessionBudgetMinutes=dailySpeakingMinutes;
 const speakingSettings = document.createElement("div");
 speakingSettings.className = "profile-card";
+speakingSettings.id='profileSpeakingSettings';
 speakingSettings.innerHTML = '<label for="dailySpeakingMinutes"><strong>Sprechminuten pro Tag</strong></label><p>Wie lange möchtest du täglich Englisch sprechen?</p><input id="dailySpeakingMinutes" type="number" min="1" max="60" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="speakingMinutesSaved" role="status"></p>';
 $("profile").insertBefore(speakingSettings, $("profile").querySelector(".profile-section-title"));
 $("dailySpeakingMinutes").value = dailySpeakingMinutes;
@@ -254,6 +257,7 @@ function rememberDailyCard(id,result) {
 }
 const dailySettings = document.createElement("div");
 dailySettings.className = "profile-card";
+dailySettings.id='profileDailySettings';
 dailySettings.innerHTML = '<label for="dailyCardLimit"><strong>Lernkarten pro Tag</strong></label><p>Höchstens 10 Karten plus 3 zusätzliche Wiederholungen</p><input id="dailyCardLimit" type="number" min="1" max="10" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="dailyLimitSaved" role="status"></p>';
 $("profile").insertBefore(dailySettings, $("profile").querySelector(".profile-section-title"));
 $("dailyCardLimit").value = dailyCardLimit;
@@ -262,17 +266,19 @@ const topicList = $("profile").querySelector(".topic-list");
 if (topicList) { topicList.previousElementSibling?.remove(); topicList.remove(); }
 $("profile").querySelector("h2").textContent = "Profil & Einstellungen";
 const profileSaveArea = document.createElement("div");
+profileSaveArea.id='profileSaveArea';
 profileSaveArea.style.marginTop = "20px";
 profileSaveArea.innerHTML = '<button id="saveProfileButton" class="primary" type="button">Einstellungen speichern</button><p id="profileSavedStatus" role="status" style="color:#16806a;font-size:.85rem;text-align:center"></p>';
 $("profile").insertBefore(profileSaveArea, $("profile").querySelector(".profile-nav"));
 const imageSettings=document.createElement("div");imageSettings.className="profile-card";imageSettings.style.marginTop="12px";
+imageSettings.id='profileImageSettings';
 imageSettings.innerHTML='<label class="image-hint-setting"><input id="imageHintSetting" type="checkbox"> Bilder als Merkhilfe verwenden</label><p style="font-size:.75rem;line-height:1.4">Passende KI-Merkszenen beim Kennenlernen und Aufdecken. Beim selbstständigen Erinnern bleiben sie verborgen. Keine automatische kostenpflichtige Bilderstellung.</p>';
 $("profile").insertBefore(imageSettings,profileSaveArea);
 $("imageHintSetting").checked=imageHintsEnabled;
 $("imageHintSetting").addEventListener("change",()=>{imageHintsEnabled=$("imageHintSetting").checked;appStorage.setItem("storycards-image-hints",imageHintsEnabled?"on":"off");});
 
 $("saveProfileButton").addEventListener("click", () => {
-  if (!$("dailySpeakingMinutes").reportValidity() || !$("dailyCardLimit").reportValidity()) return;
+  if (!$("dailySpeakingMinutes").reportValidity() || !$("dailyCardLimit").reportValidity() || $('vocabDailyLimit')?.reportValidity()===false || $('vocabNewLimit')?.reportValidity()===false) return;
   try {
     $("dailySpeakingMinutes").dispatchEvent(new Event("change"));
     $("dailyCardLimit").dispatchEvent(new Event("change"));
@@ -629,7 +635,7 @@ document.querySelectorAll("[data-rating]").forEach((button) => button.addEventLi
 document.querySelectorAll("[data-home-mode]").forEach(button=>button.addEventListener("click",()=>selectConversationMode(button.dataset.homeMode)));
 $("conversationMode").addEventListener("change",()=>selectConversationMode($("conversationMode").value));
 selectConversationMode(learningProfile.conversationMode||"alltag",false);
-$("homeVocabularyButton").addEventListener("click",()=>{showProfile();const list=document.querySelector(".vocab-management .vocab-manager");if(list){list.open=true;list.scrollIntoView({block:"start",behavior:"smooth"});}});
+$("homeVocabularyButton").addEventListener("click",()=>{showProfile();const list=document.querySelector(".vocab-management .vocab-manager");if(list){revealProfileTarget(list);list.scrollIntoView({block:"start",behavior:"smooth"});}});
 $("homeStartButton").addEventListener("click", () => { showPractice(); if (!hasActiveConversation()) startSession(); });
 $("homeDetailsButton").addEventListener("click", showStatistics);
 updateHomeProgress();
@@ -670,3 +676,5 @@ setupDeveloperTools({profile:$('profile'),deviceStorage:localStorage,
 });
 refreshSpeakingGoal();
 await import("/cards-design.js");
+setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinutes,cards:dailyCardLimit,vocabulary:learningStorage.load('vocabulary',{}).dailyLimit||15})});
+$('saveProfileButton').textContent='Lernziele speichern';

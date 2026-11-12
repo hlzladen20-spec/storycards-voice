@@ -9,7 +9,7 @@ export function createManualCard(front, back, existing, now = Date.now()) {
 export function setupCardManager(getCards, setCards) {
   const section = document.createElement('details');
   section.className = 'card-manager profile-card';
-  section.innerHTML = `<summary>Lernkarten verwalten <span class="manager-count"></span></summary>
+  section.innerHTML = `<summary>Satzkarten verwalten <span class="manager-count"></span></summary>
     <p>Eigene Karten erstellen oder vorhandene Karten entfernen. Änderungen werden sofort gespeichert.</p>
     <form class="manager-form"><label>Deutscher Satz<textarea name="front" required maxlength="1000" rows="2" placeholder="Wie läuft dein Tag?"></textarea></label>
     <label>Englische Übersetzung<textarea name="back" required maxlength="1000" rows="2" placeholder="How is your day going?"></textarea></label>
