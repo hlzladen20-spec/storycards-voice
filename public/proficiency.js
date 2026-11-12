@@ -1,6 +1,7 @@
 import {proficiencyGoals} from './proficiency-goals.js';
 export const proficiencyLevels=Object.freeze(Object.keys(proficiencyGoals));
 export const proficiencyStages=Object.freeze(['Einstieg','Aufbauen','Anwenden','Festigen','Sicher werden']);
+export const proficiencyMinimumSessions=3;
 const dimensions=['vocabulary','grammar','interaction','structure'];
 const normalise=text=>String(text||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 function records(profile){return Array.isArray(profile?.proficiency?.sessions)?profile.proficiency.sessions.filter(item=>item && typeof item.id==='string' && proficiencyLevels.includes(item.level) && Array.isArray(item.goals) && Array.isArray(item.evidence) && item.evidence.length>=2).slice(-30).map(item=>({...item,goals:item.goals.filter(goal=>goal && typeof goal.id==='string' && typeof goal.quote==='string')})):[];}
@@ -24,7 +25,7 @@ export function recordProficiency(profile,assessment,{id,transcript,mode='alltag
  return {...profile,proficiency:{version:1,sessions:[...previous,sample].slice(-30)}};
 }
 export function proficiencyView(profile){
- const sessions=records(profile),recent=sessions.slice(-5),level=sessions.length>=3?median(recent.map(item=>item.level)):null;
+ const sessions=records(profile),recent=sessions.slice(-5),level=sessions.length>=proficiencyMinimumSessions?median(recent.map(item=>item.level)):null;
  const goals=level?proficiencyGoals[level].map((label,index)=>{
   const id=`${level}-${index+1}`,seen=sessions.filter(session=>session.goals.some(goal=>goal.id===id));
   return {id,label,count:seen.length,confirmed:seen.length>=2,quote:seen.at(-1)?.goals.find(goal=>goal.id===id)?.quote||''};
