@@ -16,3 +16,19 @@ body:has(.app-dialog-overlay){overflow:hidden;overscroll-behavior:none}
 .app-dialog-fallback .app-dialog{position:relative;display:block}
 @media(max-width:350px){.app-dialog{padding:20px 17px 17px}.app-dialog h2{font-size:1.2rem}.app-dialog-actions{gap:8px}}
 @media(max-height:500px){.app-dialog{max-height:calc(100dvh - 20px);padding:17px}.app-dialog-icon{display:none}.app-dialog-actions{margin-top:14px}}
+.app-dialog.app-dialog-choice{width:min(490px,calc(100vw - 24px));padding:22px 17px 16px}
+.app-dialog-choice .app-dialog-icon{display:none}.app-dialog.app-dialog-choice h2{font-size:1.25rem;margin-bottom:8px}
+.app-dialog-choice .app-dialog-message>p{font-size:.82rem;margin-bottom:14px}
+.app-dialog-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.app-dialog-option{position:relative;display:grid;align-content:start;gap:5px;min-height:103px;padding:13px 11px;border:1px solid #e0e7d9;border-radius:15px;background:#faf9f2;color:#153934;text-align:left;font:inherit;cursor:pointer}
+.app-dialog-option .app-choice-icon{font-size:1.4rem;line-height:1.2}.app-dialog-option strong{font-size:.87rem;line-height:1.25;font-weight:750}
+.app-dialog-option small{font-size:.72rem;line-height:1.35;color:#63796b}
+.app-dialog-option[aria-pressed=true]{border:2px solid #16816a;padding:12px 10px;background:#e4f2e6}
+.app-dialog-option .app-choice-check{position:absolute;top:10px;right:11px;color:#147d66;font-weight:850}
+.app-dialog-option:last-child:nth-child(odd){grid-column:1/-1;grid-template-columns:30px minmax(0,1fr);align-content:center;min-height:76px;column-gap:9px;padding-right:30px}
+.app-dialog-option:last-child:nth-child(odd) .app-choice-icon{grid-row:span 2;align-self:center}
+.app-dialog-option:hover{background:#edf5e9}.app-dialog-option:focus-visible{outline:3px solid #68b69b;outline-offset:2px}
+.app-dialog-choice .app-dialog-actions{margin-top:14px}
+.conversation-topbar:has(.topic-picker-trigger){grid-template-columns:42px minmax(0,1fr) auto}
+.conversation-topbar .topic-picker-trigger{display:flex;align-items:center;justify-content:center;gap:5px;width:auto;min-height:40px;padding:6px 9px;border:1px solid #d4e5d8;border-radius:12px;background:#eaf3e7;font-size:.75rem!important}
+.topic-picker-trigger svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.6}
