@@ -3,7 +3,7 @@ import {vocabularyIcon} from './card-vocabulary.js';
 import {calendarDayKey} from './learning-streak.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[]}) {
- let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null;
+ let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null,suppressSwipeClick=false;
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
  panel.setAttribute('aria-label','Vokabeltrainer');
  panel.innerHTML=`<button class="ghost vocab-back" type="button">← Zurück zu den Karten</button>
@@ -12,8 +12,8 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  <div class="vocab-controls">
  <p class="vocab-status" role="status" aria-live="polite"></p>
  <button class="primary vocab-reveal" type="button">Antwort aufdecken</button>
- <p class="vocab-swipe-hint" hidden>← Nicht gewusst · Gewusst →</p>
- <div class="vocab-ratings" hidden><button type="button" data-grade="no" class="secondary">← Nicht gewusst</button><button type="button" data-grade="yes" class="primary">Gewusst →</button></div>
+ <p class="vocab-swipe-hint" hidden>← Nicht gewusst · ↑ Mit Fehlern · Gewusst →</p>
+ <div class="vocab-ratings" hidden><button type="button" data-grade="no" class="secondary">← Nicht gewusst</button><button type="button" data-grade="hard" class="secondary">↑ Mit Fehlern<small>Kommt gleich wieder</small></button><button type="button" data-grade="yes" class="primary">Gewusst →</button></div>
  <button class="secondary vocab-finish" type="button" hidden>Beenden</button>
  <button class="primary vocab-continue" type="button" hidden>Weiterlernen →</button>
  </div>
@@ -74,6 +74,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   manage('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
  }
  function render(){
+  resetGesture();
   state=vocabularyLesson(state);
   if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
   save();progress();renderLists();refreshSettings();refreshChoice();
@@ -115,11 +116,21 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
  $('.vocab-reveal').onclick=revealCurrent;
  $('.vocab-continue').onclick=()=>{syncCards();state=additionalVocabularyLesson(state);answerCard=null;lastTick=Date.now();render();if(state.lesson.closed && state.words.length)$('.vocab-status').textContent='Es gibt noch keine Wiederholungen. Im Profil kannst du neue Karten aktivieren (aktuell 0).';};
+ function resetGesture(){gesture=null;const card=$('.vocab-word');card.dataset.swipe='';card.dataset.swipeLabel='';}
  const box=$('.vocab-word');
- box.addEventListener('pointerdown',e=>{if((e.pointerType==='mouse' && e.button!==0)||e.target.closest('button'))return;gesture={id:e.pointerId,x:e.clientX,y:e.clientY};box.setPointerCapture?.(e.pointerId);});
- box.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);gesture=null;if(rating)rate(rating);});
- box.addEventListener('pointercancel',()=>{gesture=null;});
- box.addEventListener('keydown',e=>{if(e.target!==box)return;if(e.key===' '||e.key==='Enter'){e.preventDefault();revealCurrent();}else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();rate(e.key==='ArrowRight'?'yes':'no');}});
+ box.addEventListener('pointerdown',e=>{if(gesture||(e.pointerType==='mouse' && e.button!==0))return;suppressSwipeClick=false;gesture={id:e.pointerId,x:e.clientX,y:e.clientY};(e.target.closest('button')||box).setPointerCapture?.(e.pointerId);});
+ box.addEventListener('pointermove',e=>{
+  if(!gesture||gesture.id!==e.pointerId||!answerCard)return;
+  const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);
+  box.dataset.swipe=rating||'';
+  box.dataset.swipeLabel=rating==='yes'?'Gewusst →':rating==='no'?'← Nicht gewusst':rating==='hard'?'↑ Gewusst, aber mit Fehlern':'';
+ });
+ box.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);resetGesture();suppressSwipeClick=Boolean(rating);if(rating)rate(rating);});
+ // A drag over the English audio button grades; only a tap should play audio.
+ box.addEventListener('click',e=>{if(suppressSwipeClick){suppressSwipeClick=false;e.preventDefault();e.stopImmediatePropagation();}},true);
+ box.addEventListener('pointercancel',resetGesture);
+ box.addEventListener('lostpointercapture',resetGesture);
+ box.addEventListener('keydown',e=>{if(e.target!==box)return;if(e.key===' '||e.key==='Enter'){e.preventDefault();revealCurrent();}else if(['ArrowRight','ArrowLeft','ArrowUp'].includes(e.key)){e.preventDefault();rate(e.key==='ArrowRight'?'yes':e.key==='ArrowLeft'?'no':'hard');}});
  manage('.vocab-add').onsubmit=e=>{e.preventDefault();try{const data=new FormData(e.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();e.target.reset();renderLists();manage('.vocab-management-status').textContent='Kurzer Satz gespeichert. Er kommt in eine kommende Tagesportion.';}catch(error){manage('.vocab-management-status').textContent=error.message;}};
  document.addEventListener('storycards-cards-updated',syncCards);
  document.addEventListener('storycards-card-choice-opened',refreshChoice);
