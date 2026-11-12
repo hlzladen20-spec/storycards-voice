@@ -520,10 +520,18 @@ function showCardChoice() {
   const plan=prepareDailyLesson();
   const remaining=lessonQueue(cards,plan).length;
   $("dailyPracticeButton").disabled=remaining===0;
-  $("dailyChoiceHint").textContent=remaining?`${remaining} Aufgaben · höchstens 3 neue, Wiederholungen zuerst`:plan.plannedIds.length?"✓ Tagesziel erreicht · morgen geht’s weiter. Wiederholung und Frei üben bleiben verfügbar.":"Heute keine fälligen Karten. Wiederholung und Frei üben bleiben verfügbar.";
+  const dailyComplete=remaining===0 && plan.plannedIds.length>0 && plan.plannedIds.every(id=>plan.completed.includes(id));
+  $("dailyPracticeButton").classList[dailyComplete?'add':'remove']('is-complete');
+  $("dailyChoiceTitle").textContent=dailyComplete?'Tageslektion ✓':'Tageslektion';
+  $("dailyChoiceHint").textContent=remaining?`${remaining} Aufgaben · höchstens 3 neue, Wiederholungen zuerst`:dailyComplete?"Tagesziel erreicht – gut gemacht! Morgen geht’s weiter.":"Heute keine fälligen Karten. Wiederholung und Frei üben bleiben verfügbar.";
   const weakCount=difficultCards(cards).length;
   $("weakChoiceHint").textContent=weakCount?`${weakCount} unsichere Karten · auch heute wiederholen, Lernabstände verbessern`:"Keine schwierigen Karten offen – gut gemacht!";
   $("weakPracticeButton").disabled=!weakCount;
+  const weakComplete=cards.length>0 && weakCount===0;
+  $("weakPracticeButton").classList[weakComplete?'add':'remove']('is-complete');
+  $("weakChoiceTitle").textContent=weakComplete?'Wiederholung ✓':'Wiederholung';
+  $("choiceIntro").textContent=dailyComplete?'Stark, dein Tagesziel ist geschafft! Wenn du magst, übe freiwillig weiter.':'Eine kleine Runde bringt dich weiter. Du entscheidest, wie du übst.';
+  document.dispatchEvent?.(new Event('storycards-card-choice-opened'));
 }
 $("choiceHomeButton").addEventListener("click", showHome);
 $("choiceCardsButton").addEventListener("click", showCardChoice);
