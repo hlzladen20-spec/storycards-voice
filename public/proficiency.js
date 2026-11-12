@@ -1,4 +1,5 @@
 import {proficiencyGoals} from './proficiency-goals.js';
+import {ENGLISH_CHECK_MIN_TURNS,ENGLISH_CHECK_MIN_WORDS} from './english-check.js';
 export const proficiencyLevels=Object.freeze(Object.keys(proficiencyGoals));
 export const proficiencyStages=Object.freeze(['Einstieg','Aufbauen','Anwenden','Festigen','Sicher werden']);
 export const proficiencyMinimumSessions=3;
@@ -12,6 +13,10 @@ export function recordProficiency(profile,assessment,{id,transcript,mode='alltag
  const learner=transcript.filter(turn=>turn?.role==='learner' && typeof turn.text==='string').map(turn=>normalise(turn.text)).filter(Boolean);
  if(learner.length<4 || learner.join(' ').split(/\s+/).length<40)return profile;
  const coach=transcript.filter(turn=>turn?.role==='coach').map(turn=>normalise(turn.text));
+ const check=mode==='niveaucheck';
+ const independent=[...new Set(learner.filter(turn=>turn.split(' ').length>=3 && !coach.some(line=>` ${line} `.includes(` ${turn} `))))];
+ const learnerWords=independent.join(' ').split(/\s+/).length;
+ if(check && (independent.length<ENGLISH_CHECK_MIN_TURNS || learnerWords<ENGLISH_CHECK_MIN_WORDS))return profile;
  const validQuote=quote=>{if(typeof quote!=='string' || quote.length>240)return false;const text=normalise(quote);return text.split(' ').length>=4 && learner.some(turn=>` ${turn} `.includes(` ${text} `)) && !coach.some(turn=>` ${turn} `.includes(` ${text} `));};
  const evidence=[...new Set((Array.isArray(assessment.evidence)?assessment.evidence:[]).filter(validQuote))].slice(0,3);
  if(evidence.length<2 || new Set(evidence.map(quote=>learner.findIndex(turn=>` ${turn} `.includes(` ${normalise(quote)} `)))).size<2)return profile;
@@ -22,17 +27,20 @@ export function recordProficiency(profile,assessment,{id,transcript,mode='alltag
  }
  const observed={};for(const dimension of dimensions){const observation=assessment.dimensions?.[dimension];if(proficiencyLevels.includes(observation?.level)&&validQuote(observation.quote))observed[dimension]={level:observation.level,quote:observation.quote};}
  const sample={id,level:assessment.level,at:now,mode:String(mode).slice(0,40),evidence,goals,dimensions:observed};
+ if(check){sample.kind='placement';sample.learnerTurns=independent.length;sample.learnerWords=learnerWords;}
  return {...profile,proficiency:{version:1,sessions:[...previous,sample].slice(-30)}};
 }
 export function proficiencyView(profile){
- const sessions=records(profile),recent=sessions.slice(-5),level=sessions.length>=proficiencyMinimumSessions?median(recent.map(item=>item.level)):null;
+ const sessions=records(profile),recent=sessions.slice(-5);
+ const placement=sessions.findLast(item=>item.kind==='placement' && item.mode==='niveaucheck' && item.learnerTurns>=ENGLISH_CHECK_MIN_TURNS && item.learnerWords>=ENGLISH_CHECK_MIN_WORDS);
+ const level=sessions.length>=proficiencyMinimumSessions?median(recent.map(item=>item.level)):placement?.level||null;
  const goals=level?proficiencyGoals[level].map((label,index)=>{
   const id=`${level}-${index+1}`,seen=sessions.filter(session=>session.goals.some(goal=>goal.id===id));
   return {id,label,count:seen.length,confirmed:seen.length>=2,quote:seen.at(-1)?.goals.find(goal=>goal.id===id)?.quote||''};
  }):[];
  const completed=goals.filter(goal=>goal.confirmed).length;
  const skillLevels={};for(const dimension of dimensions){const observations=recent.map(item=>item.dimensions?.[dimension]?.level).filter(Boolean);skillLevels[dimension]=observations.length>=3?median(observations):null;}
- return {level,stage:proficiencyStages[Math.min(4,completed)],goals,completed,sessions:sessions.length,broader:sessions.length>=5 && new Set(recent.map(item=>item.mode)).size>=2,dimensions:skillLevels};
+ return {level,stage:proficiencyStages[Math.min(4,completed)],goals,completed,sessions:sessions.length,fromCheck:Boolean(level && sessions.length<proficiencyMinimumSessions && placement),broader:sessions.length>=5 && new Set(recent.map(item=>item.mode)).size>=2,dimensions:skillLevels};
 }
 export function proficiencyCoachInstructions(profile){
  const view=proficiencyView(profile);

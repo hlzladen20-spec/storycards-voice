@@ -16,6 +16,7 @@ import {recordProficiency,proficiencyCoachInstructions} from '/proficiency.js';
 import {setupProficiencyUI} from '/proficiency-ui.js';
 import {createConversationBookends} from '/conversation-bookends.js';
 import {setupDeveloperTools,resetDailyState} from '/developer-tools.js';
+import {englishCheckInstructions,englishCheckGreeting,englishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -35,6 +36,7 @@ let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
 let timeExpired = false, responseActive = false, outputPlaying = false, finishingSession = false, finishAfterAudioTimer;
 let vocabularyMark, learningStrategy;
 let proficiencyUI;
+let englishCheck=null;
 let speechBookends;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
@@ -326,6 +328,7 @@ function cleanFocus(focus) { return Array.isArray(focus) ? focus.filter((item) =
 function updateFocusHint() { const focus = cleanFocus(learningProfile.focus); const hint = $("focusHint"); if (!focus.length) { hint.classList.add("hidden"); return; } hint.textContent = `Dein nächster Fokus: ${focus[0].pattern} – ${focus[0].practice}`; hint.classList.remove("hidden"); }
 function rememberFocus(newFocus) { const merged = [...cleanFocus(newFocus), ...cleanFocus(learningProfile.focus)]; const seen = new Set(); learningProfile = { ...learningProfile, focus:merged.filter((item) => !seen.has(item.pattern.toLowerCase()) && seen.add(item.pattern.toLowerCase())).slice(0, 3), updatedAt:Date.now() }; learningStorage.save("profile", learningProfile); updateFocusHint(); }
 function coachInstructions() {
+ if(englishCheck)return englishCheckInstructions;
  const focus=cleanFocus(learningProfile.focus);
  const weakCards=cards.filter(card=>card.needsPractice || card.lastRating==='no' || card.lastRating==='hard').slice(0,3);
  const personalContext=weakCards.length?` Previously difficult sentences: ${weakCards.map(card=>card.back).join('; ')}. Revisit their meanings naturally in the selected topic.`:'';
@@ -335,7 +338,7 @@ function coachInstructions() {
 function setMicState(text, listening = false) { $("micStateText").textContent = text; $("micState").classList.toggle("listening", listening); }
 function sendCoachInstructions() {
  if(dataChannel?.readyState!=="open")return;
- const instructions=coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Keep every spoken turn very brief: one short reaction and at most one simple question, about 10 to 25 words total. Then let the learner speak. Avoid repeated praise and unsolicited examples. Give a longer explanation only if explicitly asked.";
+ const instructions=englishCheck?englishCheckInstructions:coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Keep every spoken turn very brief: one short reaction and at most one simple question, about 10 to 25 words total. Then let the learner speak. Avoid repeated praise and unsolicited examples. Give a longer explanation only if explicitly asked.";
  dataChannel.send(JSON.stringify({type:"session.update",session:{type:"realtime",instructions}}));
  return instructions;
 }
@@ -388,8 +391,11 @@ async function startSession() {
   speechBookends?.dispose();speechBookends=null;
   timeExpired = false; responseActive = false; outputPlaying = false; finishingSession = false; clearTimeout(finishAfterAudioTimer);
   refreshSpeakingGoal();
+  if(englishCheck){sessionDurationSeconds=Math.min(ENGLISH_CHECK_SECONDS,remainingSpeakingSeconds(learningStats,dailySpeakingMinutes));timer.querySelector('small').textContent=`/ ${clockText(sessionDurationSeconds)}`;}
   let phase = "Mikrofon";
   try {
+    if(englishCheck && !englishCheck.started){transcript=[];messages.replaceChildren();englishCheck.started=true;}
+    proficiencyUI?.renderCheckProgress(englishCheck?transcript:null);
     if (sessionWasEvaluated) { transcript = []; sessionWasEvaluated = false; }
     isPaused = false; pausedAt = 0; pausedDuration = 0; $("coachStage").classList.remove("paused");
     setFinishLabel();
@@ -406,7 +412,7 @@ async function startSession() {
     const sessionChannel=dataChannel;
     speechBookends=createConversationBookends({
       send:event=>{if(sessionChannel.readyState!=='open')return false;sessionChannel.send(JSON.stringify(event));return true;},
-      greetingInstructions:()=>coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Open this new conversation now. Greet the learner warmly in English and introduce yourself as Emma briefly, then ask exactly one short, concrete opening question in the selected topic. At most 25 words total. Do not wait for the learner to speak first. Do not invent a previous conversation or assess their performance.",
+      greetingInstructions:()=>englishCheck?englishCheckGreeting:coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Open this new conversation now. Greet the learner warmly in English and introduce yourself as Emma briefly, then ask exactly one short, concrete opening question in the selected topic. At most 25 words total. Do not wait for the learner to speak first. Do not invent a previous conversation or assess their performance.",
       onReady:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}if(timeExpired || isPaused)return;stream?.getAudioTracks().forEach(track=>track.enabled=true);status.textContent=failed?'Die Begrüßung konnte nicht abgespielt werden. Du kannst jetzt selbst anfangen.':'Jetzt bist du dran – sprich einfach Englisch.';setMicState('Ich höre dir zu.',true);},
       onClosing:()=>{status.textContent='Die Zeit ist um. Emma verabschiedet sich …';setMicState('Emma bedankt sich und verabschiedet sich …');},
       onClosed:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}finishButton.disabled=false;status.textContent=failed?'Die Verabschiedung konnte nicht abgespielt werden. Du kannst das Gespräch jetzt beenden.':'Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';setMicState('Zeit geschafft · bitte Gespräch beenden');$('practice').dataset.keepAwake='false';}
@@ -472,6 +478,7 @@ function handleEvent(event) {
   if (event.type === "response.output_audio.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.created") { if (!isPaused) { setMicState("Ich antworte gerade …"); setEmmaSpeaking(true); } }
   if (event.type === "conversation.item.input_audio_transcription.completed") { if (String(event.transcript || "").trim()) recordPracticeDay(); transcript.push({ role:"learner", text:event.transcript }); addMessage("learner", event.transcript); if(!timeExpired && speechBookends?.ready!==false)setMicState("Ich höre dir zu.", true); }
   if (event.type === "response.output_audio_transcript.done") { transcript.push({ role:"coach", text:event.transcript }); addMessage("coach", event.transcript); setEmmaSpeaking(false); if (!isPaused && !timeExpired && speechBookends?.ready!==false) setMicState("Ich höre dir zu.", true); }
+  if(englishCheck && event.type==='conversation.item.input_audio_transcription.completed')proficiencyUI?.renderCheckProgress(transcript);
   if (event.type === "error") status.textContent = event.error?.message || "Ein Verbindungsfehler ist aufgetreten.";
   speechBookends?.observe(event,responseActive||outputPlaying);
   if (timeExpired) { if(!speechBookends)setMicState("Emma spricht noch zu Ende …");finishWhenEmmaIsDone(); }
@@ -520,11 +527,13 @@ async function finishSession() {
     const data=await response.json();if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'Die Auswertung konnte nicht geladen werden.');
     if(!Array.isArray(data.cards))throw new Error('Die Karten-Antwort konnte nicht gelesen werden.');
     const newCards=normaliseCards(data.cards),focus=cleanFocus(data.focus);
-    learningProfile=recordProficiency(learningProfile,data.assessment,{id:String(startedAt),transcript,mode:$("conversationMode").value});
+    learningProfile=recordProficiency(learningProfile,data.assessment,{id:String(startedAt),transcript,mode:englishCheck?'niveaucheck':$("conversationMode").value});
     cards=[...cards,...newCards];rememberFocus(focus);saveCards();recordCompletedSession();sessionWasEvaluated=true;
     proficiencyUI?.render();
     status.textContent=`${newCards.length} neue Karten sind bereit.`;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';
     showSummary(newCards,focus,data.review);
+    proficiencyUI?.renderCheckResult(englishCheck?String(startedAt):null);
+    englishCheck=null;proficiencyUI?.renderCheckProgress(null);
   } catch(error){status.textContent=error.message;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';finishButton.disabled=false;setMicState('Auswertung fehlgeschlagen · erneut beenden zum Wiederholen');}
   finally{setFinishBusy(false);refreshSpeakingGoal();finishingSession=false;}
 }
@@ -634,7 +643,15 @@ learningStrategy=setupLearningStrategy();
 setupVocabularyTrainer({storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
-proficiencyUI=setupProficiencyUI({getProfile:()=>learningProfile,onDetails:showStatistics});
+proficiencyUI=setupProficiencyUI({getProfile:()=>learningProfile,onDetails:showStatistics,onCheck:startEnglishCheck});
+function startEnglishCheck(){
+ if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled){window.alert('Bitte zuerst das laufende Gespräch, die Aufnahme oder die Auswertung beenden.');return;}
+ if(transcript.length && !sessionWasEvaluated){window.alert('Bitte zuerst dein vorheriges Gespräch beenden und auswerten.');return;}
+ const extra=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)<ENGLISH_CHECK_SECONDS;
+ if(!window.confirm('Englisch-Check starten? Emma stellt etwa 5 Minuten lang kurze, zunehmend anspruchsvollere Fragen. Antworte selbstständig: Ziel sind mindestens 8 Antworten und insgesamt 100 Wörter. Danach erhältst du bei ausreichenden Belegen eine vorläufige Einschätzung – kein Zertifikat. Der Check nutzt Mikrofon und KI wie ein normales Gespräch und zählt zu deiner Sprechzeit.'+(extra?' Dafür wird zusätzlich Zeit bis zu einem verfügbaren 5-Minuten-Budget freigegeben.':'')))return;
+ learningStats=englishCheckBudget(learningStats,dailySpeakingMinutes);saveStats();
+ englishCheck={started:false};showPractice();startSession();
+}
 setupDeveloperTools({profile:$('profile'),deviceStorage:localStorage,
  isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || repairingCards,
  onReset:()=>{
@@ -643,7 +660,8 @@ setupDeveloperTools({profile:$('profile'),deviceStorage:localStorage,
   if(next.vocabulary)learningStorage.save('vocabulary',next.vocabulary);
   learningStorage.save('stats',next.stats);learningStats=next.stats;
   queue=[];reviewHistory=[];assessedCards.clear();answerVisible=false;freePractice=false;weakPractice=false;
-  sessionBudgetDate=null;sessionCountedSeconds=0;timeExpired=false;
+  sessionBudgetDate=null;sessionCountedSeconds=0;timeExpired=false;englishCheck=null;
+  proficiencyUI?.renderCheckProgress(null);proficiencyUI?.renderCheckResult(null);
   learningStrategy?.reset();window.speechSynthesis?.cancel();
   delete $('card').dataset.finished;
   timer.style.background='#dcece7';refreshSpeakingGoal();updateDue();
