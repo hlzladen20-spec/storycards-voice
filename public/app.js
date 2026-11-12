@@ -15,6 +15,7 @@ import {showLearningTip} from '/learning-tips.js';
 import {recordProficiency,proficiencyCoachInstructions} from '/proficiency.js';
 import {setupProficiencyUI} from '/proficiency-ui.js';
 import {createConversationBookends} from '/conversation-bookends.js';
+import {setupDeveloperTools,resetDailyState} from '/developer-tools.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -634,5 +635,20 @@ setupVocabularyTrainer({storage:learningStorage,getCards:()=>cards,onPractice:re
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
 proficiencyUI=setupProficiencyUI({getProfile:()=>learningProfile,onDetails:showStatistics});
+setupDeveloperTools({profile:$('profile'),deviceStorage:localStorage,
+ isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || repairingCards,
+ onReset:()=>{
+  const next=resetDailyState({stats:learningStats,lesson:learningStorage.load('lesson',null),vocabulary:learningStorage.load('vocabulary',null)},{minutes:dailySpeakingMinutes});
+  learningStorage.save('lesson',next.lesson);
+  if(next.vocabulary)learningStorage.save('vocabulary',next.vocabulary);
+  learningStorage.save('stats',next.stats);learningStats=next.stats;
+  queue=[];reviewHistory=[];assessedCards.clear();answerVisible=false;freePractice=false;weakPractice=false;
+  sessionBudgetDate=null;sessionCountedSeconds=0;timeExpired=false;
+  learningStrategy?.reset();window.speechSynthesis?.cancel();
+  delete $('card').dataset.finished;
+  timer.style.background='#dcece7';refreshSpeakingGoal();updateDue();
+  document.dispatchEvent(new CustomEvent('storycards-vocabulary-changed'));
+ }
+});
 refreshSpeakingGoal();
 await import("/cards-design.js");
