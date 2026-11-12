@@ -1,6 +1,7 @@
 import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,additionalVocabularyLesson,rateVocabulary,finishVocabulary,vocabularyRoundProgress,swipeRating,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
 import {vocabularyIcon} from './card-vocabulary.js';
 import {calendarDayKey} from './learning-streak.js';
+import {confirmDialog} from './app-dialog.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[]}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null,suppressSwipeClick=false;
@@ -68,7 +69,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   for(const word of state.words){
    const row=document.createElement('div');row.append(line(`${word.front} – ${word.back}`,'span'));
    const remove=line('Entfernen','button');remove.type='button';remove.className='ghost';
-   remove.onclick=()=>{if(!window.confirm('Diesen kurzen Satz entfernen?'))return;state={...state,words:state.words.filter(w=>w.id!==word.id),ignoredSourceIds:[...(state.ignoredSourceIds||[]),word.sourceCardId].filter(Boolean)};if(state.lesson){state.lesson.queue=state.lesson.queue.filter(i=>i.id!==word.id);state.lesson.ids=state.lesson.ids.filter(id=>id!==word.id);}answerCard=null;render();};
+   remove.onclick=async()=>{if(!await confirmDialog({title:'Vokabelkarte entfernen?',message:word.front,note:'Dieser kurze Satz wird aus deinem Vokabeltrainer entfernt.',confirmText:'Karte entfernen',danger:true}))return;state={...state,words:state.words.filter(w=>w.id!==word.id),ignoredSourceIds:[...(state.ignoredSourceIds||[]),word.sourceCardId].filter(Boolean)};if(state.lesson){state.lesson.queue=state.lesson.queue.filter(i=>i.id!==word.id);state.lesson.ids=state.lesson.ids.filter(id=>id!==word.id);}answerCard=null;render();};
    row.append(remove);list.append(row);
   }
   manage('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';

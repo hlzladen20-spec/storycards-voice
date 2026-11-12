@@ -18,6 +18,7 @@ import {createConversationBookends} from '/conversation-bookends.js';
 import {setupDeveloperTools,resetDailyState} from '/developer-tools.js';
 import {englishCheckInstructions,englishCheckGreeting,englishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
 import {setupProfileLayout,revealProfileTarget} from '/profile-layout.js';
+import {confirmDialog,noticeDialog} from '/app-dialog.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -39,6 +40,7 @@ let timeExpired = false, responseActive = false, outputPlaying = false, finishin
 let vocabularyMark, learningStrategy;
 let proficiencyUI;
 let englishCheck=null;
+let englishCheckPromptOpen=false,speakingPromptOpen=false;
 let speechBookends;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
@@ -387,9 +389,14 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 
 async function startSession() {
   if (hasActiveConversation()) { if (isPaused && !timeExpired) togglePause(); return; }
+  if(startButton.disabled || speakingPromptOpen)return;
   if (timeExpired || finishButton.classList.contains("creating-cards")) return;
   if (!remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)) {
-    if (!window.confirm(`Deine eingestellte Lernzeit ist geschafft! Möchtest du ausdrücklich eine weitere Lektion mit ${dailySpeakingMinutes} Minuten starten?`)) { showHome(); return; }
+    speakingPromptOpen=true;let approved;
+    try{approved=await confirmDialog({title:'Dein Tagesziel ist geschafft!',message:`Möchtest du noch eine Lektion mit ${dailySpeakingMinutes} Minuten sprechen?`,note:'Dein bisheriger Fortschritt bleibt gespeichert. Die zusätzliche Zeit startet erst nach deiner Bestätigung.',confirmText:'Weiterlernen'});}
+    finally{speakingPromptOpen=false;}
+    if(!approved){showHome();return;}
+    if(hasActiveConversation() || startButton.disabled || finishingSession)return;
     learningStats=approveAnotherSpeakingLesson(learningStats,dailySpeakingMinutes);
     saveStats();
   }
@@ -650,16 +657,21 @@ setupVocabularyTrainer({storage:learningStorage,getCards:()=>cards,onPractice:re
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
 proficiencyUI=setupProficiencyUI({getProfile:()=>learningProfile,onDetails:showStatistics,onCheck:startEnglishCheck});
-function startEnglishCheck(){
- if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled){window.alert('Bitte zuerst das laufende Gespräch, die Aufnahme oder die Auswertung beenden.');return;}
- if(transcript.length && !sessionWasEvaluated){window.alert('Bitte zuerst dein vorheriges Gespräch beenden und auswerten.');return;}
+async function startEnglishCheck(){
+ if(englishCheckPromptOpen)return;
+ if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled){await noticeDialog({title:'Noch ein Schritt davor',message:'Bitte beende zuerst das laufende Gespräch, die Aufnahme oder die Auswertung.'});return;}
+ if(transcript.length && !sessionWasEvaluated){await noticeDialog({title:'Dein Gespräch ist noch offen',message:'Bitte beende dein vorheriges Gespräch und lass es auswerten. Danach kannst du den Englisch-Check starten.'});return;}
  const extra=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)<ENGLISH_CHECK_SECONDS;
- if(!window.confirm('Englisch-Check starten? Emma stellt etwa 5 Minuten lang kurze, zunehmend anspruchsvollere Fragen. Antworte selbstständig: Ziel sind mindestens 8 Antworten und insgesamt 100 Wörter. Danach erhältst du bei ausreichenden Belegen eine vorläufige Einschätzung – kein Zertifikat. Der Check nutzt Mikrofon und KI wie ein normales Gespräch und zählt zu deiner Sprechzeit.'+(extra?' Dafür wird zusätzlich Zeit bis zu einem verfügbaren 5-Minuten-Budget freigegeben.':'')))return;
+ englishCheckPromptOpen=true;let approved;
+ try{approved=await confirmDialog({title:'Dein Englisch-Check',message:'Emma stellt dir kurze Fragen, die sich Schritt für Schritt deinem Englisch anpassen.',items:['Etwa 5 Minuten · antworte selbstständig auf Englisch','Ziel: mindestens 8 eigene Antworten und insgesamt 100 Wörter','Danach: eine erste Einschätzung und persönliche Lernhinweise, wenn genug Belege vorliegen'],note:'Kein Zertifikat. Der Check nutzt Mikrofon und KI wie ein normales Gespräch und zählt zu deiner Sprechzeit.'+(extra?' Fehlende Zeit bis zu einem verfügbaren 5-Minuten-Budget wird zusätzlich freigegeben.':''),confirmText:'Check starten'});}
+ finally{englishCheckPromptOpen=false;}
+ if(!approved)return;
+ if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || (transcript.length && !sessionWasEvaluated))return;
  learningStats=englishCheckBudget(learningStats,dailySpeakingMinutes);saveStats();
  englishCheck={started:false};showPractice();startSession();
 }
 setupDeveloperTools({profile:$('profile'),deviceStorage:localStorage,
- isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || repairingCards,
+ isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || repairingCards,
  onReset:()=>{
   const next=resetDailyState({stats:learningStats,lesson:learningStorage.load('lesson',null),vocabulary:learningStorage.load('vocabulary',null)},{minutes:dailySpeakingMinutes});
   learningStorage.save('lesson',next.lesson);

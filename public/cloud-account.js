@@ -1,4 +1,5 @@
 import {createAccountStorage,guestSnapshot,validateSnapshot} from './account-data.js';
+import {confirmDialog} from './app-dialog.js';
 
 const URL='https://tidaagozwtxphtkoavab.supabase.co';
 // This is intentionally public. Database access is restricted by RLS, not this key.
@@ -159,14 +160,16 @@ export async function initCloudAccount(raw) {
     };
     panel.querySelector('[data-action=sync]').onclick=()=>sync();
     panel.querySelector('[data-action=logout]').onclick=()=>action(async()=>{
-      busy();if(meta.dirty && !confirm('Es gibt noch nicht gesicherte Änderungen. Sie bleiben auf diesem Gerät beim Konto gespeichert. Trotzdem abmelden?')) return;
+      busy();if(meta.dirty && !await confirmDialog({title:'Trotzdem abmelden?',message:'Es gibt noch nicht gesicherte Änderungen. Sie bleiben auf diesem Gerät bei deinem Konto gespeichert.',confirmText:'Abmelden'})){notice='Abmeldung abgebrochen. Du bleibst angemeldet.';return;}
+      busy();
       const {error}=await client.auth.signOut({scope:'local'});if(error) throw error;location.reload();
     });
     panel.querySelector('[data-action=import]').onclick=()=>action(async()=>{
       busy();const current=storage.snapshot();
       const meaningful=Object.entries(current).some(([key,value])=>key.endsWith(':cards')?JSON.parse(value).length>0:key.endsWith(':stats')?Number(JSON.parse(value).conversations)>0:false);
       if(meaningful) {notice='Dein Konto enthält bereits Lerndaten. Sie werden nicht überschrieben. Die bisherigen lokalen Daten bleiben ohne Anmeldung verfügbar.';return;}
-      if(!confirm('Möchtest du die bisherigen lokalen Karten, Lernstände und Einstellungen in dieses Konto kopieren?')) return;
+      if(!await confirmDialog({title:'Lokale Lerndaten übernehmen?',message:'Deine bisherigen Karten, Lernstände und Einstellungen werden in dieses Konto kopiert.',note:'Die Daten ohne Anmeldung bleiben auf diesem Gerät erhalten.',confirmText:'Daten übernehmen'})){notice='Übernahme abgebrochen. Deine Lerndaten bleiben unverändert.';return;}
+      busy();
       const data=guestSnapshot(raw);storage.replace(data);changed();await sync();location.reload();
     });
     panel.querySelector('[data-action=export]').onclick=()=>{
@@ -174,12 +177,14 @@ export async function initCloudAccount(raw) {
       const href=window.URL.createObjectURL(blob),link=document.createElement('a');link.href=href;link.download='StoryCards-Sicherung.json';link.click();setTimeout(()=>window.URL.revokeObjectURL(href),1000);
     };
     panel.querySelector('[data-action=remote]').onclick=()=>action(async()=>{
-      busy();if(!confirm('Online-Stand laden? Dein aktueller Gerätestand wird vorsichtshalber separat auf diesem Gerät gesichert.')) return;
+      busy();if(!await confirmDialog({title:'Online-Stand laden?',message:'Dein aktueller Gerätestand wird durch den Online-Stand ersetzt.',note:'Vorher wird dein Gerätestand separat auf diesem Gerät gesichert.',confirmText:'Online-Stand laden'})){notice='Laden abgebrochen. Dein Gerätestand bleibt unverändert.';return;}
+      busy();
       const remote=await cloud();raw.setItem(`storycards-conflict-backup:${owner}:${Date.now()}`,JSON.stringify(storage.snapshot()));
       storage.replace(remote?.payload||{});meta={version:Number(remote?.version||0),dirty:false,lastSync:remote?.updated_at};saveMeta();location.reload();
     });
     panel.querySelector('[data-action=local]').onclick=()=>action(async()=>{
-      busy();if(!confirm('Diesen Gerätestand online übernehmen? Der bisherige Online-Stand wird zuerst lokal als Sicherheitskopie gespeichert.')) return;
+      busy();if(!await confirmDialog({title:'Diesen Stand online übernehmen?',message:'Der Lernstand auf diesem Gerät ersetzt den bisherigen Online-Stand.',note:'Der bisherige Online-Stand wird vorher lokal als Sicherheitskopie gespeichert.',confirmText:'Diesen Stand übernehmen'})){notice='Übernahme abgebrochen. Der Online-Stand bleibt unverändert.';return;}
+      busy();
       const remote=await cloud();raw.setItem(`storycards-conflict-online:${owner}:${Date.now()}`,JSON.stringify(remote?.payload||{}));
       meta.version=Number(remote?.version||0);meta.dirty=true;saveMeta();conflict=null;await sync();
     });
