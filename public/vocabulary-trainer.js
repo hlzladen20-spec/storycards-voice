@@ -40,7 +40,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  refreshSettings();
  const button=document.createElement('button');button.type='button';button.className='card-choice-option';button.id='vocabularyChoiceButton';
  button.innerHTML=vocabularyIcon+'<span><strong>Vokabeltrainer</strong><small>Deine kurzen Gesprächssätze · mit Wischen lernen</small></span><b aria-hidden="true">›</b>';
- document.getElementById('cardChoice').insertBefore(button,document.getElementById('cardChoice').querySelector('nav'));
+ document.getElementById('cardChoice').insertBefore(button,document.getElementById('freePracticeButton'));
  function refreshChoice(){
   const lesson=state.lesson,hasCards=(lesson?.ids?.length||0)+(lesson?.previousIds?.length||0)>0;
   const done=lesson?.day===calendarDayKey(new Date()) && hasCards && (lesson.closed || lesson.extraRound===true);

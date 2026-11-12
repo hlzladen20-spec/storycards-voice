@@ -18,6 +18,8 @@
 .card-choice-option b{font-size:1.7rem;font-weight:400;color:#16806b}
 .card-choice-option:focus-visible{outline:3px solid #69b89d;outline-offset:3px}
 .card-choice-option:disabled{opacity:1;cursor:default}
+.card-choice #freePracticeButton{position:relative;margin-top:30px}
+.card-choice #freePracticeButton::before{content:'';position:absolute;top:-17px;left:0;right:0;height:1px;background:#dce5d9;pointer-events:none}
 body:has(#cards:not(.hidden)){background:#fcfbf6;color:#103b3e}
 body:has(#cards:not(.hidden)) .app{max-width:680px;padding-top:24px}
 body:has(#cards:not(.hidden)) .app>header{padding:0 2px 20px}
