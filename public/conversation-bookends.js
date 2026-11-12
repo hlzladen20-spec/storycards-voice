@@ -1,6 +1,6 @@
 // Spoken bookends share the existing Realtime voice session. Never replay them
 // on pause/resume, duplicate configuration events, or repeated timer ticks.
-export function createConversationBookends({send,greetingInstructions,onReady,onClosing,onClosed,schedule=setTimeout,cancel=clearTimeout,token=crypto.randomUUID()}){
+export function createConversationBookends({send,greetingInstructions,onReady,onClosing,onClosed,farewellInstructions,schedule=setTimeout,cancel=clearTimeout,token=crypto.randomUUID()}){
  const phases={greeting:{sent:false,done:false,id:null},farewell:{sent:false,done:false,id:null}};
  const rejected=new Set();let expected=null,closing=false,closed=false,ready=false,disposed=false,busy=false,drainTimer=null,timeoutTimer=null;
  const clearDrain=()=>{cancel(drainTimer);drainTimer=null;};
@@ -14,7 +14,7 @@ export function createConversationBookends({send,greetingInstructions,onReady,on
  function request(phase){
   if(disposed || closed || phases[phase].sent)return;
   phases[phase].sent=true;clearTimeout();if(phase==='farewell')onClosing();
-  const instructions=phase==='greeting'?greetingInstructions():"Speak one brief, warm English farewell as Emma. Our practice time has ended. Thank the learner for the conversation and say goodbye. For example: 'Our time is up. Thank you for our conversation today. Have a lovely day, and see you next time!' Do not ask a question, invite another answer, give a lesson, or assess their performance. Then stop.";
+  const instructions=phase==='greeting'?greetingInstructions():farewellInstructions?farewellInstructions():"Speak one brief, warm English farewell as Emma. Our practice time has ended. Thank the learner for the conversation and say goodbye. For example: 'Our time is up. Thank you for our conversation today. Have a lovely day, and see you next time!' Do not ask a question, invite another answer, give a lesson, or assess their performance. Then stop.";
   const sent=send({type:'response.create',event_id:`storycards-${phase}-${token}`,response:{output_modalities:['audio'],metadata:{storycards_phase:phase,storycards_token:token},instructions}});
   if(sent===false){fail(phase);return;}
   timeoutTimer=schedule(()=>fail(phase),45000);

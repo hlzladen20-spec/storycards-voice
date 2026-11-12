@@ -3,7 +3,7 @@ export const VOCABULARY_SECONDS=900;
 const intervals=[1,3,7,14,30];
 export function addVocabulary(state,front,back,example='',now=Date.now()) {
  front=String(front||'').trim();back=String(back||'').trim();
- if(!isShortVocabulary({front,back})) throw Error('Bitte wirklich kurze Sätze: je 2–6 Wörter und höchstens 70 Zeichen auf Deutsch und Englisch.');
+ if(!isShortVocabulary({front,back})) throw Error('Bitte wirklich kurze Sätze: je 2–6 Wörter und höchstens 70 Zeichen pro Sprache.');
  if(state.words.some(w=>w.front.toLocaleLowerCase()===front.toLocaleLowerCase() && w.back.toLocaleLowerCase()===back.toLocaleLowerCase())) throw Error('Dieses Wort ist schon im Trainer.');
  return {...state,words:[...state.words,{id:crypto.randomUUID(),front,back,example:String(example).slice(0,500),stage:0,attempts:0,nextReviewAt:now}]};
 }

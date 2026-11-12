@@ -1,7 +1,7 @@
 {
   "name": "StoryCards Voice",
   "short_name": "StoryCards",
-  "description": "Dein persönliches Englischtraining mit Stimme und Lernkarten.",
+  "description": "Englisch, Spanisch und Französisch lernen – mit KI-Gesprächen und persönlichen Lernkarten.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f4ec",

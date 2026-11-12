@@ -22,12 +22,13 @@ messages.addEventListener('click', async (event) => {
   const message = word.closest('.message');
   let translation = message.querySelector('.word-translation');
   if (!translation) { translation = document.createElement('span'); translation.className = 'word-translation'; translation.setAttribute('role','status'); message.append(translation); }
-  const selected = word.textContent, key = `${message.dataset.sentence}|${selected}`;
+  const language=document.documentElement.dataset.learningLanguage||'en';
+  const selected = word.textContent, key = `${language}|${message.dataset.sentence}|${selected}`;
   translation.dataset.selected = key;
   translation.textContent = `${selected} → wird übersetzt …`;
   try {
     let meaning = cache.get(key);
-    if (!meaning) { const response = await fetch('/api/translate-word',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(20000),body:JSON.stringify({word:selected,sentence:message.dataset.sentence})}); const data = await response.json(); if (!response.ok || typeof data.translation !== 'string' || !data.translation.trim()) throw new Error(); meaning = data.translation; cache.set(key,meaning); }
+    if (!meaning) { const response = await fetch('/api/translate-word',{method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(20000),body:JSON.stringify({language,word:selected,sentence:message.dataset.sentence})}); const data = await response.json(); if (!response.ok || typeof data.translation !== 'string' || !data.translation.trim()) throw new Error(); meaning = data.translation; cache.set(key,meaning); }
     if (translation.dataset.selected === key) {
       translation.textContent = `${selected} → ${meaning}`;
     }

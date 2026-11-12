@@ -16,10 +16,13 @@ import {recordProficiency,proficiencyCoachInstructions} from '/proficiency.js';
 import {setupProficiencyUI} from '/proficiency-ui.js';
 import {createConversationBookends} from '/conversation-bookends.js';
 import {setupDeveloperTools,resetDailyState} from '/developer-tools.js';
-import {englishCheckInstructions,englishCheckGreeting,englishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
+import {englishCheckInstructions as baseCheckInstructions,englishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
 import {setupProfileLayout,revealProfileTarget} from '/profile-layout.js';
 import {confirmDialog,noticeDialog} from '/app-dialog.js';
 import {setupConversationTopicPicker} from '/conversation-topic-picker.js';
+import {courseText,courseInstruction} from '/language-courses.js';
+import {applyCourseLabels} from '/language-ui.js';
+import {checkGreeting} from '/english-check.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -30,6 +33,10 @@ const appStorage = account.storage;
 showLearningTip(document.getElementById('learningTipText'),localStorage);
 window.addEventListener('pageshow',event=>{if(event.persisted)showLearningTip(document.getElementById('learningTipText'),localStorage);});
 const activeCourse = getActiveCourse(appStorage);
+const englishCheckInstructions=courseText(baseCheckInstructions,activeCourse)+courseInstruction(activeCourse);
+const englishCheckGreeting=checkGreeting(activeCourse);
+document.documentElement.dataset.learningLanguage=activeCourse.target;
+applyCourseLabels(document,activeCourse);
 const learningStorage = createLearningStorage(appStorage, activeCourse.target, activeCourse.source);
 
 const $ = (id) => document.getElementById(id);
@@ -64,7 +71,7 @@ async function ensureGermanCards() {
   try {
     for (let offset = 0; offset < pending.length; offset += 15) {
       const batch = pending.slice(offset, offset + 15);
-      const response = await fetch("/api/flashcards", { method:"POST", signal:AbortSignal.timeout(30000), headers:{"Content-Type":"application/json"}, body:JSON.stringify({ repairCards:batch.map((card) => ({ back:card.back })), transcript:[{ role:"learner", text:"Repair these cards by translating each English back into a complete German front." }] }) });
+      const response = await fetch("/api/flashcards", { method:"POST", signal:AbortSignal.timeout(30000), headers:{"Content-Type":"application/json"}, body:JSON.stringify({ language:activeCourse.target, repairCards:batch.map((card) => ({ back:card.back })), transcript:[{ role:"learner", text:"Repair these cards by translating each target-language back into a complete German front." }] }) });
       const data = await response.json();
       if (!response.ok || !Array.isArray(data.cards) || data.cards.length !== batch.length || data.cards.some((card) => typeof card.front !== "string" || !card.front.trim())) throw new Error("Die deutschen Aufgaben konnten noch nicht erstellt werden. Bitte versuche es erneut.");
       batch.forEach((card, index) => { card.front = data.cards[index].front.trim(); card.cueLanguage = "de"; const stored = cards.find((item) => item.id === card.id); if (stored) { stored.front = card.front; stored.cueLanguage = "de"; } });
@@ -230,7 +237,7 @@ let sessionCountedSeconds=0, sessionBudgetDate=null, sessionBudgetMinutes=dailyS
 const speakingSettings = document.createElement("div");
 speakingSettings.className = "profile-card";
 speakingSettings.id='profileSpeakingSettings';
-speakingSettings.innerHTML = '<label for="dailySpeakingMinutes"><strong>Sprechminuten pro Tag</strong></label><p>Wie lange möchtest du täglich Englisch sprechen?</p><input id="dailySpeakingMinutes" type="number" min="1" max="60" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="speakingMinutesSaved" role="status"></p>';
+speakingSettings.innerHTML = '<label for="dailySpeakingMinutes"><strong>Sprechminuten pro Tag</strong></label><p>Wie lange möchtest du täglich sprechen?</p><input id="dailySpeakingMinutes" type="number" min="1" max="60" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="speakingMinutesSaved" role="status"></p>';
 $("profile").insertBefore(speakingSettings, $("profile").querySelector(".profile-section-title"));
 $("dailySpeakingMinutes").value = dailySpeakingMinutes;
 function clockText(seconds) {return `${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;}
@@ -302,7 +309,7 @@ window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault
 $("installButton").addEventListener("click", async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $("installButton").classList.add("hidden"); });
 
 function saveCards() { learningStorage.save("cards", cards); updateDue(); updateHomeProgress(); document.dispatchEvent(new CustomEvent("storycards-cards-updated")); }
-showLanguageSettings($("profile"), activeCourse);
+showLanguageSettings($('profile'),activeCourse,{storage:appStorage,notice:noticeDialog,isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || repairingCards || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || englishCheckPromptOpen || speakingPromptOpen || (transcript.length>0 && !sessionWasEvaluated)});
 setupCardManager(() => cards, updated => {
   cards = updated;
   const ids = new Set(cards.map(card => card.id));
@@ -310,7 +317,7 @@ setupCardManager(() => cards, updated => {
   reviewHistory = reviewHistory.filter(card => ids.has(card.id));
   for (const id of assessedCards.keys()) if (!ids.has(id)) assessedCards.delete(id);
   saveCards();
-});
+},activeCourse);
 function saveStats() { learningStorage.save("stats", learningStats); updateHomeProgress(); }
 function updateHomeProgress() {
  $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`;
@@ -342,7 +349,7 @@ function coachInstructions() {
  const weakCards=cards.filter(card=>card.needsPractice || card.lastRating==='no' || card.lastRating==='hard').slice(0,3);
  const personalContext=weakCards.length?` Previously difficult sentences: ${weakCards.map(card=>card.back).join('; ')}. Revisit their meanings naturally in the selected topic.`:'';
  const focusText=focus.length?` Current learning focus: ${focus.map(item=>`${item.pattern} (${item.practice})`).join('; ')}. Offer natural chances to practise it without forcing a lesson.`:'';
- return "You are a friendly English conversation coach for learners from A1 to C2. Encourage understandable communication and adapt to demonstrated ability. Let the learner finish. Keep a natural chat going, mainly in English. Do not correct every mistake or give unsolicited grammar lessons. At most give one concise correction per turn, mainly for recurring or communication-blocking errors. Ask one question at a time. Do not end on an assumed ten-minute timer; the app controls duration."+proficiencyCoachInstructions(learningProfile)+focusText+personalContext;
+ return courseText("You are a friendly English conversation coach for learners from A1 to C2. Encourage understandable communication and adapt to demonstrated ability. Let the learner finish. Keep a natural chat going, mainly in English. Do not correct every mistake or give unsolicited grammar lessons. At most give one concise correction per turn, mainly for recurring or communication-blocking errors. Ask one question at a time. Do not end on an assumed ten-minute timer; the app controls duration.",activeCourse)+courseInstruction(activeCourse)+proficiencyCoachInstructions(learningProfile)+focusText+personalContext;
 }
 function setMicState(text, listening = false) { $("micStateText").textContent = text; $("micState").classList.toggle("listening", listening); }
 function sendCoachInstructions() {
@@ -426,8 +433,9 @@ async function startSession() {
     const sessionChannel=dataChannel;
     speechBookends=createConversationBookends({
       send:event=>{if(sessionChannel.readyState!=='open')return false;sessionChannel.send(JSON.stringify(event));return true;},
-      greetingInstructions:()=>englishCheck?englishCheckGreeting:coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Open this new conversation now. Greet the learner warmly in English and introduce yourself as Emma briefly, then ask exactly one short, concrete opening question in the selected topic. At most 25 words total. Do not wait for the learner to speak first. Do not invent a previous conversation or assess their performance.",
-      onReady:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}if(timeExpired || isPaused)return;stream?.getAudioTracks().forEach(track=>track.enabled=true);status.textContent=failed?'Die Begrüßung konnte nicht abgespielt werden. Du kannst jetzt selbst anfangen.':'Jetzt bist du dran – sprich einfach Englisch.';setMicState('Ich höre dir zu.',true);},
+      greetingInstructions:()=>englishCheck?englishCheckGreeting:coachInstructions()+conversationModeInstructions($("conversationMode").value)+courseText(" Open this new conversation now. Greet the learner warmly in English and introduce yourself as Emma briefly, then ask exactly one short, concrete opening question in the selected topic. At most 25 words total. Do not wait for the learner to speak first. Do not invent a previous conversation or assess their performance.",activeCourse),
+      farewellInstructions:()=>courseText("Speak one brief, warm English farewell as Emma. Our practice time has ended. Thank the learner for the conversation and say goodbye. Do not ask a question, invite another answer, give a lesson, or assess their performance. Then stop.",activeCourse),
+      onReady:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}if(timeExpired || isPaused)return;stream?.getAudioTracks().forEach(track=>track.enabled=true);status.textContent=failed?'Die Begrüßung konnte nicht abgespielt werden. Du kannst jetzt selbst anfangen.':'Jetzt bist du dran – sprich einfach in deiner Lernsprache.';setMicState('Ich höre dir zu.',true);},
       onClosing:()=>{status.textContent='Die Zeit ist um. Emma verabschiedet sich …';setMicState('Emma bedankt sich und verabschiedet sich …');},
       onClosed:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}finishButton.disabled=false;status.textContent=failed?'Die Verabschiedung konnte nicht abgespielt werden. Du kannst das Gespräch jetzt beenden.':'Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';setMicState('Zeit geschafft · bitte Gespräch beenden');$('practice').dataset.keepAwake='false';}
     });
@@ -437,7 +445,7 @@ async function startSession() {
     dataChannel.onmessage = event => {if(dataChannel===sessionChannel)handleEvent(JSON.parse(event.data));};
     dataChannel.onopen = ()=>{if(dataChannel!==sessionChannel)return;const instructions=sendCoachInstructions();speechBookends.waitForConfiguration(instructions);};
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-    const response = await fetch("/api/realtime/session", { method:"POST", headers:{"Content-Type":"application/sdp"}, body: offer.sdp });
+    const response = await fetch(`/api/realtime/session?language=${activeCourse.target}`, { method:"POST", headers:{"Content-Type":"application/sdp"}, body: offer.sdp });
     if (!response.ok) { const data = await response.json(); throw new Error(typeof data.error === "string" ? data.error : (data.error?.message || data.detail || "Verbindung fehlgeschlagen")); }
     await pc.setRemoteDescription({ type:"answer", sdp:await response.text() });
     startedAt = Date.now(); sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;sessionCountedSeconds=0; interval = setInterval(updateTimer, 1000); updateTimer();
@@ -510,7 +518,7 @@ function togglePause() {
   } else {
     pausedDuration += Date.now() - pausedAt; stream.getAudioTracks().forEach((track) => track.enabled = speechBookends?.ready!==false); remoteAudio?.play().catch(() => {});
     if (dataChannel?.readyState === "open") dataChannel.send(JSON.stringify({ type:"session.input_audio.unmute" }));
-    interval = setInterval(updateTimer, 1000); updateTimer(); setPauseLabel(false); status.textContent = speechBookends?.ready===false?'Emma begrüßt dich gleich …':"Weiter geht's – sprich einfach Englisch."; setMicState(speechBookends?.ready===false?'Emma begrüßt dich …':'Ich höre zu …',speechBookends?.ready!==false); $("coachStage").classList.remove("paused");
+    interval = setInterval(updateTimer, 1000); updateTimer(); setPauseLabel(false); status.textContent = speechBookends?.ready===false?'Emma begrüßt dich gleich …':"Weiter geht's – sprich einfach in deiner Lernsprache."; setMicState(speechBookends?.ready===false?'Emma begrüßt dich …':'Ich höre zu …',speechBookends?.ready!==false); $("coachStage").classList.remove("paused");
   }
 }
 
@@ -537,7 +545,7 @@ async function finishSession() {
   if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; setFinishBusy(false); finishingSession=false; return; }
   status.textContent = "Ich erstelle deine persönlichen Karten …";
   try {
-    const response=await fetch('/api/flashcards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript})});
+    const response=await fetch('/api/flashcards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:activeCourse.target,transcript})});
     const data=await response.json();if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'Die Auswertung konnte nicht geladen werden.');
     if(!Array.isArray(data.cards))throw new Error('Die Karten-Antwort konnte nicht gelesen werden.');
     const newCards=normaliseCards(data.cards),focus=cleanFocus(data.focus);
@@ -607,9 +615,9 @@ function renderCard() {
   const introduction=!freePractice && card.lessonStage==="introduce";
     if(card.retryPractice || card.weakRetry || introduction) assessedCards.delete(card.id);
   const phase=introduction?"Hören und nachsprechen":card.retryPractice?"Noch einmal ohne Hilfe":"Aus dem Gedächtnis";
-  $("card").innerHTML=`<small class="lesson-phase">${phase}</small>${introduction?`<span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`:`<span>🇩🇪 ${escapeHtml(card.front)}</span>`}`;
+  $("card").innerHTML=`<small class="lesson-phase">${phase}</small>${introduction?`<span class="back">${activeCourse.flag} ${escapeHtml(card.back)}</span>`:`<span>🇩🇪 ${escapeHtml(card.front)}</span>`}`;
   if(introduction) {answerVisible=true;if(imageHintsEnabled) appendLearningImage($("card"),card);}
-  $("speakPrompt").textContent=introduction?"Höre den englischen Satz an und sprich ihn nach. Gleich versuchst du ihn ohne Hilfe.":"Sprich die englische Übersetzung aus dem Gedächtnis.";
+  $("speakPrompt").textContent=introduction?"Höre den Satz an und sprich ihn nach. Gleich versuchst du ihn ohne Hilfe.":"Sprich die Übersetzung aus dem Gedächtnis.";
   $("speakPrompt").classList.remove("hidden");$("recordAnswerButton").classList.remove("hidden");$("recordAnswerButton").disabled=false;$("recordAnswerButton").textContent="🎙 Zum Sprechen gedrückt halten";
   if(!introduction) $("revealButton").classList.remove("hidden");
   learningStrategy?.announce(introduction?'listen':'recall',()=>{if(introduction && queue[0]?.id===card.id)speakAnswer();});
@@ -617,33 +625,33 @@ function renderCard() {
 function revealAnswer() {
   const card=queue[0];if(!card||answerVisible) return;
   if(!assessedCards.has(card.id)) {assessedCards.set(card.id,"assisted");cards=cards.map(item=>item.id===card.id?{...item,needsPractice:true}:item);saveCards();}
-  answerVisible=true;$("card").innerHTML=`<span>🇩🇪 ${escapeHtml(card.front)}</span><span class="back">🇬🇧 ${escapeHtml(card.back)}</span>`;
+  answerVisible=true;$("card").innerHTML=`<span>🇩🇪 ${escapeHtml(card.front)}</span><span class="back">${activeCourse.flag} ${escapeHtml(card.back)}</span>`;
   if(imageHintsEnabled) appendLearningImage($("card"),card);
   $("revealButton").classList.add("hidden");$("recordAnswerButton").classList.remove("hidden");$("speakPrompt").classList.add("hidden");$("listenButton").classList.remove("hidden");$("ratingButtons").classList.remove("hidden");
 }
-function speakAnswer() { const card = queue[0]; if (!card || !window.speechSynthesis) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(card.back); utterance.lang = "en-GB"; utterance.rate = 0.85; speechSynthesis.speak(utterance); }
+function speakAnswer() { const card = queue[0]; if (!card || !window.speechSynthesis) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(card.back); utterance.lang = activeCourse.locale; utterance.rate = 0.85; speechSynthesis.speak(utterance); }
 function readCardSentence(element) {
   if (!window.speechSynthesis || !queue[0] || reviewRecorder?.state === "recording") return;
   const english = element.classList.contains("back");
   speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(english ? queue[0].back : queue[0].front);
-  utterance.lang = english ? "en-GB" : "de-DE"; utterance.rate = 0.85;
-  const voice = speechSynthesis.getVoices().find((item) => item.lang.toLowerCase().startsWith(english ? "en" : "de"));
+  utterance.lang = english ? activeCourse.locale : "de-DE"; utterance.rate = 0.85;
+  const voice = speechSynthesis.getVoices().find((item) => item.lang.toLowerCase().startsWith(english ? activeCourse.target : "de"));
   if (voice) utterance.voice = voice;
   speechSynthesis.speak(utterance);
 }
-new MutationObserver(() => { $("card").querySelectorAll(":scope > span").forEach((sentence) => { sentence.tabIndex = 0; sentence.setAttribute("role", "button"); sentence.title = "Antippen zum Vorlesen"; sentence.setAttribute("aria-label", `${sentence.classList.contains("back") ? "Englischen" : "Deutschen"} Satz vorlesen`); }); }).observe($("card"), { childList:true });
+new MutationObserver(() => { $("card").querySelectorAll(":scope > span").forEach((sentence) => { sentence.tabIndex = 0; sentence.setAttribute("role", "button"); sentence.title = "Antippen zum Vorlesen"; sentence.setAttribute("aria-label", `${sentence.classList.contains("back") ? activeCourse.name+"en" : "Deutschen"} Satz vorlesen`); }); }).observe($("card"), { childList:true });
 $("card").addEventListener("click", (event) => { const sentence = event.target.closest("#card > span"); if (sentence) readCardSentence(sentence); });
 $("card").addEventListener("keydown", (event) => { if (["Enter", " "].includes(event.key) && event.target.matches("#card > span")) { event.preventDefault(); readCardSentence(event.target); } });
 function audioBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); }
-async function reviewRecordedAnswer(blob) { const card = queue[0]; if (!card) return; const button = $("recordAnswerButton"); button.textContent = "Antwort wird geprüft …"; button.disabled = true; try { const audio = await audioBase64(blob); const response = await fetch("/api/card-answer", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ audio, mime:blob.type || "audio/webm", expected:card.back, front:card.front }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Die Aufnahme konnte nicht geprüft werden."); if (!String(data.transcript || "").trim()) throw new Error("Keine klare Sprache erkannt. Bitte versuche es noch einmal; die Karte wird nicht schlechter bewertet."); const rating = { correct:"yes", close:"hard", incorrect:"no" }[data.result]; if (!rating) throw new Error("Die Bewertung war nicht eindeutig. Bitte sprich die Antwort noch einmal."); if (queue[0]?.id !== card.id) return; recordPracticeDay(); const beforeReview = cards.find(c => c.id === card.id) || card; if (!assessedCards.has(card.id)) { card.reviewBefore=beforeReview; const updated = freePractice ? {...beforeReview,needsPractice:data.result!=="correct"} : card.lessonStage === "introduce" ? (data.result==="correct"?beforeReview:{...beforeReview,needsPractice:true}) : rateCard(beforeReview, rating); cards = cards.map((item) => item.id === card.id ? updated : item); assessedCards.set(card.id, data.result); if(!freePractice && card.lessonStage !== "introduce") card.scheduleApplied=true; saveCards(); } const feedback = $("voiceFeedback"); feedback.className = `voice-feedback ${data.result}`; feedback.textContent = data.feedback; revealAnswer(); const correction = document.createElement("button"); correction.className = "secondary"; correction.textContent = "Bewertung stimmt nicht – erneut versuchen"; correction.onclick = () => { cards = cards.map(item => item.id === card.id ? (card.reviewBefore || beforeReview) : item); assessedCards.delete(card.id); card.scheduleApplied=false; saveCards(); renderCard(); }; feedback.append(document.createElement("br"), correction); } catch (error) { $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Die Aufnahme konnte nicht geprüft werden."; button.textContent = "🎙 Noch einmal sprechen"; } finally { button.disabled = false; } }
+async function reviewRecordedAnswer(blob) { const card = queue[0]; if (!card) return; const button = $("recordAnswerButton"); button.textContent = "Antwort wird geprüft …"; button.disabled = true; try { const audio = await audioBase64(blob); const response = await fetch("/api/card-answer", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ language:activeCourse.target, audio, mime:blob.type || "audio/webm", expected:card.back, front:card.front }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "Die Aufnahme konnte nicht geprüft werden."); if (!String(data.transcript || "").trim()) throw new Error("Keine klare Sprache erkannt. Bitte versuche es noch einmal; die Karte wird nicht schlechter bewertet."); const rating = { correct:"yes", close:"hard", incorrect:"no" }[data.result]; if (!rating) throw new Error("Die Bewertung war nicht eindeutig. Bitte sprich die Antwort noch einmal."); if (queue[0]?.id !== card.id) return; recordPracticeDay(); const beforeReview = cards.find(c => c.id === card.id) || card; if (!assessedCards.has(card.id)) { card.reviewBefore=beforeReview; const updated = freePractice ? {...beforeReview,needsPractice:data.result!=="correct"} : card.lessonStage === "introduce" ? (data.result==="correct"?beforeReview:{...beforeReview,needsPractice:true}) : rateCard(beforeReview, rating); cards = cards.map((item) => item.id === card.id ? updated : item); assessedCards.set(card.id, data.result); if(!freePractice && card.lessonStage !== "introduce") card.scheduleApplied=true; saveCards(); } const feedback = $("voiceFeedback"); feedback.className = `voice-feedback ${data.result}`; feedback.textContent = data.feedback; revealAnswer(); const correction = document.createElement("button"); correction.className = "secondary"; correction.textContent = "Bewertung stimmt nicht – erneut versuchen"; correction.onclick = () => { cards = cards.map(item => item.id === card.id ? (card.reviewBefore || beforeReview) : item); assessedCards.delete(card.id); card.scheduleApplied=false; saveCards(); renderCard(); }; feedback.append(document.createElement("br"), correction); } catch (error) { $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Die Aufnahme konnte nicht geprüft werden."; button.textContent = "🎙 Noch einmal sprechen"; } finally { button.disabled = false; } }
 async function recordAnswer() { try { if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("Die Mikrofonaufnahme wird auf diesem Gerät nicht unterstützt."); reviewStream = await navigator.mediaDevices.getUserMedia({ audio:true }); if (!answerHeld) { reviewStream.getTracks().forEach((track) => track.stop()); return; } reviewChunks = []; reviewRecorder = new MediaRecorder(reviewStream); reviewRecorder.ondataavailable = (event) => { if (event.data.size) reviewChunks.push(event.data); }; reviewRecorder.onstop = () => { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); reviewRecordedAnswer(new Blob(reviewChunks, { type:reviewRecorder.mimeType || "audio/webm" })); }; reviewRecorder.start(); startReviewMeter(reviewStream); } catch (error) { stopReviewMeter(); reviewStream?.getTracks().forEach((track) => track.stop()); $("voiceFeedback").className = "voice-feedback incorrect"; $("voiceFeedback").textContent = error.message || "Das Mikrofon konnte nicht gestartet werden."; } }
 function escapeHtml(text) { const el=document.createElement("span"); el.textContent=text; return el.innerHTML; }
 document.querySelectorAll("[data-rating]").forEach((button) => button.addEventListener("click", () => { if (!queue[0]) return; const updated=rateCard(queue[0], button.dataset.rating); cards=cards.map(c=>c.id===updated.id?updated:c); queue.shift(); saveCards(); renderCard(); }));
 document.querySelectorAll("[data-home-mode]").forEach(button=>button.addEventListener("click",()=>selectConversationMode(button.dataset.homeMode)));
 $("conversationMode").addEventListener("change",()=>selectConversationMode($("conversationMode").value));
 selectConversationMode(learningProfile.conversationMode||"alltag",false);
-setupConversationTopicPicker({button:$('conversationSettingsButton'),select:$('conversationMode'),onSelect:selectConversationMode,isLocked:()=>Boolean(englishCheck)});
+setupConversationTopicPicker({course:activeCourse,button:$('conversationSettingsButton'),select:$('conversationMode'),onSelect:selectConversationMode,isLocked:()=>Boolean(englishCheck)});
 $("homeVocabularyButton").addEventListener("click",()=>{showProfile();const list=document.querySelector(".vocab-management .vocab-manager");if(list){revealProfileTarget(list);list.scrollIntoView({block:"start",behavior:"smooth"});}});
 $("homeStartButton").addEventListener("click", () => { showPractice(); if (!hasActiveConversation()) startSession(); });
 $("homeDetailsButton").addEventListener("click", showStatistics);
@@ -653,19 +661,19 @@ $("conversationCardsButton").addEventListener("click", () => { if (stream?.getAu
 $("subtitleButton").addEventListener("click", () => { const visible = $("subtitleButton").getAttribute("aria-pressed") !== "true"; $("subtitleButton").setAttribute("aria-pressed", String(visible)); $("practice").classList.toggle("subtitles-off", !visible); messages.setAttribute("aria-hidden", String(!visible)); });
 startButton.addEventListener("click", startSession); pauseButton.addEventListener("click", togglePause); finishButton.addEventListener("click", finishSession); $("conversationBackButton").addEventListener("click", () => { if (stream && !isPaused) togglePause(); showHome(); }); $("keyboardButton").addEventListener("click", () => { status.textContent = "Sprich einfach weiter – die Tastatur kommt als Nächstes."; }); $("summaryBackButton").addEventListener("click", showHome); $("summaryCloseButton").addEventListener("click", showHome); $("statisticsBackButton").addEventListener("click", showHome); $("profileBackButton").addEventListener("click", showHome); $("continueButton").addEventListener("click", () => { showPractice(); startSession(); }); $("homeNavButton").addEventListener("click", showHome); $("cardsNavButton").addEventListener("click", () => showCardChoice()); $("progressNavButton").addEventListener("click", showStatistics); $("profileNavButton").addEventListener("click", showProfile); $("statisticsHomeButton").addEventListener("click", showHome); $("statisticsCardsButton").addEventListener("click", () => showCardChoice()); $("statisticsProfileButton").addEventListener("click", showProfile); $("cardsHomeButton").addEventListener("click", showHome); $("cardsProgressButton").addEventListener("click", showStatistics); $("cardsProfileButton").addEventListener("click", showProfile); $("profileHomeButton").addEventListener("click", showHome); $("profileCardsButton").addEventListener("click", () => showCardChoice()); $("profileProgressButton").addEventListener("click", showStatistics); $("toCardsButton").addEventListener("click", () => showCardChoice()); $("recordAnswerButton").addEventListener("click", recordAnswer); $("revealButton").addEventListener("click", revealAnswer); $("listenButton").addEventListener("click", speakAnswer); $("backToPractice").addEventListener("click", showPractice); updateDue(); updateFocusHint(); scheduleEmmaBlink();
 account.mount($("profile"), () => hasActiveConversation() || reviewRecorder?.state === "recording" || answerStarting || $("recordAnswerButton").disabled);
-const conversationSummary=setupConversationSummary({onCelebrate:playLessonFanfare});
-learningStrategy=setupLearningStrategy();
-setupVocabularyTrainer({storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
+const conversationSummary=setupConversationSummary({course:activeCourse,onCelebrate:playLessonFanfare});
+learningStrategy=setupLearningStrategy(activeCourse);
+setupVocabularyTrainer({course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
-proficiencyUI=setupProficiencyUI({getProfile:()=>learningProfile,onDetails:showStatistics,onCheck:startEnglishCheck});
+proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:showStatistics,onCheck:startEnglishCheck});
 async function startEnglishCheck(){
  if(englishCheckPromptOpen)return;
  if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled){await noticeDialog({title:'Noch ein Schritt davor',message:'Bitte beende zuerst das laufende Gespräch, die Aufnahme oder die Auswertung.'});return;}
- if(transcript.length && !sessionWasEvaluated){await noticeDialog({title:'Dein Gespräch ist noch offen',message:'Bitte beende dein vorheriges Gespräch und lass es auswerten. Danach kannst du den Englisch-Check starten.'});return;}
+ if(transcript.length && !sessionWasEvaluated){await noticeDialog({title:'Dein Gespräch ist noch offen',message:'Bitte beende dein vorheriges Gespräch und lass es auswerten. Danach kannst du den Sprach-Check starten.'});return;}
  const extra=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)<ENGLISH_CHECK_SECONDS;
  englishCheckPromptOpen=true;let approved;
- try{approved=await confirmDialog({title:'Dein Englisch-Check',message:'Emma stellt dir kurze Fragen, die sich Schritt für Schritt deinem Englisch anpassen.',items:['Etwa 5 Minuten · antworte selbstständig auf Englisch','Ziel: mindestens 8 eigene Antworten und insgesamt 100 Wörter','Danach: eine erste Einschätzung und persönliche Lernhinweise, wenn genug Belege vorliegen'],note:'Kein Zertifikat. Der Check nutzt Mikrofon und KI wie ein normales Gespräch und zählt zu deiner Sprechzeit.'+(extra?' Fehlende Zeit bis zu einem verfügbaren 5-Minuten-Budget wird zusätzlich freigegeben.':''),confirmText:'Check starten'});}
+ try{approved=await confirmDialog({title:`Dein ${activeCourse.name}-Check`,message:`Emma stellt dir kurze Fragen, die sich Schritt für Schritt deinem ${activeCourse.name} anpassen.`,items:[`Etwa 5 Minuten · antworte selbstständig auf ${activeCourse.name}`,'Ziel: mindestens 8 eigene Antworten und insgesamt 100 Wörter','Danach: eine erste Einschätzung und persönliche Lernhinweise, wenn genug Belege vorliegen'],note:'Kein Zertifikat. Der Check nutzt Mikrofon und KI wie ein normales Gespräch und zählt zu deiner Sprechzeit.'+(extra?' Fehlende Zeit bis zu einem verfügbaren 5-Minuten-Budget wird zusätzlich freigegeben.':''),confirmText:'Check starten'});}
  finally{englishCheckPromptOpen=false;}
  if(!approved)return;
  if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || (transcript.length && !sessionWasEvaluated))return;

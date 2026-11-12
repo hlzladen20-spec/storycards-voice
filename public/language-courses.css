@@ -1,0 +1,5 @@
+.language-course-choices{display:grid;gap:10px;margin-top:16px}
+.language-course-choice{width:100%;min-height:52px;text-align:left;padding:14px 16px;border:1px solid #d8e2dd;border-radius:14px;font:inherit}
+.language-course-choice[aria-pressed="true"]{background:#dceee3;color:#075d50;border-color:#148473;font-weight:700}
+.language-course-choice:focus-visible{outline:3px solid #168c7c;outline-offset:3px}
+.home-brand{position:relative}.home-course-label{position:absolute;left:77px;bottom:20px;padding:5px 9px;border-radius:9px;background:#fffdf1e8;color:#174b41;font-size:.75rem;font-weight:700}

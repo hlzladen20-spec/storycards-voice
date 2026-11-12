@@ -1,9 +1,6 @@
 // Keep progress isolated per language pair. Legacy data belongs to German → English.
-export const LANGUAGE_COURSES = Object.freeze({
-  en: Object.freeze({name:'Englisch',source:'de',target:'en',locale:'en-GB',enabled:true}),
-  es: Object.freeze({name:'Spanisch',source:'de',target:'es',locale:'es-ES',enabled:false}),
-  fr: Object.freeze({name:'Französisch',source:'de',target:'fr',locale:'fr-FR',enabled:false})
-});
+import {LANGUAGE_COURSES} from './language-courses.js';
+export {LANGUAGE_COURSES} from './language-courses.js';
 const LEGACY_KEYS = Object.freeze({
   cards:'storycards',
   profile:'storycards-learning-profile',
@@ -38,17 +35,33 @@ export function createLearningStorage(storage, target = 'en', source = 'de') {
 export function getActiveCourse(storage) {
   const target = storage.getItem('storycards-active-language') || 'en';
   // A course must pass language-specific tests before it can be activated.
-  return LANGUAGE_COURSES[target]?.enabled ? LANGUAGE_COURSES[target] : LANGUAGE_COURSES.en;
+  return Object.hasOwn(LANGUAGE_COURSES,target) && LANGUAGE_COURSES[target].enabled ? LANGUAGE_COURSES[target] : LANGUAGE_COURSES.en;
 }
 
-export function showLanguageSettings(profile, course) {
+export function showLanguageSettings(profile, course, {storage,isBusy=()=>false,onSwitch=()=>location.reload(),notice=async()=>{}}={}) {
   const area = document.createElement('div'); area.className = 'profile-card language-settings';
   area.style.marginTop = '14px';
   const label = document.createElement('strong'); label.textContent = 'Deine Lernsprache';
   const current = document.createElement('p'); current.textContent = `Deutsch → ${course.name}`;
   const explanation = document.createElement('p');
-  explanation.textContent = 'Weitere Lernsprachen sind in Vorbereitung. Karten und Lernfortschritt bleiben pro Sprache getrennt.';
+  explanation.textContent = 'Karten, Wiederholungen, Sprechzeit und Niveau bleiben pro Sprache getrennt. Spanisch und Französisch sind Beta-Versionen. Die Bedienung bleibt auf Deutsch.';
   explanation.style.fontSize = '.75rem'; explanation.style.lineHeight = '1.5';
   area.append(label,current,explanation);
+  const choices=document.createElement('div');choices.className='language-course-choices';
+  let switching=false;
+  for(const item of Object.values(LANGUAGE_COURSES)){
+    const button=document.createElement('button');button.type='button';button.className='secondary language-course-choice';
+    button.textContent=`${item.flag} ${item.name}${item.beta?' · Beta':''}${item.target===course.target?' ✓':''}`;
+    button.setAttribute('aria-pressed',String(item.target===course.target));
+    button.onclick=async()=>{
+      if(switching || item.target===course.target)return;
+      if(isBusy()){await notice({title:'Zuerst abschließen',message:'Bitte beende das Gespräch, die Aufnahme oder die Auswertung, bevor du die Sprache wechselst. Offene Gespräche bitte zuerst auswerten.'});return;}
+      switching=true;
+      try{storage.setItem('storycards-active-language',item.target);window.speechSynthesis?.cancel();await onSwitch(item);}
+      catch{switching=false;await notice({title:'Sprache nicht gewechselt',message:'Deine Auswahl konnte nicht gespeichert werden. Bitte versuche es erneut.'});}
+    };
+    choices.append(button);
+  }
+  area.append(choices);
   profile.insertBefore(area,profile.querySelector('.profile-card'));
 }

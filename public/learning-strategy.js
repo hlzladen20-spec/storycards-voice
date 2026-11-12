@@ -1,4 +1,5 @@
-export function setupLearningStrategy(){
+import {LANGUAGE_COURSES,courseText} from './language-courses.js';
+export function setupLearningStrategy(course=LANGUAGE_COURSES.en){
  let previous=null;
  const dialog=document.createElement('dialog');dialog.className='learning-strategy-dialog';dialog.setAttribute('aria-labelledby','strategyTitle');
  dialog.innerHTML='<h2 id="strategyTitle"></h2><p></p><button class="primary" type="button">Los geht’s</button>';
@@ -12,7 +13,7 @@ export function setupLearningStrategy(){
   previous=strategy;ready=onReady;
   const listen=strategy==='listen';
   dialog.querySelector('h2').textContent=listen?'Höre zu und sprich nach.':'Jetzt aus dem Gedächtnis';
-  dialog.querySelector('p').textContent=listen?'Du siehst nur den englischen Satz. Er wird automatisch vorgelesen. Sprich ihn danach nach.':'Übersetze den deutschen Satz ins Englische. Die Lösung bleibt zunächst verborgen.';
+  dialog.querySelector('p').textContent=courseText(listen?'Du siehst nur den englischen Satz. Er wird automatisch vorgelesen. Sprich ihn danach nach.':'Übersetze den deutschen Satz ins Englische. Die Lösung bleibt zunächst verborgen.',course);
   if(dialog.open)dialog.close();dialog.showModal();
  }};
 }

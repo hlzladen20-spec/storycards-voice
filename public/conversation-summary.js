@@ -3,7 +3,7 @@ export function cleanConversationReview(review) {
  for(const key of ['strengths','difficulties','improvements'])result[key]=Array.isArray(review?.[key])?review[key].filter(item=>typeof item==='string' && item.trim()).map(item=>item.trim().slice(0,500)).slice(0,3):[];
  return result;
 }
-export function setupConversationSummary({onCelebrate}) {
+export function setupConversationSummary({onCelebrate,course={name:'Englisch'}}) {
  const $=id=>document.getElementById(id);
  const cardsButton=$('summaryCardsButton'),hintsButton=$('summaryHintsButton'),minutesButton=$('summaryMinutesButton');
  function select(button){
@@ -17,7 +17,7 @@ export function setupConversationSummary({onCelebrate}) {
  function node(tag,text){const element=document.createElement(tag);element.textContent=text;return element;}
  return {render({cards,focus,review,seconds}){
   const minutes=Math.max(0,Math.round(seconds/60)),feedback=cleanConversationReview(review);
-  $('summaryText').textContent=`Du hast ${minutes} Minuten Englisch gesprochen.`;
+  $('summaryText').textContent=`Du hast ${minutes} Minuten ${course.name} gesprochen.`;
   $('summaryMinutes').textContent=minutes;$('summaryCards').textContent=cards.length;$('summaryFocus').textContent=3;
   $('summaryFocusText').textContent=feedback.improvements[0]||focus[0]?.practice||'Noch kein konkreter Verbesserungspunkt belegt. Sprich beim nächsten Mal in kurzen eigenen Sätzen weiter.';
   $('summaryFocusCard').classList.remove('hidden');

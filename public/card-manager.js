@@ -1,22 +1,23 @@
+import {LANGUAGE_COURSES} from './language-courses.js';
 export function createManualCard(front, back, existing, now = Date.now()) {
   front = front.trim(); back = back.trim();
-  if (!front || !back) throw new Error('Bitte den deutschen Satz und die englische Übersetzung ausfüllen.');
+  if (!front || !back) throw new Error('Bitte den deutschen Satz und die Übersetzung ausfüllen.');
   if (front.length > 1000 || back.length > 1000) throw new Error('Bitte höchstens 1.000 Zeichen pro Seite verwenden.');
   if (existing.some(card => card.front.trim().toLocaleLowerCase() === front.toLocaleLowerCase() && card.back.trim().toLocaleLowerCase() === back.toLocaleLowerCase())) throw new Error('Diese Karte ist bereits vorhanden.');
   return {id:crypto.randomUUID(),front,back,note:'',cueLanguage:'de',source:'manual',attempts:0,misses:0,knownStreak:0,nextReviewAt:now};
 }
 
-export function setupCardManager(getCards, setCards) {
+export function setupCardManager(getCards, setCards, course=LANGUAGE_COURSES.en) {
   const section = document.createElement('details');
   section.className = 'card-manager profile-card';
   section.innerHTML = `<summary>Satzkarten verwalten <span class="manager-count"></span></summary>
     <p>Eigene Karten erstellen oder vorhandene Karten entfernen. Änderungen werden sofort gespeichert.</p>
     <form class="manager-form"><label>Deutscher Satz<textarea name="front" required maxlength="1000" rows="2" placeholder="Wie läuft dein Tag?"></textarea></label>
-    <label>Englische Übersetzung<textarea name="back" required maxlength="1000" rows="2" placeholder="How is your day going?"></textarea></label>
+    <label>Übersetzung · ${course.name}<textarea name="back" required maxlength="1000" rows="2" placeholder="${course.example}"></textarea></label>
     <button type="submit" class="primary">＋ Karte erstellen</button></form>
     <p class="manager-status" role="status" aria-live="polite"></p>
     <button type="button" class="secondary manager-undo hidden">Löschen rückgängig machen</button>
-    <label class="manager-search-label">Karten suchen<input class="manager-search" type="search" placeholder="Deutschen oder englischen Satz suchen"></label>
+    <label class="manager-search-label">Karten suchen<input class="manager-search" type="search" placeholder="Satz oder Übersetzung suchen"></label>
     <div class="manager-list"></div>`;
   const profile = document.getElementById('profile');
   profile.insertBefore(section, document.getElementById('saveProfileButton')?.parentElement || profile.querySelector('nav'));
@@ -36,7 +37,7 @@ export function setupCardManager(getCards, setCards) {
     for (const card of matches) {
       const row = document.createElement('article'); row.className = 'manager-card';
       const german = document.createElement('strong'); german.textContent = `🇩🇪 ${card.front}`;
-      const english = document.createElement('p'); english.textContent = `🇬🇧 ${card.back}`;
+      const english = document.createElement('p'); english.textContent = `${course.flag} ${card.back}`;
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'manager-delete'; remove.textContent = 'Karte entfernen';
       remove.setAttribute('aria-label', `Karte entfernen: ${card.front}`);
       remove.onclick = () => {

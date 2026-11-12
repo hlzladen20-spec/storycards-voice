@@ -1,9 +1,10 @@
+import {LANGUAGE_COURSES} from './language-courses.js';
 import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,additionalVocabularyLesson,rateVocabulary,finishVocabulary,vocabularyRoundProgress,swipeRating,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
 import {vocabularyIcon} from './card-vocabulary.js';
 import {calendarDayKey} from './learning-streak.js';
 import {confirmDialog} from './app-dialog.js';
 
-export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[]}) {
+export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[],course=LANGUAGE_COURSES.en}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null,suppressSwipeClick=false;
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
  panel.setAttribute('aria-label','Vokabeltrainer');
@@ -23,7 +24,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  const $=selector=>panel.querySelector(selector),save=()=>storage.save('vocabulary',state);
  const management=document.createElement('section');management.className='profile-card vocab-management';
  management.innerHTML=`<h3>Deine Vokabelkarten</h3><details class="vocab-learned"><summary>Gelernte Karten nach SRS <span class="vocab-learned-count"></span></summary><div class="vocab-learned-list"></div></details>
- <details class="vocab-manager"><summary>Kurze Sätze hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch (2–6 Wörter)<input name="front" required maxlength="70"></label><label>Englisch (2–6 Wörter)<input name="back" required maxlength="70"></label><button class="primary" type="submit">＋ Kurzen Satz hinzufügen</button></form><p class="vocab-archive"></p><div class="vocab-list"></div><p class="vocab-management-status" role="status"></p></details>`;
+ <details class="vocab-manager"><summary>Kurze Sätze hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch (2–6 Wörter)<input name="front" required maxlength="70"></label><label>${course.name} (2–6 Wörter)<input name="back" required maxlength="70"></label><button class="primary" type="submit">＋ Kurzen Satz hinzufügen</button></form><p class="vocab-archive"></p><div class="vocab-list"></div><p class="vocab-management-status" role="status"></p></details>`;
  document.getElementById('profile').insertBefore(management,document.getElementById('profile').querySelector('nav'));
  const manage=selector=>management.querySelector(selector);
  const settings=document.createElement('section');settings.className='profile-card vocab-settings';
@@ -50,10 +51,10 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   button.querySelector('small').textContent=done?(lesson.closed?'Tagesrunde geschafft! Freiwillig weiterlernen.':'Tagesziel geschafft · Zusatzrunde fortsetzen.'):'Deine kurzen Gesprächssätze · mit Wischen lernen';
  }
  function line(text,tag='p'){const node=document.createElement(tag);node.textContent=text;return node;}
- function say(text){if(!window.speechSynthesis)return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang='en-GB';utterance.rate=.85;window.speechSynthesis.speak(utterance);}
+ function say(text){if(!window.speechSynthesis)return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang=course.locale;utterance.rate=.85;window.speechSynthesis.speak(utterance);}
  function wordView(word,answer=false){
   const box=$('.vocab-word');box.replaceChildren(line(word.front,'h3'));
-  if(answer){const english=line(`🇬🇧 ${word.back} 🔊`,'button');english.type='button';english.className='ghost';english.setAttribute('aria-label','Englischen kurzen Satz anhören');english.onclick=()=>say(word.back);box.append(english);}
+  if(answer){const english=line(`${course.flag} ${word.back} 🔊`,'button');english.type='button';english.className='ghost';english.setAttribute('aria-label',`${course.name}: kurzen Satz anhören`);english.onclick=()=>say(word.back);box.append(english);}
  }
  function progress(){
   const p=vocabularyRoundProgress(state),name=state.lesson?.extraRound?'Zusatzrunde':'Tagesrunde';
