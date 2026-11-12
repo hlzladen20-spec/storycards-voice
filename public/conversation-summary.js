@@ -5,11 +5,15 @@ export function cleanConversationReview(review) {
 }
 export function setupConversationSummary({onCelebrate}) {
  const $=id=>document.getElementById(id);
- const cardsButton=$('summaryCardsButton'),hintsButton=$('summaryHintsButton');
- function toggle(button,panel){const expanded=button.getAttribute('aria-expanded')!=='true';button.setAttribute('aria-expanded',String(expanded));panel.hidden=!expanded;}
- cardsButton.onclick=()=>toggle(cardsButton,$('summaryCardsPreview'));
- hintsButton.onclick=()=>toggle(hintsButton,$('summaryHintsPreview'));
- $('summaryMinutesButton').onclick=()=>{onCelebrate();$('summaryCelebration').classList.remove('summary-cheer');requestAnimationFrame(()=>$('summaryCelebration').classList.add('summary-cheer'));};
+ const cardsButton=$('summaryCardsButton'),hintsButton=$('summaryHintsButton'),minutesButton=$('summaryMinutesButton');
+ function select(button){
+  for(const tile of [minutesButton,cardsButton,hintsButton])tile.setAttribute('aria-pressed',String(tile===button));
+  for(const [tile,panel]of [[cardsButton,$('summaryCardsPreview')],[hintsButton,$('summaryHintsPreview')]]){const expanded=tile===button;tile.setAttribute('aria-expanded',String(expanded));panel.hidden=!expanded;}
+ }
+ const toggle=button=>select(button.getAttribute('aria-pressed')==='true'?null:button);
+ cardsButton.onclick=()=>toggle(cardsButton);
+ hintsButton.onclick=()=>toggle(hintsButton);
+ minutesButton.onclick=()=>{select(minutesButton);onCelebrate();$('summaryCelebration').classList.remove('summary-cheer');requestAnimationFrame(()=>$('summaryCelebration').classList.add('summary-cheer'));};
  function node(tag,text){const element=document.createElement(tag);element.textContent=text;return element;}
  return {render({cards,focus,review,seconds}){
   const minutes=Math.max(0,Math.round(seconds/60)),feedback=cleanConversationReview(review);
@@ -27,6 +31,6 @@ export function setupConversationSummary({onCelebrate}) {
    ['improvements','Was kann man verbessern?',focus[0]?.practice||'Mit weiteren kurzen Gesprächen sammeln wir eine verlässlichere Grundlage.']
   ]){const section=node('section','');section.append(node('h3',title));const list=node('ul','');for(const text of feedback[key].length?feedback[key]:[fallback])list.append(node('li',text));section.append(list);hints.append(section);}
   const topics=$('summaryTopics');topics.replaceChildren();for(const item of focus){const chip=node('span',item.pattern);chip.className='summary-topic';topics.append(chip);}
-  cardsButton.setAttribute('aria-expanded','false');hintsButton.setAttribute('aria-expanded','false');preview.hidden=true;hints.hidden=true;
+  select(null);
  }};
 }

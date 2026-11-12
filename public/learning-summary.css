@@ -1,5 +1,6 @@
 .summary-metrics>button{border:1px solid #e3e9e3;border-radius:14px;padding:10px 5px;text-align:center;background:#fff;color:#153934;box-shadow:0 3px 10px #183e3610;min-width:0}
-.summary-metrics>button:hover,.summary-metrics>button[aria-expanded=true]{background:#e4f1e9;border-color:#72b89f}
+.summary-metrics>button:hover,.summary-metrics>button[aria-pressed=true]{background:#e4f1e9;border-color:#72b89f}
+.summary-success-mark{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#dff0e4;color:#13765d;font-size:1.05rem;vertical-align:middle}
 .summary-metrics>button:focus-visible{outline:3px solid #16806a;outline-offset:2px}
 .summary-preview{text-align:left;padding:14px;margin-bottom:16px;background:#f2f7ef;border:1px solid #dce7dc;border-radius:15px;overflow-wrap:anywhere}
 .summary-preview[hidden]{display:none}
