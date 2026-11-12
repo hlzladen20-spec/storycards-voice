@@ -14,6 +14,7 @@ import {setupVocabularyMark} from '/card-vocabulary.js';
 import {showLearningTip} from '/learning-tips.js';
 import {recordProficiency,proficiencyCoachInstructions} from '/proficiency.js';
 import {setupProficiencyUI} from '/proficiency-ui.js';
+import {createConversationBookends} from '/conversation-bookends.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -33,6 +34,7 @@ let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
 let timeExpired = false, responseActive = false, outputPlaying = false, finishingSession = false, finishAfterAudioTimer;
 let vocabularyMark, learningStrategy;
 let proficiencyUI;
+let speechBookends;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
@@ -332,7 +334,9 @@ function coachInstructions() {
 function setMicState(text, listening = false) { $("micStateText").textContent = text; $("micState").classList.toggle("listening", listening); }
 function sendCoachInstructions() {
  if(dataChannel?.readyState!=="open")return;
- dataChannel.send(JSON.stringify({type:"session.update",session:{type:"realtime",instructions:coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Keep every spoken turn very brief: one short reaction and at most one simple question, about 10 to 25 words total. Then let the learner speak. Avoid repeated praise and unsolicited examples. Give a longer explanation only if explicitly asked."}}));
+ const instructions=coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Keep every spoken turn very brief: one short reaction and at most one simple question, about 10 to 25 words total. Then let the learner speak. Avoid repeated praise and unsolicited examples. Give a longer explanation only if explicitly asked.";
+ dataChannel.send(JSON.stringify({type:"session.update",session:{type:"realtime",instructions}}));
+ return instructions;
 }
 function selectConversationMode(value,persist=true) {
  const mode=conversationMode(value);
@@ -380,6 +384,7 @@ async function startSession() {
     saveStats();
   }
   sessionBudgetDate=null;
+  speechBookends?.dispose();speechBookends=null;
   timeExpired = false; responseActive = false; outputPlaying = false; finishingSession = false; clearTimeout(finishAfterAudioTimer);
   refreshSpeakingGoal();
   let phase = "Mikrofon";
@@ -390,17 +395,26 @@ async function startSession() {
     startButton.disabled = true; startButton.textContent = "🎙 Aufnahme wird vorbereitet …"; status.textContent = "Mikrofon wird verbunden …"; setMicState("Mikrofon wird vorbereitet …");
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error("Das Mikrofon ist in dieser App-Ansicht nicht verfügbar.");
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:false, channelCount:1 } });
+    stream.getAudioTracks().forEach(track=>track.enabled=false);
     phase = "Sprachverbindung";
     status.textContent = "Sprachverbindung wird hergestellt …";
     pc = new RTCPeerConnection();
     pc.ontrack = (event) => { remoteAudio = new Audio(); remoteAudio.autoplay = true; remoteAudio.srcObject = event.streams[0]; remoteAudio.onplaying = () => setEmmaSpeaking(true); remoteAudio.onpause = () => setEmmaSpeaking(false); };
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     dataChannel = pc.createDataChannel("oai-events");
+    const sessionChannel=dataChannel;
+    speechBookends=createConversationBookends({
+      send:event=>{if(sessionChannel.readyState!=='open')return false;sessionChannel.send(JSON.stringify(event));return true;},
+      greetingInstructions:()=>coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Open this new conversation now. Greet the learner warmly in English and introduce yourself as Emma briefly, then ask exactly one short, concrete opening question in the selected topic. At most 25 words total. Do not wait for the learner to speak first. Do not invent a previous conversation or assess their performance.",
+      onReady:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}if(timeExpired || isPaused)return;stream?.getAudioTracks().forEach(track=>track.enabled=true);status.textContent=failed?'Die Begrüßung konnte nicht abgespielt werden. Du kannst jetzt selbst anfangen.':'Jetzt bist du dran – sprich einfach Englisch.';setMicState('Ich höre dir zu.',true);},
+      onClosing:()=>{status.textContent='Die Zeit ist um. Emma verabschiedet sich …';setMicState('Emma bedankt sich und verabschiedet sich …');},
+      onClosed:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}finishButton.disabled=false;status.textContent=failed?'Die Verabschiedung konnte nicht abgespielt werden. Du kannst das Gespräch jetzt beenden.':'Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';setMicState('Zeit geschafft · bitte Gespräch beenden');$('practice').dataset.keepAwake='false';}
+    });
     dataChannel.addEventListener("open", () => {
       dataChannel.send(JSON.stringify({ type:"session.update", session:{ type:"realtime", audio:{ input:{ noise_reduction:{ type:"near_field" }, turn_detection:{ type:"server_vad", threshold:0.7, prefix_padding_ms:300, silence_duration_ms:1000, create_response:true, interrupt_response:false, idle_timeout_ms:null } } } } }));
     });
-    dataChannel.onmessage = event => handleEvent(JSON.parse(event.data));
-    dataChannel.onopen = sendCoachInstructions;
+    dataChannel.onmessage = event => {if(dataChannel===sessionChannel)handleEvent(JSON.parse(event.data));};
+    dataChannel.onopen = ()=>{if(dataChannel!==sessionChannel)return;const instructions=sendCoachInstructions();speechBookends.waitForConfiguration(instructions);};
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
     const response = await fetch("/api/realtime/session", { method:"POST", headers:{"Content-Type":"application/sdp"}, body: offer.sdp });
     if (!response.ok) { const data = await response.json(); throw new Error(typeof data.error === "string" ? data.error : (data.error?.message || data.detail || "Verbindung fehlgeschlagen")); }
@@ -408,8 +422,9 @@ async function startSession() {
     startedAt = Date.now(); sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;sessionCountedSeconds=0; interval = setInterval(updateTimer, 1000); updateTimer();
     startButton.textContent = "🔴 Aufnahme läuft";
     $("practice").dataset.keepAwake="true";
-    status.textContent = "Du bist verbunden – sprich einfach Englisch."; setMicState("Ich höre zu …", true); pauseButton.disabled = false; setPauseLabel(false); finishButton.disabled = false;
+    status.textContent = "Du bist verbunden – Emma begrüßt dich gleich …"; setMicState("Emma begrüßt dich gleich …"); pauseButton.disabled = false; setPauseLabel(false); finishButton.disabled = false;
   } catch (error) {
+    speechBookends?.dispose();pc?.close();
     $("practice").dataset.keepAwake="false";
     const hint = error?.name === "NotAllowedError" ? "Windows hat den Mikrofonzugriff blockiert. Erlaube das Mikrofon für Desktop-Apps in den Windows-Einstellungen." : `${error?.name ? error.name + ": " : ""}${error?.message || "Unbekannter Fehler"}`;
     status.textContent = `${phase} fehlgeschlagen: ${hint}`;
@@ -431,6 +446,7 @@ function finishWhenEmmaIsDone() {
     status.textContent = "Die Zeit ist um. Emma spricht noch zu Ende …";
     setMicState("Emma spricht noch zu Ende …");
   }
+  if(speechBookends){speechBookends.close(responseActive||outputPlaying);return;}
   clearTimeout(finishAfterAudioTimer);
   if (!responseActive && !outputPlaying) {
     // Allow the WebRTC playback tail and any final transcript event to arrive.
@@ -445,17 +461,19 @@ function finishWhenEmmaIsDone() {
   }
 }
 function handleEvent(event) {
-  if(timeExpired && event.type==='response.created' && !responseActive){if(dataChannel?.readyState==='open')dataChannel.send(JSON.stringify({type:'response.cancel',response_id:event.response?.id}));return;}
+  if(speechBookends && !speechBookends.accept(event))return;
+  if(!speechBookends && timeExpired && event.type==='response.created' && !responseActive){if(dataChannel?.readyState==='open')dataChannel.send(JSON.stringify({type:'response.cancel',response_id:event.response?.id}));return;}
   if (event.type === "response.created") { responseActive = true; clearTimeout(finishAfterAudioTimer); }
   if (event.type === "output_audio_buffer.started") { outputPlaying = true; clearTimeout(finishAfterAudioTimer); }
   if (event.type === "response.done") responseActive = false;
   if (event.type === "output_audio_buffer.stopped" || event.type === "output_audio_buffer.cleared") { outputPlaying = false; setEmmaSpeaking(false); }
 
   if (event.type === "response.output_audio.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.created") { if (!isPaused) { setMicState("Ich antworte gerade …"); setEmmaSpeaking(true); } }
-  if (event.type === "conversation.item.input_audio_transcription.completed") { if (String(event.transcript || "").trim()) recordPracticeDay(); transcript.push({ role:"learner", text:event.transcript }); addMessage("learner", event.transcript); setMicState("Ich höre dir zu.", true); }
-  if (event.type === "response.output_audio_transcript.done") { transcript.push({ role:"coach", text:event.transcript }); addMessage("coach", event.transcript); setEmmaSpeaking(false); if (!isPaused) setMicState("Ich höre dir zu.", true); }
+  if (event.type === "conversation.item.input_audio_transcription.completed") { if (String(event.transcript || "").trim()) recordPracticeDay(); transcript.push({ role:"learner", text:event.transcript }); addMessage("learner", event.transcript); if(!timeExpired && speechBookends?.ready!==false)setMicState("Ich höre dir zu.", true); }
+  if (event.type === "response.output_audio_transcript.done") { transcript.push({ role:"coach", text:event.transcript }); addMessage("coach", event.transcript); setEmmaSpeaking(false); if (!isPaused && !timeExpired && speechBookends?.ready!==false) setMicState("Ich höre dir zu.", true); }
   if (event.type === "error") status.textContent = event.error?.message || "Ein Verbindungsfehler ist aufgetreten.";
-  if (timeExpired) { setMicState("Emma spricht noch zu Ende …"); finishWhenEmmaIsDone(); }
+  speechBookends?.observe(event,responseActive||outputPlaying);
+  if (timeExpired) { if(!speechBookends)setMicState("Emma spricht noch zu Ende …");finishWhenEmmaIsDone(); }
 }
 
 function togglePause() {
@@ -468,9 +486,9 @@ function togglePause() {
     if (dataChannel?.readyState === "open") dataChannel.send(JSON.stringify({ type:"session.input_audio.mute" }));
     setPauseLabel(true); status.textContent = "Pausiert – das Mikrofon hört gerade nicht zu."; setMicState("Gespräch pausiert"); setEmmaSpeaking(false); $("coachStage").classList.add("paused");
   } else {
-    pausedDuration += Date.now() - pausedAt; stream.getAudioTracks().forEach((track) => track.enabled = true); remoteAudio?.play().catch(() => {});
+    pausedDuration += Date.now() - pausedAt; stream.getAudioTracks().forEach((track) => track.enabled = speechBookends?.ready!==false); remoteAudio?.play().catch(() => {});
     if (dataChannel?.readyState === "open") dataChannel.send(JSON.stringify({ type:"session.input_audio.unmute" }));
-    interval = setInterval(updateTimer, 1000); updateTimer(); setPauseLabel(false); status.textContent = "Weiter geht's – sprich einfach Englisch."; setMicState("Ich höre zu …", true); $("coachStage").classList.remove("paused");
+    interval = setInterval(updateTimer, 1000); updateTimer(); setPauseLabel(false); status.textContent = speechBookends?.ready===false?'Emma begrüßt dich gleich …':"Weiter geht's – sprich einfach Englisch."; setMicState(speechBookends?.ready===false?'Emma begrüßt dich …':'Ich höre zu …',speechBookends?.ready!==false); $("coachStage").classList.remove("paused");
   }
 }
 
@@ -488,6 +506,7 @@ new MutationObserver(() => {
 async function finishSession() {
   if (finishingSession) return;
   if(timeExpired && (responseActive || outputPlaying))return;
+  speechBookends?.dispose();
   $("practice").dataset.keepAwake="false";
   checkpointSpeakingTime(true);
   sessionBudgetDate=null;
