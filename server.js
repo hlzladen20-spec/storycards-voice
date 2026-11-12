@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { normaliseCards } from "./lib/flashcards.js";
 import {cleanConversationReview} from './public/conversation-summary.js';
 import {resolveCourse,courseText,courseInstruction} from './public/language-courses.js';
+import {resolveVoice} from './public/emma-voices.js';
 
 const apiKey = process.env.OPENAI_API_KEY;
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -22,12 +23,12 @@ async function body(req) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-export function sessionConfig(course=resolveCourse()) {
+export function sessionConfig(course=resolveCourse(),voice=resolveVoice()) {
   return {
     type: "realtime",
     model: "gpt-realtime-2.1",
     audio: {
-      output: { voice: "marin", speed: 0.85 },
+      output: { voice: resolveVoice(voice), speed: 0.85 },
       input: { transcription: { model: "gpt-4o-mini-transcribe", language: course.target } }
     },
     instructions: courseText("You are a friendly English conversation coach for learners from A1 to C2. Adapt to the learner's demonstrated language, starting with accessible questions if unknown. Use one concise question at a time and let the learner finish. Do not correct every mistake. Keep natural conversation going. More specific learner and topic instructions will follow.",course)+courseInstruction(course)
@@ -36,13 +37,14 @@ export function sessionConfig(course=resolveCourse()) {
 
 async function startRealtimeSession(req, res) {
   const course=resolveCourse(new URL(req.url,'http://localhost').searchParams.get('language')??'en');
+  const voice=resolveVoice(new URL(req.url,'http://localhost').searchParams.get('voice')??'marin');
   if (!apiKey) return json(res, 503, { error: "Voice practice is not configured yet. Add OPENAI_API_KEY to the server environment." });
   const sdp = await body(req);
   if (!sdp || sdp.length > 200_000) return json(res, 400, { error: "A valid WebRTC offer is required." });
 
   const form = new FormData();
   form.set("sdp", sdp);
-  form.set("session", JSON.stringify(sessionConfig(course)));
+  form.set("session", JSON.stringify(sessionConfig(course,voice)));
   const upstream = await fetch("https://api.openai.com/v1/realtime/calls", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -56,12 +58,12 @@ async function startRealtimeSession(req, res) {
 
 async function createFlashcards(req, res) {
   if (!apiKey) return json(res, 503, { error: "Flashcards need OPENAI_API_KEY on the server." });
-  let transcript, repairCards, course;
-  try { const input = JSON.parse(await body(req)); course=resolveCourse(input.language); transcript = input.transcript; repairCards = input.repairCards; } catch { return json(res, 400, { error: "Invalid request or language." }); }
+  let transcript, repairCards, course, mode;
+  try { const input = JSON.parse(await body(req)); course=resolveCourse(input.language); transcript = input.transcript; repairCards = input.repairCards; mode=input.mode==='niveaucheck'?'niveaucheck':'conversation'; } catch { return json(res, 400, { error: "Invalid request or language." }); }
   if (!Array.isArray(transcript) || transcript.length === 0) return json(res, 400, { error: "There is no conversation to turn into cards yet." });
 
   const conversation = transcript.slice(-80).map((line) => `${line.role}: ${line.text}`).join("\n");
-  const proficiencyInstructions=await readFile(join(projectDir,'lib','proficiency-prompt.txt'),'utf8')+await readFile(join(publicDir,'proficiency-goals.js'),'utf8');
+  const proficiencyInstructions=`Evaluation mode=${mode}.\n`+await readFile(join(projectDir,'lib','proficiency-prompt.txt'),'utf8')+await readFile(join(publicDir,'proficiency-goals.js'),'utf8');
   const prompt = courseText(`Create 1 to 6 carefully selected short, personal English flashcards from this learner's voice conversation. Only include demonstrated learner errors, explicit requests for missing vocabulary, or evidenced hesitations from this actual conversation. Never add generic vocabulary or corrections of already-correct speech. If evidence is absent, return no cards. Each card teaches exactly one reusable phrase or one language difficulty. Use one complete short German sentence and one natural English equivalent, STRICTLY 2 to 6 words and at most 70 characters per side. Shorten naturally to one tiny complete sentence without changing the specific difficulty. Do not copy whole dialogue turns, lists, sentence fragments or several independent ideas. Prefer fewer high-value cards over padding the collection. The learner is German A1–B1. Make front German or a simple cue; make back natural English. Also identify up to three recurring, evidenced learning focuses for future conversations. Return JSON only: {"cards":[{"front":"...","back":"...","note":"brief German explanation"}],"focus":[{"pattern":"short German label, e.g. Simple Past","practice":"what to practise next, in German","example":"optional short example"}]}. Do not invent errors that are not supported by the conversation.\n\nConversation:\n`,course);
   const upstream = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",

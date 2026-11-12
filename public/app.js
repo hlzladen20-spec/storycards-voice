@@ -16,13 +16,15 @@ import {recordProficiency,proficiencyCoachInstructions} from '/proficiency.js';
 import {setupProficiencyUI} from '/proficiency-ui.js';
 import {createConversationBookends} from '/conversation-bookends.js';
 import {setupDeveloperTools,resetDailyState} from '/developer-tools.js';
-import {englishCheckInstructions as baseCheckInstructions,englishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
+import {englishCheckInstructions as baseCheckInstructions,adaptiveCheckInstructions,englishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
 import {setupProfileLayout,revealProfileTarget} from '/profile-layout.js';
 import {confirmDialog,noticeDialog} from '/app-dialog.js';
 import {setupConversationTopicPicker} from '/conversation-topic-picker.js';
 import {courseText,courseInstruction} from '/language-courses.js';
 import {applyCourseLabels} from '/language-ui.js';
 import {checkGreeting} from '/english-check.js';
+import {EMMA_VOICES,setupVoiceSettings} from '/emma-voices.js';
+import {checkCompletionTool,createCheckCompletion} from '/check-completion.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -33,7 +35,7 @@ const appStorage = account.storage;
 showLearningTip(document.getElementById('learningTipText'),localStorage);
 window.addEventListener('pageshow',event=>{if(event.persisted)showLearningTip(document.getElementById('learningTipText'),localStorage);});
 const activeCourse = getActiveCourse(appStorage);
-const englishCheckInstructions=courseText(baseCheckInstructions,activeCourse)+courseInstruction(activeCourse);
+const englishCheckInstructions=courseText(baseCheckInstructions+adaptiveCheckInstructions,activeCourse)+courseInstruction(activeCourse);
 const englishCheckGreeting=checkGreeting(activeCourse);
 document.documentElement.dataset.learningLanguage=activeCourse.target;
 applyCourseLabels(document,activeCourse);
@@ -50,6 +52,7 @@ let proficiencyUI;
 let englishCheck=null;
 let englishCheckPromptOpen=false,speakingPromptOpen=false;
 let speechBookends;
+let checkCompletion;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
@@ -355,7 +358,7 @@ function setMicState(text, listening = false) { $("micStateText").textContent = 
 function sendCoachInstructions() {
  if(dataChannel?.readyState!=="open")return;
  const instructions=englishCheck?englishCheckInstructions:coachInstructions()+conversationModeInstructions($("conversationMode").value)+" Keep every spoken turn very brief: one short reaction and at most one simple question, about 10 to 25 words total. Then let the learner speak. Avoid repeated praise and unsolicited examples. Give a longer explanation only if explicitly asked.";
- dataChannel.send(JSON.stringify({type:"session.update",session:{type:"realtime",instructions}}));
+ dataChannel.send(JSON.stringify({type:"session.update",session:{type:"realtime",instructions,tools:englishCheck?[checkCompletionTool]:[],tool_choice:'auto'}}));
  return instructions;
 }
 function selectConversationMode(value,persist=true) {
@@ -409,7 +412,7 @@ async function startSession() {
     saveStats();
   }
   sessionBudgetDate=null;
-  speechBookends?.dispose();speechBookends=null;
+  speechBookends?.dispose();speechBookends=null;checkCompletion?.dispose();checkCompletion=null;
   timeExpired = false; responseActive = false; outputPlaying = false; finishingSession = false; clearTimeout(finishAfterAudioTimer);
   refreshSpeakingGoal();
   if(englishCheck){sessionDurationSeconds=Math.min(ENGLISH_CHECK_SECONDS,remainingSpeakingSeconds(learningStats,dailySpeakingMinutes));timer.querySelector('small').textContent=`/ ${clockText(sessionDurationSeconds)}`;}
@@ -436,16 +439,19 @@ async function startSession() {
       greetingInstructions:()=>englishCheck?englishCheckGreeting:coachInstructions()+conversationModeInstructions($("conversationMode").value)+courseText(" Open this new conversation now. Greet the learner warmly in English and introduce yourself as Emma briefly, then ask exactly one short, concrete opening question in the selected topic. At most 25 words total. Do not wait for the learner to speak first. Do not invent a previous conversation or assess their performance.",activeCourse),
       farewellInstructions:()=>courseText("Speak one brief, warm English farewell as Emma. Our practice time has ended. Thank the learner for the conversation and say goodbye. Do not ask a question, invite another answer, give a lesson, or assess their performance. Then stop.",activeCourse),
       onReady:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}if(timeExpired || isPaused)return;stream?.getAudioTracks().forEach(track=>track.enabled=true);status.textContent=failed?'Die Begrüßung konnte nicht abgespielt werden. Du kannst jetzt selbst anfangen.':'Jetzt bist du dran – sprich einfach in deiner Lernsprache.';setMicState('Ich höre dir zu.',true);},
-      onClosing:()=>{status.textContent='Die Zeit ist um. Emma verabschiedet sich …';setMicState('Emma bedankt sich und verabschiedet sich …');},
-      onClosed:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}finishButton.disabled=false;status.textContent=failed?'Die Verabschiedung konnte nicht abgespielt werden. Du kannst das Gespräch jetzt beenden.':'Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';setMicState('Zeit geschafft · bitte Gespräch beenden');$('practice').dataset.keepAwake='false';}
+      onClosing:()=>{status.textContent=englishCheck?.completed?'Genug Antworten gesammelt. Emma verabschiedet sich …':'Die Zeit ist um. Emma verabschiedet sich …';setMicState('Emma bedankt sich und verabschiedet sich …');},
+      onClosed:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}finishButton.disabled=false;status.textContent=failed?'Die Verabschiedung konnte nicht abgespielt werden. Du kannst das Gespräch jetzt beenden.':'Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';setMicState('Zeit geschafft · bitte Gespräch beenden');$('practice').dataset.keepAwake='false';if(englishCheck?.completed)finishSession();}
     });
+    checkCompletion?.dispose();
+    checkCompletion=createCheckCompletion({isActive:()=>Boolean(englishCheck && !englishCheck.completed && !timeExpired && !finishingSession && sessionChannel===dataChannel),getTranscript:()=>transcript,send:event=>{if(sessionChannel.readyState==='open')sessionChannel.send(JSON.stringify(event));},onComplete:()=>{englishCheck.completed=true;finishWhenEmmaIsDone();}});
     dataChannel.addEventListener("open", () => {
       dataChannel.send(JSON.stringify({ type:"session.update", session:{ type:"realtime", audio:{ input:{ noise_reduction:{ type:"near_field" }, turn_detection:{ type:"server_vad", threshold:0.7, prefix_padding_ms:300, silence_duration_ms:1000, create_response:true, interrupt_response:false, idle_timeout_ms:null } } } } }));
     });
     dataChannel.onmessage = event => {if(dataChannel===sessionChannel)handleEvent(JSON.parse(event.data));};
     dataChannel.onopen = ()=>{if(dataChannel!==sessionChannel)return;const instructions=sendCoachInstructions();speechBookends.waitForConfiguration(instructions);};
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-    const response = await fetch(`/api/realtime/session?language=${activeCourse.target}`, { method:"POST", headers:{"Content-Type":"application/sdp"}, body: offer.sdp });
+    const voice=EMMA_VOICES.includes(learningProfile.emmaVoice)?learningProfile.emmaVoice:'marin';
+    const response = await fetch(`/api/realtime/session?language=${activeCourse.target}&voice=${voice}`, { method:"POST", headers:{"Content-Type":"application/sdp"}, body: offer.sdp });
     if (!response.ok) { const data = await response.json(); throw new Error(typeof data.error === "string" ? data.error : (data.error?.message || data.detail || "Verbindung fehlgeschlagen")); }
     await pc.setRemoteDescription({ type:"answer", sdp:await response.text() });
     startedAt = Date.now(); sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;sessionCountedSeconds=0; interval = setInterval(updateTimer, 1000); updateTimer();
@@ -502,6 +508,7 @@ function handleEvent(event) {
   if (event.type === "response.output_audio_transcript.done") { transcript.push({ role:"coach", text:event.transcript }); addMessage("coach", event.transcript); setEmmaSpeaking(false); if (!isPaused && !timeExpired && speechBookends?.ready!==false) setMicState("Ich höre dir zu.", true); }
   if(englishCheck && event.type==='conversation.item.input_audio_transcription.completed')proficiencyUI?.renderCheckProgress(transcript);
   if (event.type === "error") status.textContent = event.error?.message || "Ein Verbindungsfehler ist aufgetreten.";
+  checkCompletion?.observe(event);
   speechBookends?.observe(event,responseActive||outputPlaying);
   if (timeExpired) { if(!speechBookends)setMicState("Emma spricht noch zu Ende …");finishWhenEmmaIsDone(); }
 }
@@ -536,7 +543,7 @@ new MutationObserver(() => {
 async function finishSession() {
   if (finishingSession) return;
   if(timeExpired && (responseActive || outputPlaying))return;
-  speechBookends?.dispose();
+  speechBookends?.dispose();checkCompletion?.dispose();
   $("practice").dataset.keepAwake="false";
   checkpointSpeakingTime(true);
   sessionBudgetDate=null;
@@ -545,11 +552,11 @@ async function finishSession() {
   if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; setFinishBusy(false); finishingSession=false; return; }
   status.textContent = "Ich erstelle deine persönlichen Karten …";
   try {
-    const response=await fetch('/api/flashcards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:activeCourse.target,transcript})});
+    const response=await fetch('/api/flashcards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:activeCourse.target,mode:englishCheck?'niveaucheck':$('conversationMode').value,transcript})});
     const data=await response.json();if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'Die Auswertung konnte nicht geladen werden.');
     if(!Array.isArray(data.cards))throw new Error('Die Karten-Antwort konnte nicht gelesen werden.');
     const newCards=normaliseCards(data.cards),focus=cleanFocus(data.focus);
-    learningProfile=recordProficiency(learningProfile,data.assessment,{id:String(startedAt),transcript,mode:englishCheck?'niveaucheck':$("conversationMode").value});
+    learningProfile=recordProficiency(learningProfile,data.assessment?.rubricVersion===2?data.assessment:null,{id:String(startedAt),transcript,mode:englishCheck?'niveaucheck':$("conversationMode").value});
     cards=[...cards,...newCards];rememberFocus(focus);saveCards();recordCompletedSession();sessionWasEvaluated=true;
     proficiencyUI?.render();
     status.textContent=`${newCards.length} neue Karten sind bereit.`;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';
@@ -663,6 +670,7 @@ startButton.addEventListener("click", startSession); pauseButton.addEventListene
 account.mount($("profile"), () => hasActiveConversation() || reviewRecorder?.state === "recording" || answerStarting || $("recordAnswerButton").disabled);
 const conversationSummary=setupConversationSummary({course:activeCourse,onCelebrate:playLessonFanfare});
 learningStrategy=setupLearningStrategy(activeCourse);
+setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learningProfile.emmaVoice)?learningProfile.emmaVoice:'marin',onChange:voice=>{const next={...learningProfile,emmaVoice:voice};learningStorage.save('profile',next);learningProfile=next;}});
 setupVocabularyTrainer({course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
@@ -673,7 +681,7 @@ async function startEnglishCheck(){
  if(transcript.length && !sessionWasEvaluated){await noticeDialog({title:'Dein Gespräch ist noch offen',message:'Bitte beende dein vorheriges Gespräch und lass es auswerten. Danach kannst du den Sprach-Check starten.'});return;}
  const extra=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)<ENGLISH_CHECK_SECONDS;
  englishCheckPromptOpen=true;let approved;
- try{approved=await confirmDialog({title:`Dein ${activeCourse.name}-Check`,message:`Emma stellt dir kurze Fragen, die sich Schritt für Schritt deinem ${activeCourse.name} anpassen.`,items:[`Etwa 5 Minuten · antworte selbstständig auf ${activeCourse.name}`,'Ziel: mindestens 8 eigene Antworten und insgesamt 100 Wörter','Danach: eine erste Einschätzung und persönliche Lernhinweise, wenn genug Belege vorliegen'],note:'Kein Zertifikat. Der Check nutzt Mikrofon und KI wie ein normales Gespräch und zählt zu deiner Sprechzeit.'+(extra?' Fehlende Zeit bis zu einem verfügbaren 5-Minuten-Budget wird zusätzlich freigegeben.':''),confirmText:'Check starten'});}
+ try{approved=await confirmDialog({title:`Dein ${activeCourse.name}-Check`,message:`Emma prüft mit unterschiedlich schwierigen Aufgaben, was du in ${activeCourse.name} bereits selbstständig ausdrücken kannst.`,items:[`Bis zu 5 Minuten · antworte selbstständig auf ${activeCourse.name}`,'Alltag, Erzählen, eine praktische Aufgabe und anspruchsvollere Nachfragen','Sind genug unterschiedliche Antworten belegt, verabschiedet sich Emma früher und die Auswertung startet automatisch'],note:'Kein Zertifikat. Der Check nutzt Mikrofon und KI wie ein normales Gespräch und zählt nur die tatsächlich verbrauchte Sprechzeit.'+(extra?' Fehlende Zeit bis zu einem verfügbaren 5-Minuten-Budget wird zusätzlich freigegeben.':''),confirmText:'Check starten'});}
  finally{englishCheckPromptOpen=false;}
  if(!approved)return;
  if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || (transcript.length && !sessionWasEvaluated))return;

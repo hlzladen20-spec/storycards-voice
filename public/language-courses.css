@@ -3,3 +3,4 @@
 .language-course-choice[aria-pressed="true"]{background:#dceee3;color:#075d50;border-color:#148473;font-weight:700}
 .language-course-choice:focus-visible{outline:3px solid #168c7c;outline-offset:3px}
 .home-brand{position:relative}.home-course-label{position:absolute;left:77px;bottom:20px;padding:5px 9px;border-radius:9px;background:#fffdf1e8;color:#174b41;font-size:.75rem;font-weight:700}
+.emma-voice-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}.emma-voice-choices button{min-height:48px;font:inherit}.emma-voice-choices [aria-pressed="true"]{background:#dceee3;color:#075d50;box-shadow:inset 0 0 0 2px #148473}.profile-organized .coach-choice{display:block}.coach-choice>p{font-size:.8rem;line-height:1.5}

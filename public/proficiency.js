@@ -5,6 +5,7 @@ export const proficiencyStages=Object.freeze(['Einstieg','Aufbauen','Anwenden','
 export const proficiencyMinimumSessions=3;
 const dimensions=['vocabulary','grammar','interaction','structure'];
 const normalise=text=>String(text||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+const bands=['A1','A2','B1','B2','C1','C2'];
 function records(profile){return Array.isArray(profile?.proficiency?.sessions)?profile.proficiency.sessions.filter(item=>item && typeof item.id==='string' && proficiencyLevels.includes(item.level) && Array.isArray(item.goals) && Array.isArray(item.evidence) && item.evidence.length>=2).slice(-30).map(item=>({...item,goals:item.goals.filter(goal=>goal && typeof goal.id==='string' && typeof goal.quote==='string')})):[];}
 function median(values){const sorted=values.map(value=>proficiencyLevels.indexOf(value)).filter(index=>index>=0).sort((a,b)=>a-b);return sorted.length?proficiencyLevels[sorted[Math.floor((sorted.length-1)/2)]]:null;}
 export function recordProficiency(profile,assessment,{id,transcript,mode='alltag',now=Date.now()}){
@@ -27,24 +28,50 @@ export function recordProficiency(profile,assessment,{id,transcript,mode='alltag
  }
  const observed={};for(const dimension of dimensions){const observation=assessment.dimensions?.[dimension];if(proficiencyLevels.includes(observation?.level)&&validQuote(observation.quote))observed[dimension]={level:observation.level,quote:observation.quote};}
  const sample={id,level:assessment.level,at:now,mode:String(mode).slice(0,40),evidence,goals,dimensions:observed};
+ if(assessment.rubricVersion===2){
+  // Level follows multiple evidenced skills, not the model's one-word verdict.
+  const skillBands=Object.values(observed).map(item=>bands.indexOf(item.level));
+  const quotes=new Set(Object.values(observed).map(item=>learner.findIndex(turn=>` ${turn} `.includes(` ${normalise(item.quote)} `))));
+  if(!['medium','high'].includes(assessment.confidence) || skillBands.length<3 || quotes.size<3 || typeof assessment.reason!=='string' || !assessment.reason.trim())return profile;
+  if(Math.max(...skillBands)-Math.min(...skillBands)>1)return profile;
+  sample.level=median(Object.values(observed).map(item=>item.level));
+  const tasks=(Array.isArray(assessment.tasks)?assessment.tasks:[]).filter(task=>['daily','past','practical','reasoning'].includes(task?.area)&&validQuote(task.quote));
+  const boundary=assessment.boundary;
+  if(check){
+   if(new Set(tasks.map(task=>task.area)).size<3 || new Set(tasks.map(task=>learner.findIndex(turn=>` ${turn} `.includes(` ${normalise(task.quote)} `)))).size<3)return profile;
+   if(!bands.includes(boundary?.level) || bands.indexOf(boundary.level)<bands.indexOf(sample.level) || !['successful','limited'].includes(boundary.outcome) || !validQuote(boundary.quote) || typeof boundary.question!=='string')return profile;
+   const question=normalise(boundary.question);
+   if(question.split(' ').length<4 || !coach.some(turn=>` ${turn} `.includes(` ${question} `)))return profile;
+   // Failing a C1 task is not evidence of C1; the lower band must be supported.
+   if(boundary.outcome==='limited' && boundary.level===sample.level)return profile;
+  }
+  sample.rubricVersion=2;sample.confidence=assessment.confidence;sample.reason=assessment.reason.trim().slice(0,800);
+  sample.limits=typeof assessment.limits==='string'?assessment.limits.trim().slice(0,800):'';
+  sample.tasks=tasks.slice(0,4);sample.boundary=check?{level:boundary.level,outcome:boundary.outcome,question:boundary.question.slice(0,500),quote:boundary.quote}:null;
+ }
  if(check){sample.kind='placement';sample.learnerTurns=independent.length;sample.learnerWords=learnerWords;}
- return {...profile,proficiency:{version:1,sessions:[...previous,sample].slice(-30)}};
+ return {...profile,proficiency:{version:assessment.rubricVersion===2?2:1,sessions:[...previous,sample].slice(-30)}};
 }
 export function proficiencyView(profile){
- const sessions=records(profile),recent=sessions.slice(-5);
+ const history=records(profile),calibrated=history.filter(item=>item.rubricVersion===2);
+ // Keep old history, but never average it into a recalibrated result.
+ const sessions=calibrated.length?calibrated:history;
+ const latestCheck=sessions.findLastIndex(item=>item.rubricVersion===2 && item.kind==='placement' && item.mode==='niveaucheck' && item.learnerTurns>=ENGLISH_CHECK_MIN_TURNS && item.learnerWords>=ENGLISH_CHECK_MIN_WORDS);
+ const current=latestCheck>=0?sessions.slice(latestCheck):sessions,recent=current.slice(-5);
  const placement=sessions.findLast(item=>item.kind==='placement' && item.mode==='niveaucheck' && item.learnerTurns>=ENGLISH_CHECK_MIN_TURNS && item.learnerWords>=ENGLISH_CHECK_MIN_WORDS);
- const level=sessions.length>=proficiencyMinimumSessions?median(recent.map(item=>item.level)):placement?.level||null;
+ const level=latestCheck>=0?(recent.length<3?current[0].level:median(recent.map(item=>item.level))):sessions.length>=proficiencyMinimumSessions?median(recent.map(item=>item.level)):placement?.level||null;
  const goals=level?proficiencyGoals[level].map((label,index)=>{
   const id=`${level}-${index+1}`,seen=sessions.filter(session=>session.goals.some(goal=>goal.id===id));
   return {id,label,count:seen.length,confirmed:seen.length>=2,quote:seen.at(-1)?.goals.find(goal=>goal.id===id)?.quote||''};
  }):[];
  const completed=goals.filter(goal=>goal.confirmed).length;
- const skillLevels={};for(const dimension of dimensions){const observations=recent.map(item=>item.dimensions?.[dimension]?.level).filter(Boolean);skillLevels[dimension]=observations.length>=3?median(observations):null;}
- return {level,stage:proficiencyStages[Math.min(4,completed)],goals,completed,sessions:sessions.length,fromCheck:Boolean(level && sessions.length<proficiencyMinimumSessions && placement),broader:sessions.length>=5 && new Set(recent.map(item=>item.mode)).size>=2,dimensions:skillLevels};
+ const skillLevels={};for(const dimension of dimensions){const observations=recent.map(item=>item.dimensions?.[dimension]?.level).filter(Boolean);skillLevels[dimension]=observations.length>=3 || latestCheck>=0?median(observations):null;}
+ const basis=recent.at(-1);
+ return {level,legacy:Boolean(level && !calibrated.length),reason:basis?.reason||'',limits:basis?.limits||'',confidence:basis?.confidence||'unconfirmed',stage:proficiencyStages[Math.min(4,completed)],goals,completed,sessions:sessions.length,fromCheck:Boolean(level && placement && (sessions.length<proficiencyMinimumSessions || latestCheck>=0)),broader:sessions.length>=5 && new Set(recent.map(item=>item.mode)).size>=2,dimensions:skillLevels};
 }
 export function proficiencyCoachInstructions(profile){
  const view=proficiencyView(profile);
  if(!view.level)return ' Language range A1–C2. The learner’s level is not yet established. Begin with accessible concrete questions and adapt to the learner’s own responses. Invite a little elaboration when appropriate without turning the chat into an exam. Never assume a level from practice minutes or praise.';
  const next=view.goals.find(goal=>!goal.confirmed);
- return ` The learner’s provisional spoken-language estimate is ${view.level}, not a certified overall CEFR result. Adapt vocabulary, question complexity and requested detail to ${view.level}. For A1/A2 use simple concrete questions. For B1/B2 invite connected accounts, reasons and comparisons. For C1/C2 invite nuanced argument, reformulation, register choices and complex or abstract topics within the selected conversation setting. Simplify if the learner struggles. ${next?`When it fits naturally, give an opportunity for this app learning goal: ${next.label}.`:''} Do not announce a level test or claim mastery. Keep each of your own turns concise, but let the learner give longer answers.`;
+ return ` The learner’s provisional spoken-language estimate is ${view.level}, not a certified overall CEFR result.${view.legacy?' This older estimate is unconfirmed and may be wrong. Do not anchor your questions to it; actively explore easier and harder tasks.':''} Adapt vocabulary, question complexity and requested detail to demonstrated ability, using ${view.level} only as a tentative starting point. For A1/A2 use simple concrete questions. For B1/B2 invite connected accounts, reasons and comparisons. For C1/C2 invite nuanced argument, reformulation, register choices and complex or abstract topics within the selected conversation setting. Simplify if the learner struggles. ${next?`When it fits naturally, give an opportunity for this app learning goal: ${next.label}.`:''} Do not announce a level test or claim mastery. Keep each of your own turns concise, but let the learner give longer answers.`;
 }

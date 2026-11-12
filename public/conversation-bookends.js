@@ -15,7 +15,7 @@ export function createConversationBookends({send,greetingInstructions,onReady,on
   if(disposed || closed || phases[phase].sent)return;
   phases[phase].sent=true;clearTimeout();if(phase==='farewell')onClosing();
   const instructions=phase==='greeting'?greetingInstructions():farewellInstructions?farewellInstructions():"Speak one brief, warm English farewell as Emma. Our practice time has ended. Thank the learner for the conversation and say goodbye. For example: 'Our time is up. Thank you for our conversation today. Have a lovely day, and see you next time!' Do not ask a question, invite another answer, give a lesson, or assess their performance. Then stop.";
-  const sent=send({type:'response.create',event_id:`storycards-${phase}-${token}`,response:{output_modalities:['audio'],metadata:{storycards_phase:phase,storycards_token:token},instructions}});
+  const sent=send({type:'response.create',event_id:`storycards-${phase}-${token}`,response:{output_modalities:['audio'],tool_choice:'none',metadata:{storycards_phase:phase,storycards_token:token},instructions}});
   if(sent===false){fail(phase);return;}
   timeoutTimer=schedule(()=>fail(phase),45000);
  }
