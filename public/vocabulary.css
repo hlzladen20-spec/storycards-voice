@@ -12,10 +12,12 @@ body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 .vocab-progress{flex:none;margin:0 4px;font-size:1rem;font-weight:750;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-bar{flex:none;height:6px;margin:0 0 5px}
 .vocabulary-trainer{touch-action:none}
-.vocab-word{position:relative;flex:1;min-height:0;padding:clamp(44px,7dvh,64px) 20px;overflow:auto;overscroll-behavior:contain;touch-action:none;background:#fffef9}
-.vocab-word[data-swipe=no]{background:linear-gradient(90deg,#fffef9 20%,#e78379);border-color:#c55d53}
-.vocab-word[data-swipe=yes]{background:linear-gradient(90deg,#77c99f,#fffef9 80%);border-color:#269365}
-.vocab-word[data-swipe=hard]{background:linear-gradient(180deg,#77c99f,#fffef9 80%);border-color:#269365}
+.vocab-word{position:relative;isolation:isolate;flex:1;min-height:0;padding:clamp(44px,7dvh,64px) 20px;overflow:auto;overscroll-behavior:contain;touch-action:none;background:#fffef9}
+/* A clipped color sheet grows exactly with the drag distance, underneath the text. */
+.vocab-word::before{content:'';position:absolute;top:0;bottom:0;width:var(--swipe-pull,0px);max-width:100%;border-radius:inherit;z-index:-1;pointer-events:none}
+.vocab-word[data-swipe=yes]::before{right:0;background:linear-gradient(90deg,transparent,#77c99f 28px)}
+.vocab-word[data-swipe=no]::before{left:0;background:linear-gradient(270deg,transparent,#e78379 28px)}
+.vocab-word[data-swipe=hard]::before{top:auto;bottom:0;left:0;right:0;width:auto;height:var(--swipe-pull,0px);max-height:100%;background:linear-gradient(180deg,transparent,#77c99f 28px)}
 .vocab-word::after{content:attr(data-swipe-label);position:absolute;top:12px;left:8px;right:8px;font-size:.82rem;font-weight:700;color:#153e37;pointer-events:none}
 .vocab-word h3{font-size:clamp(1.35rem,3.5dvh,1.85rem);line-height:1.45;margin:0;font-weight:650;color:#153e37}
 .vocab-word button{display:block;width:100%;margin:24px 0 0;padding:24px 0 8px;border:0;border-top:1px solid #d4e2d9;border-radius:0;font-size:clamp(1.2rem,3dvh,1.6rem);line-height:1.45;color:#087e69;background:transparent}

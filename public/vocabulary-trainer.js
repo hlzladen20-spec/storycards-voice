@@ -1,5 +1,5 @@
 import {LANGUAGE_COURSES} from './language-courses.js';
-import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,additionalVocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,vocabularyKnown,vocabularyNeedsRepeat,vocabularyTotalMs,swipeRating,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
+import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,additionalVocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,vocabularyKnown,vocabularyNeedsRepeat,vocabularyTotalMs,swipeRating,vocabularySwipePreview,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
 import {vocabularyIcon} from './card-vocabulary.js';
 import {calendarDayKey} from './learning-streak.js';
 import {confirmDialog} from './app-dialog.js';
@@ -124,7 +124,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
  $('.vocab-reveal').onclick=revealCurrent;
  $('.vocab-continue').onclick=()=>{syncCards();state=additionalVocabularyLesson(state);answerCard=null;lastTick=Date.now();render();if(state.lesson.closed && state.words.length)$('.vocab-status').textContent='Es gibt noch keine Wiederholungen. Im Profil kannst du neue Karten aktivieren (aktuell 0).';};
- function resetGesture(){gesture=null;const card=$('.vocab-word');card.dataset.swipe='';card.dataset.swipeLabel='';panel.dataset.swipe='';}
+ function resetGesture(){gesture=null;const card=$('.vocab-word');card.dataset.swipe='';card.dataset.swipeLabel='';card.style.setProperty('--swipe-pull','0px');panel.dataset.swipe='';}
  const box=$('.vocab-word');
  // The learning surface accepts gestures, not just the sentence itself.
  // Navigation and action buttons keep their normal tap behavior; audio can be dragged.
@@ -132,13 +132,16 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   if(gesture||e.isPrimary===false||(e.pointerType==='mouse' && e.button!==0))return;
   suppressSwipeClick=false;
   if(e.target.closest('button,a,input,select,textarea,summary,nav') && !box.contains(e.target))return;
-  gesture={id:e.pointerId,x:e.clientX,y:e.clientY};(e.target.closest('button')||panel).setPointerCapture?.(e.pointerId);
+  const bounds=box.getBoundingClientRect();
+  gesture={id:e.pointerId,x:e.clientX,y:e.clientY,width:bounds.width,height:bounds.height};(e.target.closest('button')||panel).setPointerCapture?.(e.pointerId);
  });
  panel.addEventListener('pointermove',e=>{
   if(!gesture||gesture.id!==e.pointerId||!answerCard)return;
-  const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);
+  const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;
+  const preview=vocabularySwipePreview(dx,dy,gesture.width,gesture.height),rating=preview.rating;
+  box.style.setProperty('--swipe-pull',`${preview.distance}px`);
   box.dataset.swipe=rating||'';panel.dataset.swipe=rating||'';
-  box.dataset.swipeLabel=rating==='yes'?'← Gewusst':rating==='no'?'Nicht gewusst →':rating==='hard'?'↑ Gewusst, aber mit Fehlern':'';
+  box.dataset.swipeLabel=swipeRating(dx,dy)?(rating==='yes'?'← Gewusst':rating==='no'?'Nicht gewusst →':'↑ Gewusst, aber mit Fehlern'):'';
  });
  panel.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);resetGesture();suppressSwipeClick=Boolean(rating);if(rating)rate(rating);});
  // A drag over the English audio button grades; only a tap should play audio.
