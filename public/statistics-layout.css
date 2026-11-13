@@ -15,4 +15,9 @@
 .statistics-speaking{margin-top:18px}
 .statistics-speaking .level-card.proficiency-card{margin:0;padding:12px 0 0;border:0;background:transparent;box-shadow:none;min-width:0}
 .statistics-section>summary:focus-visible{outline:2px solid #13846a;outline-offset:-3px;border-radius:17px}
+.proficiency-details{margin:12px 0;border:1px solid #dce7dc;border-radius:12px;background:#fffdf8;overflow:hidden}
+.proficiency-details>summary{padding:13px 12px;font-size:.85rem;font-weight:750;color:#24594a;cursor:pointer;min-height:44px;box-sizing:border-box}
+.proficiency-details[open]>summary{background:#edf5eb;border-bottom:1px solid #dce7dc}
+.proficiency-details>summary:focus-visible{outline:2px solid #13846a;outline-offset:-3px;border-radius:12px}
+.proficiency-details>:not(summary){margin:12px!important;padding:0;line-height:1.5}
 @media(prefers-reduced-motion:reduce){.statistics-section>summary b{transition:none}}

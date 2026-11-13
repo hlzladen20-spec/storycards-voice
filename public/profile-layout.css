@@ -24,6 +24,7 @@
 .profile-group-content input:not([type=checkbox]),.profile-group-content textarea{max-width:100%;font-size:16px!important;background:#fffef9}
 .profile-group-content button{white-space:normal}.profile-group-content .vocab-settings form>button{display:none}
 .profile-organized #profileSaveArea{margin:14px 0 0!important}.profile-organized #profileSaveArea button{min-height:48px}
+.profile-organized #saveProfileButton:disabled{background:#dce5dc;color:#6d8075;box-shadow:none;opacity:1;cursor:default}
 .profile-group-content .vocab-management>h3{margin:0 0 8px}.profile-group-content .vocab-management details{margin:12px 0}
 .profile-group-content .coach-choice{grid-template-columns:40px minmax(0,1fr)}.profile-group-content .coach-choice img{width:40px;height:40px}
 .profile-organized>.developer-tools{margin:22px 0 12px;padding:15px;background:#f0f1eb;border-color:#e0e3d9}

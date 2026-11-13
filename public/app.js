@@ -296,8 +296,16 @@ $("saveProfileButton").addEventListener("click", () => {
     $("dailySpeakingMinutes").dispatchEvent(new Event("change"));
     $("dailyCardLimit").dispatchEvent(new Event("change"));
     $("profileSavedStatus").textContent = "✓ Deine Einstellungen sind gespeichert.";
+    $("saveProfileButton").disabled = true;
   } catch { $("profileSavedStatus").textContent = "Speichern fehlgeschlagen. Bitte erneut versuchen."; }
 });
+function markLearningGoalsChanged(event) {
+  if (!event.target.closest('#profileGoalsSection') || !event.target.matches('input, select, textarea')) return;
+  $("saveProfileButton").disabled = false;
+  $("profileSavedStatus").textContent = "";
+}
+$("profile").addEventListener("input", markLearningGoalsChanged);
+$("profile").addEventListener("change", markLearningGoalsChanged);
 const lessonProgress = document.createElement("p"); lessonProgress.className = "speak-prompt"; $("cards").insertBefore(lessonProgress, $("card"));
 $("dailyPracticeButton").addEventListener("click", () => showReview());
 $("weakPracticeButton").addEventListener("click", () => showReview("weak"));
