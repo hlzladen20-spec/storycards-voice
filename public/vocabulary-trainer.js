@@ -3,6 +3,8 @@ import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVoc
 import {vocabularyIcon} from './card-vocabulary.js';
 import {calendarDayKey} from './learning-streak.js';
 import {confirmDialog} from './app-dialog.js';
+import {setupVocabularyCreator} from './vocabulary-creator.js';
+import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[],course=LANGUAGE_COURSES.en}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null,suppressSwipeClick=false;
@@ -150,5 +152,9 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  document.addEventListener('storycards-vocabulary-changed',()=>{state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary());answerCard=null;if(!panel.classList.contains('hidden'))render();else renderLists();});
  document.addEventListener('visibilitychange',()=>{lastTick=Date.now();});
  window.addEventListener('pagehide',tick);setInterval(tick,1000);syncCards();renderLists();
+ const creator=setupVocabularyCreator({anchor:button,course,onListen:say,onLearn:()=>button.onclick(),onSave:(word,draft)=>{
+  const next=addSuggestedVocabulary(state,word,draft);storage.save('vocabulary',next);state=next;renderLists();refreshChoice();
+ }});
+ document.addEventListener('storycards-vocabulary-changed',creator.reset);
  return {panel};
 }

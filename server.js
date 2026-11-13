@@ -7,6 +7,7 @@ import {cleanConversationReview} from './public/conversation-summary.js';
 import {resolveCourse,courseText,courseInstruction} from './public/language-courses.js';
 import {resolveVoice} from './public/emma-voices.js';
 import {audioServiceError} from './lib/audio-errors.js';
+import {vocabularyRequest,cleanVocabularySuggestions,vocabularySuggestionFormat} from './public/vocabulary-suggestions.js';
 
 const apiKey = process.env.OPENAI_API_KEY;
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -121,6 +122,26 @@ async function translateWord(req, res) {
   if (typeof parsed.translation !== 'string' || !parsed.translation.trim()) return json(res,502,{error:'Keine Übersetzung erhalten.'});
   return json(res,200,{translation:parsed.translation.slice(0,300)});
 }
+async function suggestVocabulary(req,res){
+ let input,course;
+ try{
+  const chunks=[];let size=0;
+  for await(const chunk of req){size+=Buffer.byteLength(chunk);if(size>4096)return json(res,413,{error:'Die Eingabe ist zu lang.'});chunks.push(chunk);}
+  const raw=JSON.parse(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk))).toString('utf8'));
+  course=resolveCourse(raw.language);input=vocabularyRequest(raw);
+ }catch{return json(res,400,{error:'Bitte ein gültiges Wort und eine unterstützte Lernsprache auswählen.'});}
+ if(!apiKey)return json(res,503,{error:'KI-Satzvorschläge sind auf dem Server noch nicht eingerichtet.'});
+ try{
+  const instructions=(await readFile(join(projectDir,'lib','vocabulary-suggestion-prompt.txt'),'utf8')).replaceAll('{TARGET_LANGUAGE}',course.englishName);
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',signal:AbortSignal.timeout(25000),headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:'gpt-4.1-mini',instructions,input:JSON.stringify(input),max_output_tokens:650,store:false,text:{format:vocabularySuggestionFormat}})});
+  if(!response.ok)return json(res,response.status===429?429:502,{error:response.status===429?'Zu viele Anfragen oder das KI-Kontingent ist ausgeschöpft. Bitte später erneut versuchen.':'Der KI-Satzvorschlag ist gerade nicht verfügbar. Bitte erneut versuchen.'});
+  const result=await response.json();
+  const text=result.output_text||(result.output||[]).flatMap(item=>item.content||[]).filter(item=>item.type==='output_text').map(item=>item.text).join('');
+  let suggestions;
+  try{suggestions=cleanVocabularySuggestions(JSON.parse(text),input.word);}catch{return json(res,422,{error:'Kein passender kurzer Satz gefunden. Prüfe das Wort oder ergänze einen Kontext.'});}
+  return json(res,200,{suggestions});
+ }catch{return json(res,502,{error:'Der Satz konnte gerade nicht erstellt werden. Bitte erneut versuchen.'});}
+}
 export function createApp() {
   return createServer(async (req, res) => {
   try {
@@ -129,6 +150,7 @@ export function createApp() {
     if (req.method === "POST" && req.url === "/api/flashcards") return await createFlashcards(req, res);
     if (req.method === "POST" && req.url === "/api/card-answer") return await reviewCardAnswer(req, res);
     if (req.method === "POST" && req.url === "/api/translate-word") return await translateWord(req, res);
+    if (req.method === "POST" && req.url === "/api/vocabulary-suggestion") return await suggestVocabulary(req, res);
     if (req.method === "GET" && ["/cards.js", "/fsrs.mjs"].includes(req.url)) {
       const content = await readFile(join(projectDir, "lib", req.url === "/cards.js" ? "flashcards.js" : "fsrs.mjs"));
       res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
