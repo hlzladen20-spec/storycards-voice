@@ -1,6 +1,6 @@
 import {LANGUAGE_COURSES} from './language-courses.js';
 import {proficiencyView,proficiencyLevels,proficiencyStages,proficiencyMinimumSessions} from './proficiency.js';
-import {englishCheckSize,ENGLISH_CHECK_MIN_TURNS,ENGLISH_CHECK_MIN_WORDS} from './english-check.js';
+import {ENGLISH_CHECK_MIN_WORDS} from './english-check.js';
 export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE_COURSES.en}){
  const home=document.createElement('button');home.type='button';home.className='proficiency-home';home.onclick=onDetails;
  document.querySelector('.home-progress').after(home);
@@ -12,13 +12,11 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
  function disclosure(title,...content){const details=document.createElement('details');details.className='proficiency-details';details.append(node('summary',title),...content);return details;}
  function checkButton(){const button=node('button',`🎙 ${course.name}-Check · bis zu 5 Minuten`);button.type='button';button.className='secondary proficiency-check-button';button.onclick=onCheck;return button;}
  if(onCheck){home.after(checkButton());profileGoal.append(checkButton());}
- const checkProgress=node('aside','');checkProgress.className='english-check-progress';checkProgress.hidden=true;checkProgress.setAttribute('aria-label',`Fortschritt im ${course.name}-Check`);document.querySelector('#practice .conversation-topbar').after(checkProgress);
+ const practice=document.querySelector('#practice');practice.setAttribute('data-language-check','false');
  const checkResult=node('section','');checkResult.className='english-check-result';checkResult.hidden=true;checkResult.setAttribute('aria-label',`Ergebnis deines ${course.name}-Checks`);document.querySelector('#summaryText').after(checkResult);
  function renderCheckProgress(transcript){
   document.querySelector('#practice .conversation-topbar>strong').textContent=transcript?`${course.name}-Check`:'Gespräch';
-  checkProgress.hidden=!transcript;if(!transcript)return;
-  const {turns,words}=englishCheckSize(transcript);
-  checkProgress.replaceChildren(node('strong',`${course.name}-Check`),node('small',`${turns} eigene Antworten · ${words} Wörter aufgezeichnet`),node('small','Emma passt die Schwierigkeit an. Sobald genügend unterschiedliche Antworten und eine passende Grenzaufgabe belegt sind, endet der Check mit einer Verabschiedung – auch vor 5 Minuten.'));
+  practice.setAttribute('data-language-check',String(Boolean(transcript)));
  }
  function renderCheckResult(id){
   checkResult.hidden=!id;checkResult.replaceChildren();if(!id)return;

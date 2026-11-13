@@ -14,8 +14,16 @@
 .proficiency-check-button{margin:0 0 18px;white-space:normal}.proficiency-card .proficiency-check-button{margin-top:12px}
 .english-check-result{margin:14px 0;padding:15px;border:1px solid #c8decf;border-radius:16px;background:#edf5e9;text-align:left}
 .english-check-result h3{margin:0;font-size:1.1rem}.english-check-result p{font-size:.85rem;line-height:1.5}
-.conversation-screen .english-check-progress{flex:none;margin:5px 80px 8px 0;padding:8px;border-radius:10px;background:#edf5e9;font-size:.75rem;line-height:1.35}
-.english-check-progress strong,.english-check-progress small{display:block}.english-check-progress[hidden],.english-check-result[hidden]{display:none}
+.english-check-result[hidden]{display:none}
+/* Only the active language check uses this calm exam-paper palette. */
+body:has(#practice[data-language-check=true]:not(.hidden)){background:#e7edf4}
+body:has(#practice[data-language-check=true]:not(.hidden)) .app{background:#e7edf4}
+#practice[data-language-check=true]{background:#f8fafc;border-color:#cbd5e1;border-top:4px solid #425d7b;box-shadow:0 8px 24px #263c5512;color:#23374d}
+#practice[data-language-check=true] .conversation-topbar{color:#23374d}
+#practice[data-language-check=true] .conversation-timer{position:static;align-self:flex-end;margin:6px 0 8px;flex-shrink:0}
+#practice[data-language-check=true] .message.coach>span{background:#e8edf4;color:#23374d}
+#practice[data-language-check=true] .message.learner{background:#dce8f4;color:#23374d}
+#practice[data-language-check=true] .mic-state{background:#fff;border-color:#cfdae5}
 .proficiency-assessment-progress{display:grid;gap:7px;margin:8px 0;font-size:.85rem;line-height:1.4}
 .proficiency-assessment-progress>span{display:block;height:auto;background:transparent;font-weight:650}
 .proficiency-assessment-progress progress{display:block;width:100%;height:10px;accent-color:#16806a}
