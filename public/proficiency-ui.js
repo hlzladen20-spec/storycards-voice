@@ -1,6 +1,6 @@
 import {LANGUAGE_COURSES} from './language-courses.js';
 import {proficiencyView,proficiencyLevels,proficiencyStages,proficiencyMinimumSessions} from './proficiency.js';
-import {ENGLISH_CHECK_MIN_WORDS} from './english-check.js';
+import {skillLabels} from './check-assessment.js';
 export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE_COURSES.en}){
  const home=document.createElement('button');home.type='button';home.className='proficiency-home';home.onclick=onDetails;
  document.querySelector('.home-progress').after(home);
@@ -18,11 +18,16 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
   document.querySelector('#practice .conversation-topbar>strong').textContent=transcript?`${course.name}-Check`:'Gespräch';
   practice.setAttribute('data-language-check',String(Boolean(transcript)));
  }
- function renderCheckResult(id){
+ function renderCheckResult(id,report=null){
   checkResult.hidden=!id;checkResult.replaceChildren();if(!id)return;
   const sample=getProfile()?.proficiency?.sessions?.find(item=>item.id===id && item.kind==='placement');
   checkResult.append(node('h3',sample?`Dein ${course.name}-Check: ungefähr ${sample.level}`:'Noch keine verlässliche Einschätzung'));
-  checkResult.append(node('p',sample?'Eine erste Orientierung aus verschiedenen Aufgaben und deinen eigenen Antworten. Kein zertifiziertes Ergebnis.':`Noch keine ausreichend differenzierte Einschätzung: Nötig sind eigene Antworten, drei belegte Sprachbereiche, unterschiedliche Aufgaben und eine passende Grenzaufgabe – nicht nur ${ENGLISH_CHECK_MIN_WORDS} Wörter. Dein bisheriger Lernstand bleibt erhalten.`));
+  checkResult.append(node('p',sample?'Eine erste Orientierung aus verschiedenen Aufgaben und deinen eigenen Antworten. Kein zertifiziertes Ergebnis.':'Der bisherige Lernstand bleibt erhalten. Ein unvollständiger Check ist kein schlechtes Testergebnis.'));
+  if(report?.cardWarning)checkResult.append(node('p',report.cardWarning));
+  const observations=sample?.dimensions||report?.observed||{};
+  if(Object.keys(observations).length){checkResult.append(node('h4',sample?'Deine Sprachbereiche (vorläufig)':'Bereits beobachtet – noch keine Gesamteinstufung'));const list=node('ul','');for(const [skill,value]of Object.entries(observations))if(skillLabels[skill])list.append(node('li',`${skillLabels[skill]}: Hinweis auf ${value.level}`));checkResult.append(list);}
+  if(!sample){const list=node('ul','');for(const item of report?.missing||[{message:'Die KI hat noch keine ausreichend belegte Einschätzung geliefert.'}])list.append(node('li',item.message));checkResult.append(disclosure('Was für eine genauere Einschätzung noch fehlt',list),node('small','Es werden derzeit eigene verschriftlichte Antworten beurteilt, nicht verlässlich Aussprache, Sprechflüssigkeit oder Hörverständnis.'));
+  }
   if(sample?.reason)checkResult.append(node('h4','Warum diese Einschätzung?'),node('p',sample.reason));
   if(sample?.limits)checkResult.append(node('h4','Was noch offen ist'),node('p',sample.limits));
   if(sample){checkResult.append(node('p','Stärken und Verbesserungsmöglichkeiten findest du unter „Lernbereiche“. Aussprache, Sprechflüssigkeit und Hörverständnis sind damit nicht zuverlässig geprüft. Kein Zertifikat.'));const details=node('button','Deinen Lernweg ansehen');details.type='button';details.className='secondary';details.onclick=onDetails;checkResult.append(details);}

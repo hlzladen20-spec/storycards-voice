@@ -14,6 +14,7 @@
 .proficiency-check-button{margin:0 0 18px;white-space:normal}.proficiency-card .proficiency-check-button{margin-top:12px}
 .english-check-result{margin:14px 0;padding:15px;border:1px solid #c8decf;border-radius:16px;background:#edf5e9;text-align:left}
 .english-check-result h3{margin:0;font-size:1.1rem}.english-check-result p{font-size:.85rem;line-height:1.5}
+.english-check-result ul{padding-left:20px;margin:10px 0}.english-check-result li{font-size:.85rem;line-height:1.5;margin:8px 0}.english-check-result>small{display:block;line-height:1.5;color:#586e65;font-size:.75rem}
 .english-check-result[hidden]{display:none}
 /* Only the active language check uses this calm exam-paper palette. */
 body:has(#practice[data-language-check=true]:not(.hidden)){background:#e7edf4}

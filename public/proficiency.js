@@ -1,5 +1,6 @@
 import {proficiencyGoals} from './proficiency-goals.js';
 import {ENGLISH_CHECK_MIN_TURNS,ENGLISH_CHECK_MIN_WORDS} from './english-check.js';
+import {checkAssessment,checkPolicy,normaliseCheckText} from './check-assessment.js';
 export const proficiencyLevels=Object.freeze(Object.keys(proficiencyGoals));
 export const proficiencyStages=Object.freeze(['Einstieg','Aufbauen','Anwenden','Festigen','Sicher werden']);
 export const proficiencyMinimumSessions=3;
@@ -10,6 +11,13 @@ function records(profile){return Array.isArray(profile?.proficiency?.sessions)?p
 function median(values){const sorted=values.map(value=>proficiencyLevels.indexOf(value)).filter(index=>index>=0).sort((a,b)=>a-b);return sorted.length?proficiencyLevels[sorted[Math.floor((sorted.length-1)/2)]]:null;}
 export function recordProficiency(profile,assessment,{id,transcript,mode='alltag',now=Date.now()}){
  const previous=records(profile);if(previous.some(item=>item.id===id))return profile;
+ if(mode==='niveaucheck' && assessment?.rubricVersion===2){
+  const report=checkAssessment(assessment,transcript);if(!report.ready)return profile;
+  const own=(transcript||[]).filter(turn=>turn?.role==='learner').map(turn=>normaliseCheckText(turn.text));
+  const goals=(Array.isArray(assessment.goals)?assessment.goals:[]).filter(goal=>typeof goal?.id==='string' && /^(A1|A2|B1|B2|C1|C2)-[1-5]$/.test(goal.id) && typeof goal.quote==='string' && goal.quote.length<=240 && normaliseCheckText(goal.quote).split(' ').length>=report.policy.quoteWords && own.some(turn=>` ${turn} `.includes(` ${normaliseCheckText(goal.quote)} `))).filter((goal,index,list)=>list.findIndex(item=>item.id===goal.id)===index).slice(0,6).map(goal=>({id:goal.id,quote:goal.quote}));
+  const sample={id,level:report.level,at:now,mode:'niveaucheck',kind:'placement',rubricVersion:2,evidence:report.evidence.slice(0,3),goals,dimensions:report.observed,confidence:assessment.confidence,reason:assessment.reason.trim().slice(0,800),limits:typeof assessment.limits==='string'?assessment.limits.trim().slice(0,800):'',tasks:report.tasks.slice(0,4),boundary:report.boundary,learnerTurns:report.counts.turns,learnerWords:report.counts.words};
+  return {...profile,proficiency:{version:2,sessions:[...previous,sample].slice(-30)}};
+ }
  if(!proficiencyLevels.includes(assessment?.level)||!Array.isArray(transcript))return profile;
  const learner=transcript.filter(turn=>turn?.role==='learner' && typeof turn.text==='string').map(turn=>normalise(turn.text)).filter(Boolean);
  if(learner.length<4 || learner.join(' ').split(/\s+/).length<40)return profile;
@@ -36,18 +44,9 @@ export function recordProficiency(profile,assessment,{id,transcript,mode='alltag
   if(Math.max(...skillBands)-Math.min(...skillBands)>1)return profile;
   sample.level=median(Object.values(observed).map(item=>item.level));
   const tasks=(Array.isArray(assessment.tasks)?assessment.tasks:[]).filter(task=>['daily','past','practical','reasoning'].includes(task?.area)&&validQuote(task.quote));
-  const boundary=assessment.boundary;
-  if(check){
-   if(new Set(tasks.map(task=>task.area)).size<3 || new Set(tasks.map(task=>learner.findIndex(turn=>` ${turn} `.includes(` ${normalise(task.quote)} `)))).size<3)return profile;
-   if(!bands.includes(boundary?.level) || bands.indexOf(boundary.level)<bands.indexOf(sample.level) || !['successful','limited'].includes(boundary.outcome) || !validQuote(boundary.quote) || typeof boundary.question!=='string')return profile;
-   const question=normalise(boundary.question);
-   if(question.split(' ').length<4 || !coach.some(turn=>` ${turn} `.includes(` ${question} `)))return profile;
-   // Failing a C1 task is not evidence of C1; the lower band must be supported.
-   if(boundary.outcome==='limited' && boundary.level===sample.level)return profile;
-  }
   sample.rubricVersion=2;sample.confidence=assessment.confidence;sample.reason=assessment.reason.trim().slice(0,800);
   sample.limits=typeof assessment.limits==='string'?assessment.limits.trim().slice(0,800):'';
-  sample.tasks=tasks.slice(0,4);sample.boundary=check?{level:boundary.level,outcome:boundary.outcome,question:boundary.question.slice(0,500),quote:boundary.quote}:null;
+  sample.tasks=tasks.slice(0,4);sample.boundary=null;
  }
  if(check){sample.kind='placement';sample.learnerTurns=independent.length;sample.learnerWords=learnerWords;}
  return {...profile,proficiency:{version:assessment.rubricVersion===2?2:1,sessions:[...previous,sample].slice(-30)}};
@@ -56,9 +55,10 @@ export function proficiencyView(profile){
  const history=records(profile),calibrated=history.filter(item=>item.rubricVersion===2);
  // Keep old history, but never average it into a recalibrated result.
  const sessions=calibrated.length?calibrated:history;
- const latestCheck=sessions.findLastIndex(item=>item.rubricVersion===2 && item.kind==='placement' && item.mode==='niveaucheck' && item.learnerTurns>=ENGLISH_CHECK_MIN_TURNS && item.learnerWords>=ENGLISH_CHECK_MIN_WORDS);
+ const isCheck=item=>{const minimum=item.rubricVersion===2?checkPolicy(item.level):{turns:ENGLISH_CHECK_MIN_TURNS,words:ENGLISH_CHECK_MIN_WORDS};return item.kind==='placement' && item.mode==='niveaucheck' && item.learnerTurns>=minimum.turns && item.learnerWords>=minimum.words;};
+ const latestCheck=sessions.findLastIndex(item=>item.rubricVersion===2 && isCheck(item));
  const current=latestCheck>=0?sessions.slice(latestCheck):sessions,recent=current.slice(-5);
- const placement=sessions.findLast(item=>item.kind==='placement' && item.mode==='niveaucheck' && item.learnerTurns>=ENGLISH_CHECK_MIN_TURNS && item.learnerWords>=ENGLISH_CHECK_MIN_WORDS);
+ const placement=sessions.findLast(isCheck);
  const level=latestCheck>=0?(recent.length<3?current[0].level:median(recent.map(item=>item.level))):sessions.length>=proficiencyMinimumSessions?median(recent.map(item=>item.level)):placement?.level||null;
  const goals=level?proficiencyGoals[level].map((label,index)=>{
   const id=`${level}-${index+1}`,seen=sessions.filter(session=>session.goals.some(goal=>goal.id===id));
