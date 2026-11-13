@@ -1,5 +1,5 @@
 .vocabulary-trainer{padding-bottom:90px!important}.vocabulary-trainer label{display:grid;gap:6px;margin:12px 0}.vocabulary-trainer input{width:100%;padding:12px;border:1px solid #d4e2d9;border-radius:12px;font:inherit}.vocab-word{padding:26px 18px;border:1px solid #dce7dc;border-radius:20px;text-align:center;background:#fffef9;min-height:150px;overflow-wrap:anywhere}.vocab-word h3{font-size:1.6rem;margin:12px 0}.vocab-word button{font-size:1.25rem}.vocab-ratings{display:flex;flex-wrap:wrap;gap:8px}.vocab-ratings button{flex:1;min-width:85px;font-size:.85rem}.vocab-ratings[hidden],.vocabulary-trainer [hidden]{display:none!important}.vocab-status,.vocab-progress{color:#42695e;line-height:1.5}.vocab-manager{margin-top:24px}.vocab-manager summary{font-weight:700;cursor:pointer}.vocab-list>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #e2e9df}.vocab-list button{width:auto;font-size:.75rem}.vocab-save-word{display:block;margin:7px 0 0;font:inherit;font-size:.8rem;border:1px solid #b4d9c8;border-radius:8px;padding:6px;background:#edf7ef;color:#176b5b}
-.vocab-bar{display:block;width:100%;height:12px;margin:0 0 18px;accent-color:#168574}.vocab-word{touch-action:pan-y;user-select:none;-webkit-user-select:none}.vocab-swipe-hint{text-align:center;color:#42695e}.vocab-learned{margin-top:22px}.vocab-learned summary{font-weight:700}.vocab-learned-list>p{padding:12px 0;border-bottom:1px solid #e2e9df;line-height:1.5}.vocab-learned-list button{display:block;width:auto;margin-top:6px}
+.vocab-bar{display:block;width:100%;height:12px;margin:0 0 18px;accent-color:#168574}.vocab-word{touch-action:pan-y;user-select:none;-webkit-user-select:none}.vocab-learned{margin-top:22px}.vocab-learned summary{font-weight:700}.vocab-learned-list>p{padding:12px 0;border-bottom:1px solid #e2e9df;line-height:1.5}.vocab-learned-list button{display:block;width:auto;margin-top:6px}
 .vocab-settings label{display:grid;gap:7px;margin:14px 0;font-weight:600}.vocab-settings input[type=number]{width:100%;padding:11px;border:1px solid #d4e2d9;border-radius:12px;font:inherit}.vocab-settings .vocab-auto-label{display:flex;align-items:center;font-size:.9rem}.vocab-settings p{line-height:1.5;font-size:.85rem}
 
 /* Quiet, single-viewport trainer with controls docked above the main menu. */
@@ -11,32 +11,23 @@ body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 .vocab-time{flex:none;margin:0 4px;color:#60786d;font-size:.8rem;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-progress{flex:none;margin:0 4px;font-size:1rem;font-weight:750;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-bar{flex:none;height:6px;margin:0 0 5px}
-.vocabulary-trainer{touch-action:none}
-.vocab-word{position:relative;isolation:isolate;flex:1;min-height:0;padding:clamp(44px,7dvh,64px) 20px;overflow:auto;overscroll-behavior:contain;touch-action:none;background:#fffef9}
-/* A clipped color sheet grows exactly with the drag distance, underneath the text. */
-.vocab-word::before{content:'';position:absolute;top:0;bottom:0;width:var(--swipe-pull,0px);max-width:100%;border-radius:inherit;z-index:-1;pointer-events:none}
-.vocab-word[data-swipe=yes]::before{right:0;background:linear-gradient(90deg,transparent,#77c99f 28px)}
-.vocab-word[data-swipe=no]::before{left:0;background:linear-gradient(270deg,transparent,#e78379 28px)}
-.vocab-word[data-swipe=hard]::before{top:auto;bottom:0;left:0;right:0;width:auto;height:var(--swipe-pull,0px);max-height:100%;background:linear-gradient(180deg,transparent,#77c99f 28px)}
-.vocab-word::after{content:attr(data-swipe-label);position:absolute;top:12px;left:8px;right:8px;font-size:.82rem;font-weight:700;color:#153e37;pointer-events:none}
-.vocab-word[data-swipe]:not([data-swipe=""])::after{width:fit-content;max-width:calc(100% - 16px);margin:auto;padding:7px 10px;border-radius:10px;background:#fffef9ed;box-sizing:border-box;line-height:1.3}
+.vocab-word{position:relative;isolation:isolate;flex:1;min-height:0;padding:clamp(44px,7dvh,64px) 20px;overflow:auto;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;background:#fffef9}
 .vocab-word h3{font-size:clamp(1.35rem,3.5dvh,1.85rem);line-height:1.45;margin:0;font-weight:650;color:#153e37}
 .vocab-word button{display:block;width:100%;margin:24px 0 0;padding:24px 0 8px;border:0;border-top:1px solid #d4e2d9;border-radius:0;font-size:clamp(1.2rem,3dvh,1.6rem);line-height:1.45;color:#087e69;background:transparent}
 .vocab-controls{flex:none;display:flex;flex-direction:column;gap:8px;padding-top:4px}
 .vocab-controls>button,.vocab-ratings button{min-height:52px;margin:0;border-radius:13px}
 .vocab-ratings{flex-wrap:nowrap}
 .vocab-ratings button{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;min-width:0;min-height:68px;padding:9px 5px;font-size:.82rem;line-height:1.25}
-.vocab-ratings button>span{font-size:1.4rem;line-height:1;font-weight:500}
 .vocab-ratings button{background:#edf0e9;color:#36584c}
 .vocab-ratings small{display:block;margin-top:0;font-size:.65rem;line-height:1.25;font-weight:400}
-.vocab-swipe-hint{margin:0;font-size:.74rem}
+
 .vocab-status{margin:0;font-size:.85rem;line-height:1.45;text-align:center;max-height:20dvh;overflow:auto}
 .vocab-status:empty{display:none}
 .vocabulary-trainer button:focus-visible,.vocab-word:focus-visible{outline:3px solid #69b89d;outline-offset:2px}
 .vocab-management label{display:grid;gap:6px;margin:12px 0}
 .vocab-management input{width:100%;padding:12px;border:1px solid #d4e2d9;border-radius:12px;font:inherit}
 @media(max-height:500px){#vocabulary.panel:not(.hidden){gap:6px}.vocab-word{padding:14px}.vocab-word button{margin-top:12px;padding-top:12px}.vocab-controls>button,.vocab-ratings button{min-height:42px}}
-@media(max-height:650px){.vocab-ratings button{min-height:55px}.vocab-ratings small{display:none}.vocab-word{padding:46px 14px 18px}.vocab-swipe-hint{font-size:.7rem}}
+@media(max-height:650px){.vocab-ratings button{min-height:55px}.vocab-ratings small{display:none}.vocab-word{padding:46px 14px 18px}}
 .vocab-create-open{margin:8px 0 12px;min-height:44px;background:#edf3e9;color:#176b58}
 .vocab-create{margin:0 0 18px;padding:17px;border:1px solid #d6e5d7;border-radius:18px;background:#fffdf8;text-align:left}
 .vocab-create[hidden],.vocab-create [hidden]{display:none!important}

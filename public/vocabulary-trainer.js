@@ -1,5 +1,5 @@
 import {LANGUAGE_COURSES} from './language-courses.js';
-import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,additionalVocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,vocabularyKnown,vocabularyNeedsRepeat,vocabularyTotalMs,swipeRating,vocabularySwipePreview,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
+import {initialVocabulary,personalVocabulary,importConversationVocabulary,addVocabulary,vocabularyLesson,additionalVocabularyLesson,rateVocabulary,finishVocabulary,vocabularyProgress,vocabularyKnown,vocabularyNeedsRepeat,vocabularyTotalMs,setVocabularySettings,VOCABULARY_SECONDS} from './vocabulary.js';
 import {vocabularyIcon} from './card-vocabulary.js';
 import {calendarDayKey} from './learning-streak.js';
 import {confirmDialog} from './app-dialog.js';
@@ -7,7 +7,7 @@ import {setupVocabularyCreator} from './vocabulary-creator.js';
 import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[],course=LANGUAGE_COURSES.en}) {
- let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),gesture=null,suppressSwipeClick=false;
+ let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now();
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
  panel.setAttribute('aria-label','Vokabeltrainer');
@@ -17,8 +17,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  <div class="vocab-controls">
  <p class="vocab-status" role="status" aria-live="polite"></p>
  <button class="primary vocab-reveal" type="button">Antwort aufdecken</button>
- <p class="vocab-swipe-hint" hidden>Wische auf der Karte oder tippe unten:</p>
- <div class="vocab-ratings" hidden><button type="button" data-grade="yes" class="secondary"><span aria-hidden="true">←</span>Gewusst</button><button type="button" data-grade="hard" class="secondary"><span aria-hidden="true">↑</span>Mit Fehlern<small>Bald wiederholen</small></button><button type="button" data-grade="no" class="secondary"><span aria-hidden="true">→</span>Nicht gewusst</button></div>
+ <div class="vocab-ratings" role="group" aria-label="Wie sicher war deine Antwort?" hidden><button type="button" data-grade="yes" class="secondary">Gewusst</button><button type="button" data-grade="hard" class="secondary">Mit Fehlern<small>Bald wiederholen</small></button><button type="button" data-grade="no" class="secondary">Nicht gewusst</button></div>
  <button class="secondary vocab-finish" type="button" hidden>Beenden</button>
  <button class="primary vocab-continue" type="button" hidden>Weiterlernen →</button>
  </div>
@@ -44,14 +43,14 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  document.getElementById('saveProfileButton')?.addEventListener('click',saveSettings);
  refreshSettings();
  const button=document.createElement('button');button.type='button';button.className='card-choice-option';button.id='vocabularyChoiceButton';
- button.innerHTML=vocabularyIcon+'<span><strong>Vokabeltrainer</strong><small>Deine kurzen Gesprächssätze · mit Wischen lernen</small></span><b aria-hidden="true">›</b>';
+ button.innerHTML=vocabularyIcon+'<span><strong>Vokabeltrainer</strong><small>Aufdecken, vergleichen und üben</small></span><b aria-hidden="true">›</b>';
  document.getElementById('cardChoice').insertBefore(button,document.getElementById('freePracticeButton'));
  function refreshChoice(){
   const lesson=state.lesson,hasCards=(lesson?.ids?.length||0)+(lesson?.previousIds?.length||0)>0;
   const done=lesson?.day===calendarDayKey(new Date()) && hasCards && (lesson.closed || lesson.extraRound===true);
   button.classList[done?'add':'remove']('is-complete');
   button.querySelector('strong').textContent=done?'Vokabeltrainer ✓':'Vokabeltrainer';
-  button.querySelector('small').textContent=done?(lesson.closed?'Tagesrunde geschafft! Freiwillig weiterlernen.':'Tagesziel geschafft · Zusatzrunde fortsetzen.'):'Deine kurzen Gesprächssätze · mit Wischen lernen';
+  button.querySelector('small').textContent=done?(lesson.closed?'Tagesrunde geschafft! Freiwillig weiterlernen.':'Tagesziel geschafft · Zusatzrunde fortsetzen.'):'Aufdecken, vergleichen und üben';
  }
  function line(text,tag='p'){const node=document.createElement(tag);node.textContent=text;return node;}
  function say(text){if(!window.speechSynthesis)return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang=course.locale;utterance.rate=.85;window.speechSynthesis.speak(utterance);}
@@ -80,13 +79,12 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   manage('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
  }
  function render(){
-  resetGesture();
   state=vocabularyLesson(state);
   if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
   save();progress();renderLists();refreshSettings();refreshChoice();
   const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
   $('.vocab-reveal').hidden=ended||Boolean(answerCard);
-  $('.vocab-ratings').hidden=ended||!answerCard;$('.vocab-swipe-hint').hidden=ended||!answerCard;
+  $('.vocab-ratings').hidden=ended||!answerCard;
   $('.vocab-continue').hidden=!ended || !state.words.length;
   $('.vocab-finish').hidden=!ended;
   if(ended){
@@ -124,31 +122,9 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
  $('.vocab-reveal').onclick=revealCurrent;
  $('.vocab-continue').onclick=()=>{syncCards();state=additionalVocabularyLesson(state);answerCard=null;lastTick=Date.now();render();if(state.lesson.closed && state.words.length)$('.vocab-status').textContent='Es gibt noch keine Wiederholungen. Im Profil kannst du neue Karten aktivieren (aktuell 0).';};
- function resetGesture(){gesture=null;const card=$('.vocab-word');card.dataset.swipe='';card.dataset.swipeLabel='';card.style.setProperty('--swipe-pull','0px');panel.dataset.swipe='';}
  const box=$('.vocab-word');
- // The learning surface accepts gestures, not just the sentence itself.
- // Navigation and action buttons keep their normal tap behavior; audio can be dragged.
- panel.addEventListener('pointerdown',e=>{
-  if(gesture||e.isPrimary===false||(e.pointerType==='mouse' && e.button!==0))return;
-  suppressSwipeClick=false;
-  if(e.target.closest('button,a,input,select,textarea,summary,nav') && !box.contains(e.target))return;
-  const bounds=box.getBoundingClientRect();
-  gesture={id:e.pointerId,x:e.clientX,y:e.clientY,width:bounds.width,height:bounds.height};(box.contains(e.target)?(e.target.closest('button')||box):panel).setPointerCapture?.(e.pointerId);
- });
- panel.addEventListener('pointermove',e=>{
-  if(!gesture||gesture.id!==e.pointerId||!answerCard)return;
-  const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;
-  const preview=vocabularySwipePreview(dx,dy,gesture.width,gesture.height),rating=preview.rating;
-  box.style.setProperty('--swipe-pull',`${preview.distance}px`);
-  box.dataset.swipe=rating||'';panel.dataset.swipe=rating||'';
-  box.dataset.swipeLabel=rating?(swipeRating(dx,dy)?`Loslassen · ${rating==='yes'?'Gewusst':rating==='no'?'Nicht gewusst':'Mit Fehlern'}`:rating==='yes'?'← Weiter nach links ziehen':rating==='no'?'Weiter nach rechts ziehen →':'↑ Weiter nach oben ziehen'):'';
- });
- panel.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y,rating=swipeRating(dx,dy);resetGesture();suppressSwipeClick=Math.hypot(dx,dy)>8;if(rating)rate(rating);});
- // A drag over the English audio button grades; only a tap should play audio.
- panel.addEventListener('click',e=>{if(suppressSwipeClick){suppressSwipeClick=false;e.preventDefault();e.stopImmediatePropagation();return;}if(box.contains(e.target) && !e.target.closest('button'))revealCurrent();},true);
- panel.addEventListener('pointercancel',resetGesture);
- panel.addEventListener('lostpointercapture',resetGesture);
- box.addEventListener('keydown',e=>{if(e.target!==box)return;if(e.key===' '||e.key==='Enter'){e.preventDefault();revealCurrent();}else if(['ArrowRight','ArrowLeft','ArrowUp'].includes(e.key)){e.preventDefault();rate(e.key==='ArrowLeft'?'yes':e.key==='ArrowRight'?'no':'hard');}});
+ box.addEventListener('click',e=>{if(!e.target.closest('button'))revealCurrent();});
+ box.addEventListener('keydown',e=>{if(e.target===box && (e.key===' '||e.key==='Enter')){e.preventDefault();revealCurrent();}});
  manage('.vocab-add').onsubmit=e=>{e.preventDefault();try{const data=new FormData(e.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();e.target.reset();renderLists();manage('.vocab-management-status').textContent='Kurzer Satz gespeichert. Er kommt in eine kommende Tagesportion.';}catch(error){manage('.vocab-management-status').textContent=error.message;}};
  document.addEventListener('storycards-cards-updated',syncCards);
  document.addEventListener('storycards-card-choice-opened',refreshChoice);

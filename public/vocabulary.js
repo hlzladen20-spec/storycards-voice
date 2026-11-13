@@ -72,17 +72,6 @@ export function additionalVocabularyLesson(state,now=Date.now()) {
  const previous=finished.lesson;
  return {...finished,lesson:{day,extraRound:true,previousIds:same?[...new Set([...(previous?.previousIds||[]),...(previous?.ids||[])])]:[],previousRated:same?[...new Set([...(previous?.previousRated||[]),...(previous?.rated||[])])]:[],ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id,practiceOnly})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
 }
-function swipeDirection(dx,dy,threshold) {
- if(Math.abs(dx)>=threshold && Math.abs(dx)>Math.abs(dy)*1.5)return dx<0?'yes':'no';
- if(dy<=-threshold && Math.abs(dy)>Math.abs(dx)*1.5)return 'hard';
- return null;
-}
-export function swipeRating(dx,dy){return swipeDirection(dx,dy,70);}
-// Preview follows the finger immediately; only release beyond 70px commits a grade.
-export function vocabularySwipePreview(dx,dy,width=320,height=400){
- const rating=swipeDirection(dx,dy,4);
- return {rating,distance:rating?Math.min(rating==='hard'?Math.abs(dy):Math.abs(dx),Math.max(0,rating==='hard'?height:width)):0};
-}
 export function vocabularyLesson(state,now=Date.now()) {
  const day=calendarDayKey(now);
  if(state.lesson?.day===day) return {...state,lesson:{...state.lesson,queue:state.lesson.queue.map(item=>({...item,introduce:false}))}};
