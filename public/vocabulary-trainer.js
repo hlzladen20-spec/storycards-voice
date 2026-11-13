@@ -17,7 +17,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  <div class="vocab-controls">
  <p class="vocab-status" role="status" aria-live="polite"></p>
  <button class="primary vocab-reveal" type="button">Antwort aufdecken</button>
- <div class="vocab-ratings" role="group" aria-label="Wie sicher war deine Antwort?" hidden><button type="button" data-grade="yes" class="secondary">Gewusst</button><button type="button" data-grade="hard" class="secondary">Mit Fehlern<small>Bald wiederholen</small></button><button type="button" data-grade="no" class="secondary">Nicht gewusst</button></div>
+ <div class="vocab-ratings" role="group" aria-label="Wie sicher war deine Antwort?" hidden><button type="button" data-grade="no" class="secondary">Nicht gewusst</button><button type="button" data-grade="hard" class="secondary">Mit Fehlern<small>Bald wiederholen</small></button><button type="button" data-grade="yes" class="secondary">Gewusst</button></div>
  <button class="secondary vocab-finish" type="button" hidden>Beenden</button>
  <button class="primary vocab-continue" type="button" hidden>Weiterlernen →</button>
  </div>
