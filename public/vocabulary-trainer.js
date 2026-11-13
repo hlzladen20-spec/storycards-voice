@@ -17,8 +17,8 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  <div class="vocab-controls">
  <p class="vocab-status" role="status" aria-live="polite"></p>
  <button class="primary vocab-reveal" type="button">Antwort aufdecken</button>
- <p class="vocab-swipe-hint" hidden>← Gewusst · ↑ Mit Fehlern · Nicht gewusst →</p>
- <div class="vocab-ratings" hidden><button type="button" data-grade="yes" class="secondary">← Gewusst</button><button type="button" data-grade="hard" class="secondary">↑ Mit Fehlern<small>Kommt gleich wieder</small></button><button type="button" data-grade="no" class="secondary">Nicht gewusst →</button></div>
+ <p class="vocab-swipe-hint" hidden>Wische auf der Karte oder tippe unten:</p>
+ <div class="vocab-ratings" hidden><button type="button" data-grade="yes" class="secondary"><span aria-hidden="true">←</span>Gewusst</button><button type="button" data-grade="hard" class="secondary"><span aria-hidden="true">↑</span>Mit Fehlern<small>Bald wiederholen</small></button><button type="button" data-grade="no" class="secondary"><span aria-hidden="true">→</span>Nicht gewusst</button></div>
  <button class="secondary vocab-finish" type="button" hidden>Beenden</button>
  <button class="primary vocab-continue" type="button" hidden>Weiterlernen →</button>
  </div>
@@ -94,7 +94,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
    $('.vocab-status').textContent=!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Mit „Weiterlernen“ startest du freiwillig eine weitere Runde – schwierige Karten zuerst.';return;
   }
   wordView(word,Boolean(answerCard));
-  $('.vocab-status').textContent=vocabularyNeedsRepeat(word)?`Wiederholung: ${word.cleanStreak||0} von 3 Mal hintereinander fehlerfrei. Bei Fehlern beginnt die Serie neu.`:'';
+  $('.vocab-status').textContent=vocabularyNeedsRepeat(word)?`Wiederholung · ${word.cleanStreak||0} von 3 hintereinander fehlerfrei`:'';
  }
  function tick(){
   const now=Date.now(),delta=now-lastTick;lastTick=now;
@@ -133,7 +133,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   suppressSwipeClick=false;
   if(e.target.closest('button,a,input,select,textarea,summary,nav') && !box.contains(e.target))return;
   const bounds=box.getBoundingClientRect();
-  gesture={id:e.pointerId,x:e.clientX,y:e.clientY,width:bounds.width,height:bounds.height};(e.target.closest('button')||panel).setPointerCapture?.(e.pointerId);
+  gesture={id:e.pointerId,x:e.clientX,y:e.clientY,width:bounds.width,height:bounds.height};(box.contains(e.target)?(e.target.closest('button')||box):panel).setPointerCapture?.(e.pointerId);
  });
  panel.addEventListener('pointermove',e=>{
   if(!gesture||gesture.id!==e.pointerId||!answerCard)return;
@@ -141,11 +141,11 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   const preview=vocabularySwipePreview(dx,dy,gesture.width,gesture.height),rating=preview.rating;
   box.style.setProperty('--swipe-pull',`${preview.distance}px`);
   box.dataset.swipe=rating||'';panel.dataset.swipe=rating||'';
-  box.dataset.swipeLabel=swipeRating(dx,dy)?(rating==='yes'?'← Gewusst':rating==='no'?'Nicht gewusst →':'↑ Gewusst, aber mit Fehlern'):'';
+  box.dataset.swipeLabel=rating?(swipeRating(dx,dy)?`Loslassen · ${rating==='yes'?'Gewusst':rating==='no'?'Nicht gewusst':'Mit Fehlern'}`:rating==='yes'?'← Weiter nach links ziehen':rating==='no'?'Weiter nach rechts ziehen →':'↑ Weiter nach oben ziehen'):'';
  });
- panel.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const rating=swipeRating(e.clientX-gesture.x,e.clientY-gesture.y);resetGesture();suppressSwipeClick=Boolean(rating);if(rating)rate(rating);});
+ panel.addEventListener('pointerup',e=>{if(!gesture||gesture.id!==e.pointerId)return;const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y,rating=swipeRating(dx,dy);resetGesture();suppressSwipeClick=Math.hypot(dx,dy)>8;if(rating)rate(rating);});
  // A drag over the English audio button grades; only a tap should play audio.
- panel.addEventListener('click',e=>{if(suppressSwipeClick){suppressSwipeClick=false;e.preventDefault();e.stopImmediatePropagation();}},true);
+ panel.addEventListener('click',e=>{if(suppressSwipeClick){suppressSwipeClick=false;e.preventDefault();e.stopImmediatePropagation();return;}if(box.contains(e.target) && !e.target.closest('button'))revealCurrent();},true);
  panel.addEventListener('pointercancel',resetGesture);
  panel.addEventListener('lostpointercapture',resetGesture);
  box.addEventListener('keydown',e=>{if(e.target!==box)return;if(e.key===' '||e.key==='Enter'){e.preventDefault();revealCurrent();}else if(['ArrowRight','ArrowLeft','ArrowUp'].includes(e.key)){e.preventDefault();rate(e.key==='ArrowLeft'?'yes':e.key==='ArrowRight'?'no':'hard');}});
