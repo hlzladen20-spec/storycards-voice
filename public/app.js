@@ -157,7 +157,7 @@ const finishLessonButton = document.createElement("button");
 finishLessonButton.id = "finishLessonButton";
 finishLessonButton.className = "primary hidden"; finishLessonButton.textContent = "Fertig";
 reviewNavigation.after(finishLessonButton);
-finishLessonButton.addEventListener("click", showHome);
+finishLessonButton.addEventListener("click", showCardChoice);
 new MutationObserver(() => {
   const complete = !queue.length;
   finishLessonButton.classList.toggle("hidden", !complete);
