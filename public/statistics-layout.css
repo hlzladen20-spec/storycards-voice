@@ -1,0 +1,18 @@
+/* Shared disclosure styling comes from profile-layout.css. */
+.statistics-screen{max-width:520px;padding:16px 14px 24px;background:#f7f5ed;border:0;box-shadow:none;overflow-wrap:anywhere}
+.statistics-screen .statistics-topbar{margin-bottom:18px;grid-template-columns:40px minmax(0,1fr)}
+.statistics-screen .statistics-topbar h2{font-size:1.2rem}
+.statistics-screen .statistics-topbar>strong{display:none}
+.statistics-overview .profile-kicker{margin:0;font-size:.65rem;font-weight:800;letter-spacing:.15em;color:#6e774d}
+.statistics-overview h3{font-size:1.2rem;margin:7px 0 18px;line-height:1.35}
+.statistics-overview .stat-grid{margin:0 0 4px;gap:10px}
+.statistics-overview .stat-grid>div{grid-template-columns:26px minmax(0,1fr);padding:12px 9px;border-color:#dce7dc;background:#fffdf8b3;min-width:0}
+.statistics-overview .stat-grid strong{font-size:1.2rem;line-height:1.4}
+.statistics-overview .stat-grid small{font-size:.73rem;line-height:1.4}
+.statistics-section .insight-columns{grid-template-columns:minmax(0,1fr);gap:18px;padding-top:18px}
+.statistics-section .insight-columns p{font-size:.9rem;margin-bottom:9px}
+.statistics-section .insight-columns li{font-size:.85rem;line-height:1.5;margin:8px 0;padding-left:21px}
+.statistics-speaking{margin-top:18px}
+.statistics-speaking .level-card.proficiency-card{margin:0;padding:12px 0 0;border:0;background:transparent;box-shadow:none;min-width:0}
+.statistics-section>summary:focus-visible{outline:2px solid #13846a;outline-offset:-3px;border-radius:17px}
+@media(prefers-reduced-motion:reduce){.statistics-section>summary b{transition:none}}

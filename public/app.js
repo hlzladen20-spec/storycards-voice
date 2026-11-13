@@ -674,7 +674,7 @@ setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learn
 setupVocabularyTrainer({course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
-proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:showStatistics,onCheck:startEnglishCheck});
+proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});},onCheck:startEnglishCheck});
 async function startEnglishCheck(){
  if(englishCheckPromptOpen)return;
  if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled){await noticeDialog({title:'Noch ein Schritt davor',message:'Bitte beende zuerst das laufende Gespräch, die Aufnahme oder die Auswertung.'});return;}
