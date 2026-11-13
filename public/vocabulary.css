@@ -8,7 +8,8 @@ body:has(#vocabulary:not(.hidden)) .app{display:flex;flex-direction:column;heigh
 body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 #vocabulary.panel:not(.hidden){display:flex;flex-direction:column;flex:1;gap:10px;width:100%;min-height:0;margin:0;padding:0!important;border:0;border-radius:0;background:transparent;box-shadow:none}
 .vocab-back{align-self:flex-start;flex:none;width:auto;min-height:32px;padding:5px 8px;font-size:.8rem}
-.vocab-progress{flex:none;margin:0 4px;font-size:.8rem;line-height:1.4;font-variant-numeric:tabular-nums}
+.vocab-time{flex:none;margin:0 4px;color:#60786d;font-size:.8rem;line-height:1.4;font-variant-numeric:tabular-nums}
+.vocab-progress{flex:none;margin:0 4px;font-size:1rem;font-weight:750;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-bar{flex:none;height:6px;margin:0 0 5px}
 .vocab-word{position:relative;flex:1;min-height:0;padding:clamp(44px,7dvh,64px) 20px;overflow:auto;overscroll-behavior:contain;touch-action:none;background:linear-gradient(90deg,#f0b6b0 0%,#fffef9 25%,#fffef9 75%,#a1d9b9 100%)}
 .vocab-word[data-swipe=no]{background:linear-gradient(90deg,#e78379,#fffef9 80%);border-color:#c55d53}

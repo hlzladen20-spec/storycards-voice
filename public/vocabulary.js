@@ -8,7 +8,7 @@ export function addVocabulary(state,front,back,example='',now=Date.now()) {
  return {...state,words:[...state.words,{id:crypto.randomUUID(),front,back,example:String(example).slice(0,500),stage:0,attempts:0,nextReviewAt:now}]};
 }
 export function initialVocabulary(now=Date.now()) {
- return {version:2,words:[],dailyLimit:15,newLimit:3,autoIncrease:true,history:[]};
+ return {version:2,words:[],dailyLimit:15,newLimit:3,autoIncrease:true,history:[],totalActiveMs:0};
 }
 export function setVocabularySettings(state,{dailyLimit,newLimit,autoIncrease}) {
  if(!Number.isInteger(dailyLimit)||dailyLimit<1||dailyLimit>50)throw Error('Bitte 1 bis 50 Vokabelkarten pro Tag wählen.');
@@ -39,7 +39,16 @@ export function importConversationVocabulary(state,cards,now=Date.now()) {
 export function vocabularyProgress(state) {
  const ids=new Set([...(state.lesson?.previousIds||[]),...(state.lesson?.ids||[])]);
  const rated=new Set([...(state.lesson?.previousRated||[]),...(state.lesson?.rated||[])]);
- return {total:ids.size,learned:state.words.filter(w=>ids.has(w.id) && rated.has(w.id) && w.lastRating==='yes').length};
+ return {total:[...ids].filter(id=>state.words.some(w=>w.id===id)).length,learned:state.words.filter(w=>ids.has(w.id) && rated.has(w.id) && vocabularyKnown(w)).length};
+}
+export function vocabularyNeedsRepeat(word){return word.relearning===true || ['no','hard'].includes(word.lastRating);}
+export function vocabularyKnown(word){return word.lastRating==='yes' && !vocabularyNeedsRepeat(word);}
+// Recover only recorded time for older accounts; future rounds accumulate independently.
+export function vocabularyTotalMs(state){
+ if(Number.isFinite(state.totalActiveMs))return Math.max(0,state.totalActiveMs);
+ const history=(state.history||[]).reduce((sum,day)=>sum+Math.max(0,Number(day.seconds)||0)*1000,0);
+ const lesson=state.lesson,recorded=lesson && !lesson.extraRound && (state.history||[]).some(day=>day.day===lesson.day);
+ return history+(lesson && !recorded?Math.max(0,Number(lesson.activeMs)||0):0);
 }
 // Round completion is not mastery: failed cards remain pending until their retry.
 // Earlier rounds and already-known words must never pre-fill a new round's bar.
@@ -54,8 +63,8 @@ export function additionalVocabularyLesson(state,now=Date.now()) {
  if(state.lesson && !state.lesson.closed && state.lesson.queue.length)return state;
  const day=calendarDayKey(now),same=state.lesson?.day===day;
  const finished=finishVocabulary(state);
- const weak=finished.words.filter(w=>w.attempts>0 && w.lastRating!=='yes').sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
- const due=finished.words.filter(w=>w.attempts>0 && w.lastRating==='yes' && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+ const weak=finished.words.filter(w=>w.attempts>0 && vocabularyNeedsRepeat(w)).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+ const due=finished.words.filter(w=>w.attempts>0 && vocabularyKnown(w) && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
  const fresh=finished.words.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,finished.newLimit??3)));
  let selected=[...weak,...due,...fresh].slice(0,Math.max(1,Math.min(50,finished.dailyLimit||15))),practiceOnly=false;
  if(!selected.length){selected=finished.words.filter(w=>w.attempts>0).sort((a,b)=>(a.lastReviewedAt||0)-(b.lastReviewedAt||0)).slice(0,finished.dailyLimit||15);practiceOnly=true;}
@@ -71,7 +80,7 @@ export function swipeRating(dx,dy) {
 export function vocabularyLesson(state,now=Date.now()) {
  const day=calendarDayKey(now);
  if(state.lesson?.day===day) return {...state,lesson:{...state.lesson,queue:state.lesson.queue.map(item=>({...item,introduce:false}))}};
- const due=state.words.filter(w=>w.attempts>0 && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+ const due=state.words.filter(w=>w.attempts>0 && (vocabularyNeedsRepeat(w)||w.nextReviewAt<=now)).sort((a,b)=>Number(vocabularyNeedsRepeat(b))-Number(vocabularyNeedsRepeat(a))||a.nextReviewAt-b.nextReviewAt);
  const fresh=state.words.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,state.newLimit??3)));
  const selected=[...due,...fresh].slice(0,Math.max(1,Math.min(50,state.dailyLimit||15)));
  return {...state,lesson:{day,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
@@ -88,15 +97,19 @@ export function rateVocabulary(state,rating,now=Date.now()) {
  const lesson=structuredClone(state.lesson),item=lesson.queue[0];
  if(lesson.closed || !item || item.introduce) throw Error('Bitte erst das Wort kennenlernen.');
  const word=state.words.find(w=>w.id===item.id);if(!word) throw Error('Wort nicht gefunden.');
- const stage=rating==='yes'?Math.min(5,(word.stage||0)+1):rating==='hard'?1:0;
+ const difficult=vocabularyNeedsRepeat(word)||rating!=='yes';
+ const cleanStreak=rating==='yes'?Math.min(3,(word.cleanStreak||0)+1):0;
+ const relearning=difficult && cleanStreak<3;
+ const stage=rating==='yes'?(relearning?(word.stage||0):Math.min(5,(word.stage||0)+1)):rating==='hard'?1:0;
  const due=new Date(now);
- if(rating==='no') due.setTime(now+10*60*1000);
+ if(rating==='no' || relearning && rating==='yes') due.setTime(now+10*60*1000);
  else {due.setDate(due.getDate()+intervals[stage-1]);due.setHours(9,0,0,0);}
- const updated=item.practiceOnly && rating==='yes'?word:{...word,stage,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now,nextReviewAt:due.getTime()};
+ const updated=item.practiceOnly && rating==='yes' && !difficult?word:{...word,stage,cleanStreak,relearning,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now,nextReviewAt:due.getTime()};
  lesson.queue.shift();lesson.rated.push(item.id);
  if(!item.retry && !item.practiceOnly && word.attempts>0) {lesson.reviewCount++;lesson.correctCount+=Number(rating==='yes');}
- if(rating!=='yes' && !item.retry && lesson.retryIds.length<3) {
-  lesson.retryIds.push(item.id);lesson.queue.splice(Math.min(2,lesson.queue.length),0,{id:item.id,retry:true});
+ if(relearning) {
+  if(!lesson.retryIds.includes(item.id))lesson.retryIds.push(item.id);
+  lesson.queue.splice(Math.min(2,lesson.queue.length),0,{id:item.id,retry:true});
  }
  return {...state,words:state.words.map(w=>w.id===word.id?updated:w),lesson};
 }
