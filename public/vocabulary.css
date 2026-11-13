@@ -11,10 +11,11 @@ body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 .vocab-time{flex:none;margin:0 4px;color:#60786d;font-size:.8rem;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-progress{flex:none;margin:0 4px;font-size:1rem;font-weight:750;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-bar{flex:none;height:6px;margin:0 0 5px}
-.vocab-word{position:relative;flex:1;min-height:0;padding:clamp(44px,7dvh,64px) 20px;overflow:auto;overscroll-behavior:contain;touch-action:none;background:linear-gradient(90deg,#f0b6b0 0%,#fffef9 25%,#fffef9 75%,#a1d9b9 100%)}
-.vocab-word[data-swipe=no]{background:linear-gradient(90deg,#e78379,#fffef9 80%);border-color:#c55d53}
-.vocab-word[data-swipe=yes]{background:linear-gradient(90deg,#fffef9 20%,#77c99f);border-color:#269365}
-.vocab-word[data-swipe=hard]{background:linear-gradient(180deg,#f5cf62,#fffef9 80%);border-color:#c69926}
+.vocabulary-trainer{touch-action:none}
+.vocab-word{position:relative;flex:1;min-height:0;padding:clamp(44px,7dvh,64px) 20px;overflow:auto;overscroll-behavior:contain;touch-action:none;background:#fffef9}
+.vocab-word[data-swipe=no]{background:linear-gradient(90deg,#fffef9 20%,#e78379);border-color:#c55d53}
+.vocab-word[data-swipe=yes]{background:linear-gradient(90deg,#77c99f,#fffef9 80%);border-color:#269365}
+.vocab-word[data-swipe=hard]{background:linear-gradient(180deg,#77c99f,#fffef9 80%);border-color:#269365}
 .vocab-word::after{content:attr(data-swipe-label);position:absolute;top:12px;left:8px;right:8px;font-size:.82rem;font-weight:700;color:#153e37;pointer-events:none}
 .vocab-word h3{font-size:clamp(1.35rem,3.5dvh,1.85rem);line-height:1.45;margin:0;font-weight:650;color:#153e37}
 .vocab-word button{display:block;width:100%;margin:24px 0 0;padding:24px 0 8px;border:0;border-top:1px solid #d4e2d9;border-radius:0;font-size:clamp(1.2rem,3dvh,1.6rem);line-height:1.45;color:#087e69;background:transparent}
@@ -22,8 +23,7 @@ body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 .vocab-controls>button,.vocab-ratings button{min-height:52px;margin:0;border-radius:13px}
 .vocab-ratings{flex-wrap:nowrap}
 .vocab-ratings button{min-width:0;padding:12px 7px;font-size:.9rem}
-.vocab-ratings [data-grade=no]{background:#f5e9e3;color:#923e35}
-.vocab-ratings [data-grade=hard]{background:#fae7aa;color:#6e5010}
+.vocab-ratings button{background:#edf0e9;color:#36584c}
 .vocab-ratings small{display:block;margin-top:4px;font-size:.65rem;line-height:1.25}
 .vocab-swipe-hint{margin:0;font-size:.74rem}
 .vocab-status{margin:0;font-size:.85rem;line-height:1.45;text-align:center;max-height:20dvh;overflow:auto}

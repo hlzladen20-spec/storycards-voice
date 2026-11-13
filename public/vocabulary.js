@@ -73,7 +73,7 @@ export function additionalVocabularyLesson(state,now=Date.now()) {
  return {...finished,lesson:{day,extraRound:true,previousIds:same?[...new Set([...(previous?.previousIds||[]),...(previous?.ids||[])])]:[],previousRated:same?[...new Set([...(previous?.previousRated||[]),...(previous?.rated||[])])]:[],ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id,practiceOnly})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
 }
 export function swipeRating(dx,dy) {
- if(Math.abs(dx)>=70 && Math.abs(dx)>Math.abs(dy)*1.5)return dx>0?'yes':'no';
+ if(Math.abs(dx)>=70 && Math.abs(dx)>Math.abs(dy)*1.5)return dx<0?'yes':'no';
  if(dy<=-70 && Math.abs(dy)>Math.abs(dx)*1.5)return 'hard';
  return null;
 }
