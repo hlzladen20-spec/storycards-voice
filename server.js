@@ -6,6 +6,7 @@ import { normaliseCards } from "./lib/flashcards.js";
 import {cleanConversationReview} from './public/conversation-summary.js';
 import {resolveCourse,courseText,courseInstruction} from './public/language-courses.js';
 import {resolveVoice} from './public/emma-voices.js';
+import {audioServiceError} from './lib/audio-errors.js';
 
 const apiKey = process.env.OPENAI_API_KEY;
 const projectDir = dirname(fileURLToPath(import.meta.url));
@@ -90,15 +91,21 @@ async function reviewCardAnswer(req, res) {
   if (!audio.length || audio.length > 20 * 1024 * 1024) return json(res, 413, { error: "Die Aufnahme ist zu lang. Bitte antworte kurz." });
   const form = new FormData();
   form.append("file", new Blob([audio], { type: input.mime || "audio/webm" }), "answer.webm");
-  form.append("model", "gpt-transcribe"); form.append("languages", JSON.stringify([{code:course.target}]));
-  const transcription = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", headers:{ Authorization:`Bearer ${apiKey}` }, body:form });
-  const transcriptionResult = await transcription.json();
-  if (!transcription.ok) return json(res, transcription.status, { error:"Die Aufnahme konnte nicht verstanden werden." });
+  // Multipart request: repeated language-code strings, not response {code} objects.
+  form.append("model", "gpt-transcribe"); form.append("languages[]", course.target);
+  let transcription,transcriptionResult;
+  try{
+    transcription = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", signal:AbortSignal.timeout(30000),headers:{ Authorization:`Bearer ${apiKey}` }, body:form });
+    transcriptionResult = await transcription.json().catch(()=>({}));
+  }catch{const failure=audioServiceError(503,null);return json(res,failure.status,failure);}
+  if (!transcription.ok){const failure=audioServiceError(transcription.status,transcriptionResult);return json(res,failure.status,failure);}
+  if(typeof transcriptionResult.text!=='string'){const failure=audioServiceError(502,null);return json(res,failure.status,failure);}
   const heard = transcriptionResult.text || "";
+  if(!String(heard).trim())return json(res,422,{error:'Keine klare Sprache erkannt. Bitte die Sprechtaste während deines ganzen Satzes gedrückt halten und erneut versuchen. Deine Karte wird nicht schlechter bewertet.',errorCode:'speech_empty'});
   const prompt = courseText(`You assess a spoken English flashcard answer for a German A1-C2 learner. Be kind and accept harmless transcription punctuation, contractions, and equivalent natural wording. Return JSON only: {"result":"correct|close|incorrect","feedback":"short German feedback, maximum two sentences"}. If close or incorrect, state the better English sentence briefly. Do not over-correct accents or tiny details.`,course)+courseInstruction(course)+" Answer data: "+JSON.stringify({front:input.front,expected:input.expected,heard});
   const evaluation = await fetch("https://api.openai.com/v1/chat/completions", { method:"POST", headers:{ Authorization:`Bearer ${apiKey}`, "Content-Type":"application/json" }, body:JSON.stringify({ model:"gpt-4.1-mini", messages:[{ role:"user", content:prompt }], response_format:{ type:"json_object" } }) });
   const evaluationResult = await evaluation.json();
-  if (!evaluation.ok) return json(res, evaluation.status, { error:"Die Antwort konnte nicht bewertet werden." });
+  if (!evaluation.ok){const failure=audioServiceError(evaluation.status,evaluationResult,'evaluation');return json(res,failure.status,failure);}
   try { const verdict = JSON.parse(evaluationResult.choices[0].message.content); return json(res, 200, { ...verdict, transcript:heard }); } catch { return json(res, 502, { error:"Die Antwort konnte nicht bewertet werden." }); }
 }
 
