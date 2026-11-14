@@ -1,8 +1,8 @@
 import {conversationMode} from './conversation-modes.js';
 import {chooseDialog,noticeDialog} from './app-dialog.js';
 
-const icons={politik:'🏛️',alltag:'☕',reisen:'✈️',beruf:'🚚',einkaufen:'🛒',rollenspiel:'🎭',ueberraschung:'🎲',schwaechen:'🎯'};
-const hints={politik:'Gesellschaft & Meinungen',alltag:'Dein Tag & Hobbys',reisen:'Unterwegs & im Urlaub',beruf:'Kollegen & Aufgaben',einkaufen:'Produkte & Preise',rollenspiel:'Eine Situation nachspielen',ueberraschung:'Emma sucht ein Thema aus',schwaechen:'Deine schwierigen Sätze gezielt üben'};
+const icons={essen:'🍳',politik:'🏛️',alltag:'☕',reisen:'✈️',beruf:'🚚',einkaufen:'🛒',rollenspiel:'🎭',ueberraschung:'🎲',schwaechen:'🎯'};
+const hints={essen:'Gerichte, Rezepte & Restaurant',politik:'Gesellschaft & Meinungen',alltag:'Dein Tag & Hobbys',reisen:'Unterwegs & im Urlaub',beruf:'Kollegen & Aufgaben',einkaufen:'Produkte & Preise',rollenspiel:'Eine Situation nachspielen',ueberraschung:'Emma sucht ein Thema aus',schwaechen:'Deine schwierigen Sätze gezielt üben'};
 
 export function setupConversationTopicPicker({button,select,onSelect,isLocked=()=>false,choose=chooseDialog,notice=noticeDialog,course={name:'Englisch'}}){
  let opened=false;
