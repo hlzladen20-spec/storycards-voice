@@ -32,7 +32,7 @@ export function planDailyLesson(cards, previous, day, limit, now=Date.now()) {
   const selected=reviews.slice(0,remaining);
   const newCount=reviews.length>=remaining ? 0 : Math.min(MAX_NEW_CARDS,remaining-selected.length);
   selected.push(...fresh.slice(0,newCount));
-  return {day,limit:cap,plannedIds:[...completed,...selected.map(c=>c.id)].slice(0,cap),completed,introduced:[],retryUsed:0,retriedIds:[],pendingRetries:[],results:{}};
+  return {day,limit:cap,plannedIds:[...completed,...selected.map(c=>c.id)].slice(0,cap),completed,introduced:[],retryUsed:0,retriedIds:[],pendingRetries:[],results:{},...(same && previous.weakCompleted===true?{weakCompleted:true}:{})};
 }
 export function lessonQueue(cards,plan) {
   const byId=new Map(cards.map(c=>[c.id,c]));

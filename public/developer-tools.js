@@ -8,7 +8,7 @@ export function resetDailyState({stats,lesson,vocabulary},{minutes,now=new Date(
  const lessonDay=`${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
  const nextStats={...stats,speakingGoal:speakingGoal({},minutes,now)};
  const nextLesson=lesson?.day===lessonDay && lesson.plannedIds?.length
-  ? {...lesson,completed:[],introduced:[],retryUsed:0,retriedIds:[],pendingRetries:[],results:{}}
+  ? {...lesson,completed:[],introduced:[],retryUsed:0,retriedIds:[],pendingRetries:[],results:{},weakCompleted:false}
   : {};
  let nextVocabulary=vocabulary;
  if(vocabulary){

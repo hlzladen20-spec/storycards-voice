@@ -124,6 +124,9 @@ function moveReviewCard(back = false) {
         const stored=cards.find(item=>item.id===card.id)||card;
         queue.splice(Math.min(2,queue.length),0,{...stored,weakRetry:true,scheduleApplied:false,lessonStage:"recall"});
       }
+      if(weakPractice && result==="correct" && !queue.length) {
+        plan.weakCompleted=true;learningStorage.save("lesson",plan);
+      }
       if(!freePractice && !weakPractice && card.retryPractice) {
         plan.pendingRetries=(plan.pendingRetries||[]).filter(id=>id!==card.id);
         learningStorage.save("lesson",plan);
@@ -613,9 +616,9 @@ function showCardChoice() {
   $("dailyChoiceTitle").textContent=dailyComplete?'Tageslektion ✓':'Tageslektion';
   $("dailyChoiceHint").textContent=remaining?`${remaining} Aufgaben · höchstens 3 neue, Wiederholungen zuerst`:dailyComplete?"Tagesziel erreicht – gut gemacht! Morgen geht’s weiter.":"Heute keine fälligen Karten. Wiederholung und Frei üben bleiben verfügbar.";
   const weakCount=difficultCards(cards).length;
-  $("weakChoiceHint").textContent=weakCount?`${weakCount} unsichere Karten · auch heute wiederholen, Lernabstände verbessern`:"Keine schwierigen Karten offen – gut gemacht!";
   $("weakPracticeButton").disabled=!weakCount;
-  const weakComplete=cards.length>0 && weakCount===0;
+  const weakComplete=weakCount===0 && (dailyComplete || plan.weakCompleted===true);
+  $("weakChoiceHint").textContent=weakCount?`${weakCount} unsichere Karten · auch heute wiederholen, Lernabstände verbessern`:weakComplete?"Geschafft – keine schwierigen Karten mehr offen.":"Noch keine Wiederholung offen. Übe zuerst deine Tageslektion.";
   $("weakPracticeButton").classList[weakComplete?'add':'remove']('is-complete');
   $("weakChoiceTitle").textContent=weakComplete?'Wiederholung ✓':'Wiederholung';
   $("choiceIntro").textContent=dailyComplete?'Stark, dein Tagesziel ist geschafft! Wenn du magst, übe freiwillig weiter.':'Eine kleine Runde bringt dich weiter. Du entscheidest, wie du übst.';
