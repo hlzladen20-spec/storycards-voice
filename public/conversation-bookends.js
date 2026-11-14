@@ -3,6 +3,7 @@
 export function createConversationBookends({send,greetingInstructions,onReady,onClosing,onClosed,farewellInstructions,onFinalReply=()=>{},onFinalReplyEnd=()=>{},schedule=setTimeout,cancel=clearTimeout,token=crypto.randomUUID()}){
  const phases={greeting:{sent:false,done:false,id:null},farewell:{sent:false,done:false,id:null}};
  const rejected=new Set();let expected=null,closing=false,closed=false,ready=false,disposed=false,busy=false,drainTimer=null,timeoutTimer=null;
+ const initialToken=token;let resumeCount=0,resumeGreeting=null;
  let reply=null,replyTimer=null,speaking=false,speechId=null;
  const replyActive=()=>reply && !reply.done;
  const clearReplyTimer=()=>{cancel(replyTimer);replyTimer=null;};
@@ -29,7 +30,7 @@ export function createConversationBookends({send,greetingInstructions,onReady,on
  function request(phase){
   if(disposed || closed || phases[phase].sent)return;
   phases[phase].sent=true;clearTimeout();if(phase==='farewell')onClosing();
-  let instructions=phase==='greeting'?greetingInstructions():farewellInstructions?farewellInstructions():"Speak one brief, warm English farewell as Emma. Our practice time has ended. Thank the learner for the conversation and say goodbye. For example: 'Our time is up. Thank you for our conversation today. Have a lovely day, and see you next time!' Do not ask a question, invite another answer, give a lesson, or assess their performance. Then stop.";
+  let instructions=phase==='greeting'?(resumeGreeting||greetingInstructions()):farewellInstructions?farewellInstructions():"Speak one brief, warm English farewell as Emma. Our practice time has ended. Thank the learner for the conversation and say goodbye. For example: 'Our time is up. Thank you for our conversation today. Have a lovely day, and see you next time!' Do not ask a question, invite another answer, give a lesson, or assess their performance. Then stop.";
   if(phase==='farewell' && reply?.answered)instructions+=' The learner has now given their final answer after the time limit. FIRST respond to its actual meaning in one short, natural sentence in the learning language, THEN thank them and say goodbye in this same response. Do not correct or grade them, ask any question, introduce a new topic, or invite another answer. Then stop.';
   const sent=send({type:'response.create',event_id:`storycards-${phase}-${token}`,response:{output_modalities:['audio'],tool_choice:'none',metadata:{storycards_phase:phase,storycards_token:token},instructions}});
   if(sent===false){fail(phase);return;}
@@ -47,6 +48,16 @@ export function createConversationBookends({send,greetingInstructions,onReady,on
  }
  return {
   get ready(){return ready;},
+  get canResume(){return closed && !disposed;},
+  resume(instructions){
+   if(!closed || disposed || typeof instructions!=='string' || !instructions.trim())return false;
+   clearReplyTimer();clearDrain();clearTimeout();
+   // New response metadata distinguishes this opening from the previous farewell.
+   for(const phase of Object.values(phases)){if(phase.id)rejected.add(phase.id);phase.sent=false;phase.done=false;phase.id=null;}
+   token=`${initialToken}-resume-${++resumeCount}`;resumeGreeting=instructions;
+   expected=null;closing=false;closed=false;ready=false;busy=false;reply=null;speaking=false;speechId=null;
+   return true;
+  },
   get awaitingFinalReply(){return Boolean(replyActive());},
   allowFinalReply(activity){
    if(disposed || closed || closing || reply)return false;

@@ -4,6 +4,9 @@
 .listening-wave{color:#12866f;letter-spacing:1px;font-size:1.05rem;line-height:1}
 .conversation-screen #micStateText{font-size:.84rem;font-weight:750}
 .conversation-screen .conversation-actions{padding:13px 0 6px;margin:0;gap:4px;align-items:flex-start}
+.conversation-screen .conversation-continue{order:5;flex-shrink:0;min-height:48px;margin:10px 0 0;background:#176b5b;color:#fff}
+.conversation-screen .conversation-continue[hidden]{display:none!important}
+.conversation-screen .conversation-continue:disabled{opacity:.55;cursor:default}
 .conversation-actions .round-action{width:30%;gap:7px;font-weight:500}
 .conversation-actions .round-action>span{width:49px;height:49px;background:#eef1ed;color:#193e39;font-size:1.6rem;box-shadow:none}
 .conversation-actions .round-action small{font-size:.66rem}

@@ -56,6 +56,8 @@ let englishCheck=null;
 let englishCheckPromptOpen=false,speakingPromptOpen=false;
 let speechBookends;
 let checkCompletion;
+let continuedSpeakingSeconds=0;
+let resumingConversation=false;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
@@ -430,6 +432,7 @@ async function startSession() {
   sessionBudgetDate=null;
   speechBookends?.dispose();speechBookends=null;checkCompletion?.dispose();checkCompletion=null;
   timeExpired = false; responseActive = false; outputPlaying = false; finishingSession = false; clearTimeout(finishAfterAudioTimer);
+  continuedSpeakingSeconds=0;resumingConversation=false;$('continueConversationButton').hidden=true;
   refreshSpeakingGoal();
   if(englishCheck){sessionDurationSeconds=Math.min(englishCheck.continuation?120:ENGLISH_CHECK_SECONDS,remainingSpeakingSeconds(learningStats,dailySpeakingMinutes));timer.querySelector('small').textContent=`/ ${clockText(sessionDurationSeconds)}`;}
   let phase = "Mikrofon";
@@ -469,9 +472,9 @@ async function startSession() {
         }
         status.textContent='Emma reagiert noch kurz und verabschiedet sich …';setMicState('Emma schließt das Gespräch ab …');
       },
-      onReady:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}if(timeExpired || isPaused)return;stream?.getAudioTracks().forEach(track=>track.enabled=true);status.textContent=failed?'Die Begrüßung konnte nicht abgespielt werden. Du kannst jetzt selbst anfangen.':'Jetzt bist du dran – sprich einfach in deiner Lernsprache.';setMicState('Ich höre dir zu.',true);},
+      onReady:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}if(timeExpired || isPaused)return;const continuing=resumingConversation;resumingConversation=false;stream?.getAudioTracks().forEach(track=>track.enabled=true);status.textContent=failed?(continuing?'Emma konnte die Fortsetzung nicht vorlesen. Du kannst selbst weitersprechen.':'Die Begrüßung konnte nicht abgespielt werden. Du kannst jetzt selbst anfangen.'):(continuing?'Weiter geht’s – ich höre dir zu.':'Jetzt bist du dran – sprich einfach in deiner Lernsprache.');setMicState('Ich höre dir zu.',true);},
       onClosing:()=>{status.textContent=englishCheck?.completed?'Genug Antworten gesammelt. Emma verabschiedet sich …':'Die Zeit ist um. Emma verabschiedet sich …';setMicState('Emma bedankt sich und verabschiedet sich …');},
-      onClosed:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}finishButton.disabled=false;status.textContent=failed?'Die Verabschiedung konnte nicht abgespielt werden. Du kannst das Gespräch jetzt beenden.':'Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';setMicState('Zeit geschafft · bitte Gespräch beenden');$('practice').dataset.keepAwake='false';if(englishCheck?.completed)finishSession();else if(englishCheck)offerCheckContinuation();}
+      onClosed:({failed})=>{if(failed){responseActive=false;outputPlaying=false;}finishButton.disabled=false;status.textContent=failed?'Die Verabschiedung konnte nicht abgespielt werden. Du kannst das Gespräch jetzt beenden.':'Deine Zeit ist geschafft. Drücke „Gespräch beenden“, wenn du bereit bist.';setMicState('Zeit geschafft · bitte Gespräch beenden');$('practice').dataset.keepAwake='false';showConversationContinue();if(englishCheck?.completed)finishSession();else if(englishCheck)offerCheckContinuation();}
     });
     checkCompletion?.dispose();
     checkCompletion=createCheckCompletion({isActive:()=>Boolean(englishCheck && !englishCheck.completed && !timeExpired && !finishingSession && sessionChannel===dataChannel),getTranscript:()=>transcript,send:event=>{if(sessionChannel.readyState==='open')sessionChannel.send(JSON.stringify(event));},onComplete:assessment=>{englishCheck.assessment=assessment;englishCheck.completed=true;finishWhenEmmaIsDone();}});
@@ -577,6 +580,7 @@ async function finishSession() {
   if (finishingSession) return;
   if(speechBookends?.awaitingFinalReply){speechBookends.skipFinalReply();return;}
   if(timeExpired && (responseActive || outputPlaying))return;
+  $('continueConversationButton').hidden=true;
   speechBookends?.dispose();checkCompletion?.dispose();
   $("practice").dataset.keepAwake="false";
   checkpointSpeakingTime(true);
@@ -585,7 +589,7 @@ async function finishSession() {
   clearInterval(interval); isPaused = false; setEmmaSpeaking(false); $("coachStage").classList.remove("paused"); pauseButton.disabled = true; finishButton.disabled = true; setFinishBusy(true); startButton.textContent = "Gespräch beendet"; setMicState("Gespräch wird ausgewertet …"); stream?.getTracks().forEach((t) => t.stop()); pc?.close();
   if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; setFinishBusy(false); finishingSession=false; return; }
   status.textContent = "Ich erstelle deine persönlichen Karten …";
-  const checkState=englishCheck,evaluationId=String(checkState?.id||startedAt),totalSeconds=(checkState?.previousSeconds||0)+sessionCountedSeconds;
+  const checkState=englishCheck,evaluationId=String(checkState?.id||startedAt),totalSeconds=(checkState?(checkState.previousSeconds||0):continuedSpeakingSeconds)+sessionCountedSeconds;
   const completeEvaluation=(data,warning='')=>{
     const newCards=normaliseCards(data.cards),focus=cleanFocus(data.focus);
     const assessment=checkState?.assessment||(data.assessment?.rubricVersion===2?data.assessment:null);
@@ -616,6 +620,42 @@ function showSummary(newCards,focus,review,seconds=sessionCountedSeconds) {
  $('vocabulary')?.classList.add('hidden');$('cardChoice').classList.add('hidden');$('practice').classList.add('hidden');$('summary').classList.remove('hidden');document.body.classList.remove('in-conversation');
  conversationSummary.render({cards:newCards,focus,review,seconds});
 }
+function showConversationContinue(){
+ const button=$('continueConversationButton');
+ button.hidden=Boolean(englishCheck || !timeExpired || finishingSession || sessionWasEvaluated || !speechBookends?.canResume);
+ button.disabled=false;button.textContent=`Gespräch fortführen · ${dailySpeakingMinutes} Min.`;
+}
+function continueConversation(){
+ const button=$('continueConversationButton');
+ if(button.disabled || !timeExpired || englishCheck || finishingSession || sessionWasEvaluated || !speechBookends?.canResume)return;
+ if(dataChannel?.readyState!=='open' || !pc || ['closed','failed','disconnected'].includes(pc.connectionState) || !stream?.getAudioTracks().some(track=>track.readyState==='live')){
+  button.hidden=true;setMicState('Die Verbindung ist beendet. Bitte Gespräch beenden und danach neu starten.');return;
+ }
+ button.disabled=true;const previousStats=learningStats;let resumed=false;
+ try{
+  learningStats=approveAnotherSpeakingLesson(learningStats,dailySpeakingMinutes);saveStats();
+  const opening=coachInstructions()+conversationModeInstructions($('conversationMode').value)+courseText(' The learner explicitly chose to continue this SAME conversation for another time block. The previous farewell no longer ends the conversation. Resume the existing topic and actual conversation context. Do not introduce yourself, repeat a greeting, restart the lesson or repeat an already answered question. Make one brief connected comment and ask exactly ONE natural follow-up question. Keep this opening under 25 words.',activeCourse);
+  if(!speechBookends.resume(opening))throw Error('Die Fortsetzung konnte noch nicht gestartet werden.');
+  resumed=true;continuedSpeakingSeconds+=sessionCountedSeconds;
+  sessionCountedSeconds=0;sessionDurationSeconds=dailySpeakingMinutes*60;startedAt=Date.now();sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;
+  isPaused=false;pausedAt=0;pausedDuration=0;timeExpired=false;responseActive=false;outputPlaying=false;resumingConversation=true;
+  clearInterval(interval);clearTimeout(finishAfterAudioTimer);button.hidden=true;
+  $('coachStage').classList.remove('paused');$('practice').dataset.keepAwake='true';
+  pauseButton.disabled=false;finishButton.disabled=false;setPauseLabel(false);setFinishLabel();
+  stream.getAudioTracks().forEach(track=>track.enabled=false);
+  dataChannel.send(JSON.stringify({type:'session.update',session:{type:'realtime',audio:{input:{turn_detection:{type:'server_vad',threshold:0.7,prefix_padding_ms:300,silence_duration_ms:1000,create_response:true,interrupt_response:false,idle_timeout_ms:null}}}}}));
+  const instructions=sendCoachInstructions();speechBookends.waitForConfiguration(instructions);
+  timer.querySelector('small').textContent=`/ ${clockText(sessionDurationSeconds)}`;
+  interval=setInterval(updateTimer,1000);updateTimer();
+  status.textContent='Das Gespräch geht weiter – Emma knüpft an eure Unterhaltung an.';setMicState('Emma setzt das Gespräch fort …');
+ }catch(error){
+  if(!resumed){learningStats=previousStats;button.disabled=false;try{saveStats();}catch{/* Existing recorded time remains in memory. */}}
+  else{clearInterval(interval);speechBookends.dispose();stream?.getAudioTracks().forEach(track=>track.enabled=false);pauseButton.disabled=true;finishButton.disabled=false;$('practice').dataset.keepAwake='false';}
+  status.textContent=error.message||'Die Fortsetzung konnte nicht gestartet werden.';
+  setMicState(resumed?'Verbindung unterbrochen · bitte Gespräch beenden.':'Fortsetzen fehlgeschlagen · bitte erneut versuchen.');
+ }
+}
+$('continueConversationButton').addEventListener('click',continueConversation);
 async function offerCheckContinuation(){
  const check=englishCheck;if(!check || check.completed || check.promptOpen || (check.extensions||0)>=2)return;
  check.promptOpen=true;let approved;
