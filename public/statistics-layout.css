@@ -13,6 +13,13 @@
 .statistics-section .insight-columns p{font-size:.9rem;margin-bottom:9px}
 .statistics-section .insight-columns li{font-size:.85rem;line-height:1.5;margin:8px 0;padding-left:21px}
 .statistics-speaking{margin-top:18px}
+.statistics-learned-note{font-size:.85rem;line-height:1.5;color:#526e60}
+.statistics-learned-list{list-style:none;margin:0;padding:0}
+.statistics-learned-list li{padding:15px 0;border-bottom:1px solid #dce7dc;overflow-wrap:anywhere}
+.statistics-learned-list li:last-child{border-bottom:0}
+.statistics-learned-list strong{font-size:1rem;line-height:1.5;color:#173f3a}
+.statistics-learned-list p{margin:6px 0;font-size:1rem;line-height:1.5;color:#176b58}
+.statistics-learned-list small{display:block;font-size:.8rem;line-height:1.5;color:#526e60}
 .statistics-speaking .level-card.proficiency-card{margin:0;padding:12px 0 0;border:0;background:transparent;box-shadow:none;min-width:0}
 .statistics-section>summary:focus-visible{outline:2px solid #13846a;outline-offset:-3px;border-radius:17px}
 .proficiency-details{margin:12px 0;border:1px solid #dce7dc;border-radius:12px;background:#fffdf8;overflow:hidden}

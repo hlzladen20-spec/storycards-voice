@@ -1,4 +1,4 @@
-const CACHE = "storycards-shell-repetition-completion-v55";
+const CACHE = "storycards-shell-statistics-learned-v56";
 const SHELL = ["/language-courses.js", "/language-ui.js", "/language-courses.css", "/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 
 SHELL.push("/keep-awake.js", "/speaking-goal.js", "/learning-streak.js", "/lesson-planner.js", "/learning-images.js", "/learning-images/workshop-v1.png", "/learning-images/restaurant-v1.png", "/learning-images/travel-v1.png", "/learning-images/shopping-v1.png");
@@ -11,6 +11,7 @@ SHELL.push('/developer-tools.js');
 SHELL.push('/english-check.js');
 SHELL.push('/profile-layout.js','/profile-layout.css');
 SHELL.push('/statistics-layout.css');
+SHELL.push('/statistics-learned.js');
 SHELL.push('/app-dialog.js','/app-dialog.css');
 SHELL.push('/conversation-topic-picker.js');
 SHELL.push('/emma-voices.js','/check-completion.js');
