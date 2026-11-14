@@ -24,8 +24,11 @@ export function setupProfileLayout({profile,getPlan}){
   profile.insertBefore(area,nav);sections.push(area);return area;
  }
  const find=selector=>profile.querySelector(selector);
- const goals=group('profileGoalsSection','Lernziele & Einschätzung','Sprechzeit, Tagesportion und Sprach-Check','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',[
-  find('#profileSpeakingSettings'),find('#profileDailySettings'),find('.vocab-settings'),find('#profileLearningPath'),find('#profileSaveArea')
+ const goals=group('profileGoalsSection','Lernziele','Sprechzeit und tägliche Kartenportionen','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',[
+  find('#profileSpeakingSettings'),find('#profileDailySettings'),find('.vocab-settings'),find('#profileSaveArea')
+ ]);
+ group('profileAssessmentSection','Sprachniveau & Sprach-Check','Deine Einschätzung ansehen oder neu prüfen','<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 12l2 2 4-4M9 18h6"/>',[
+  find('#profileLearningPath')
  ]);
  group('profileCardsSection','Karten verwalten','Satzkarten und Vokabeln an einem Ort','<rect x="7" y="3" width="13" height="17" rx="2"/><path d="M4 7H3v14h13v-1M11 7h5M11 11h5"/>',[
   find('.card-manager'),find('.vocab-management')

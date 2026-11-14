@@ -3,7 +3,6 @@ import {proficiencyView,proficiencyLevels,proficiencyStages,proficiencyMinimumSe
 import {skillLabels} from './check-assessment.js';
 export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE_COURSES.en}){
  const home=document.createElement('button');home.type='button';home.className='proficiency-home';home.onclick=onDetails;
- document.querySelector('.home-progress').after(home);
  const panel=document.querySelector('#statistics .level-card');panel.className='level-card proficiency-card';
  document.querySelector('#statistics .statistics-topbar>strong').textContent='A1 → C2';
  const profileGoal=document.querySelector('#profileLearningPath');
@@ -11,7 +10,8 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
  function node(tag,text){const element=document.createElement(tag);element.textContent=text;return element;}
  function disclosure(title,...content){const details=document.createElement('details');details.className='proficiency-details';details.append(node('summary',title),...content);return details;}
  function checkButton(){const button=node('button',`🎙 ${course.name}-Check · bis zu 5 Minuten`);button.type='button';button.className='secondary proficiency-check-button';button.onclick=onCheck;return button;}
- if(onCheck){home.after(checkButton());profileGoal.append(checkButton());}
+ profileGoal.append(home);
+ if(onCheck){profileGoal.append(checkButton(),disclosure(`Was ist der ${course.name}-Check?`,node('p',`Freiwillig: Statt auf drei Gespräche zu warten, kannst du einen kurzen ${course.name}-Check machen. Bei genügend eigenen Antworten liefert er eine erste Orientierung. Du kannst ihn später wiederholen; er überschreibt deinen bisherigen Lernstand nicht.`)));}
  const practice=document.querySelector('#practice');practice.setAttribute('data-language-check','false');
  const checkResult=node('section','');checkResult.className='english-check-result';checkResult.hidden=true;checkResult.setAttribute('aria-label',`Ergebnis deines ${course.name}-Checks`);document.querySelector('#summaryText').after(checkResult);
  function renderCheckProgress(transcript){
@@ -61,7 +61,6 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
   }
   if(assessmentNotes.length)panel.append(disclosure('Warum diese Einschätzung?',...assessmentNotes));
   panel.append(disclosure('So funktioniert die Einschätzung',node('p','Die fünf Etappen sind App-Lernschritte, keine offiziellen Zusatzniveaus. Gefestigte Ziele führen nicht automatisch zum nächsten CEFR-Niveau.'),node('p','Orientierung anhand eigener Gesprächsbeiträge, kein Zertifikat. Lesen, Schreiben, Hörverständnis, Aussprache und Sprechflüssigkeit werden hier nicht verlässlich geprüft. Auch C1/C2 bleiben vorläufige Hinweise und brauchen breitere Aufgaben.')));
-  if(onCheck){panel.append(disclosure(`Was ist der ${course.name}-Check?`,node('p',`Freiwillig: Statt auf drei Gespräche zu warten, kannst du einen kurzen ${course.name}-Check machen. Bei genügend eigenen Antworten liefert er eine erste Orientierung. Du kannst ihn später wiederholen; er überschreibt deinen bisherigen Lernstand nicht.`)),checkButton());}
  }
  render();return {render,renderCheckProgress,renderCheckResult};
 }
