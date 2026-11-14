@@ -1,4 +1,4 @@
-const CACHE = "storycards-shell-final-reply-v58";
+const CACHE = "storycards-shell-emma-portrait-v59";
 const SHELL = ["/language-courses.js", "/language-ui.js", "/language-courses.css", "/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 
 SHELL.push("/keep-awake.js", "/speaking-goal.js", "/learning-streak.js", "/lesson-planner.js", "/learning-images.js", "/learning-images/workshop-v1.png", "/learning-images/restaurant-v1.png", "/learning-images/travel-v1.png", "/learning-images/shopping-v1.png");
@@ -7,6 +7,7 @@ SHELL.push('/conversation-summary.js','/learning-strategy.js','/card-vocabulary.
 SHELL.push('/learning-tips.js');
 SHELL.push('/proficiency.js','/proficiency-ui.js','/proficiency-goals.js','/proficiency.css');
 SHELL.push('/conversation-bookends.js');
+SHELL.push('/emma-avatar.js','/conversation-controls.css','/emma-coach.png','/emma-coach-talking.png','/emma-coach-blink.png');
 SHELL.push('/developer-tools.js');
 SHELL.push('/english-check.js');
 SHELL.push('/profile-layout.js','/profile-layout.css');

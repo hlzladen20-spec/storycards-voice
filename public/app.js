@@ -20,6 +20,7 @@ import {englishCheckInstructions as baseCheckInstructions,adaptiveCheckInstructi
 import {checkAssessment} from '/check-assessment.js';
 import {setupProfileLayout,revealProfileTarget} from '/profile-layout.js';
 import {renderLearnedStatistics} from '/statistics-learned.js';
+import {createEmmaAvatar} from '/emma-avatar.js';
 import {confirmDialog,noticeDialog} from '/app-dialog.js';
 import {setupConversationTopicPicker} from '/conversation-topic-picker.js';
 import {courseText,courseInstruction} from '/language-courses.js';
@@ -194,9 +195,13 @@ new MutationObserver(() => {
 }).observe($("card"),{childList:true});
 let sessionWasEvaluated = false;
 let isPaused = false, pausedAt = 0, pausedDuration = 0;
-let emmaQuietTimer;
-let emmaTalkTimer;
-let emmaBlinkTimer;
+const avatarMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+const emmaPortrait=createEmmaAvatar({stage:$('coachStage'),isVisible:()=>!$('practice').classList.contains('hidden') && $('practice').classList.contains('subtitles-off') && !$('coachStage').classList.contains('paused') && document.visibilityState==='visible',reducedMotion:()=>avatarMotion.matches});
+const avatarObserver=new MutationObserver(()=>emmaPortrait.refresh());
+avatarObserver.observe($('practice'),{attributes:true,attributeFilter:['class']});
+avatarObserver.observe($('coachStage'),{attributes:true,attributeFilter:['class']});
+document.addEventListener('visibilitychange',()=>emmaPortrait.refresh());
+avatarMotion.addEventListener?.('change',()=>emmaPortrait.refresh());
 let reviewRecorder, reviewStream, reviewChunks = [];
 let answerHeld = false, answerStarting = false;
 const answerButton = $("recordAnswerButton");
@@ -391,10 +396,8 @@ function setFinishBusy(busy) {
   finishButton.setAttribute("aria-busy", "true");
   finishButton.innerHTML = '<span class="cards-loading-spinner" aria-hidden="true"></span><small>Erstelle Karten</small>';
 }
-function showEmmaFrame(frame) { $("emmaAvatar").src = frame; document.querySelectorAll(".emma-mini").forEach((avatar) => avatar.src = frame); }
-function setEmmaSpeaking(speaking) { clearTimeout(emmaQuietTimer); const stage = $("coachStage"); stage.classList.toggle("speaking", speaking); if (!speaking) { showEmmaFrame("/emma-coach.png"); return; } showEmmaFrame("/emma-coach-talking.png"); emmaQuietTimer = setTimeout(() => setEmmaSpeaking(false), 1250); }
-function scheduleEmmaBlink() { clearTimeout(emmaBlinkTimer); emmaBlinkTimer = setTimeout(() => { if (!$("coachStage").classList.contains("speaking")) { showEmmaFrame("/emma-coach-blink.png"); setTimeout(() => showEmmaFrame("/emma-coach.png"), 150); } scheduleEmmaBlink(); }, 3200 + Math.floor(Math.random() * 2200)); }
-function addMessage(role, text) { if (!text?.trim()) return; const el = document.createElement("p"); el.className = `message ${role}`; if (role === "coach") { const avatar = document.createElement("img"); avatar.className = "emma-mini"; avatar.src = $("emmaAvatar").src; avatar.alt = "Emma"; const bubble = document.createElement("span"); bubble.textContent = text; el.append(avatar, bubble); } else { el.textContent = text; } messages.append(el); messages.scrollTop = messages.scrollHeight; }
+function setEmmaSpeaking(speaking) { emmaPortrait.setSpeaking(speaking); }
+function addMessage(role, text) { if (!text?.trim()) return; const el = document.createElement("p"); el.className = `message ${role}`; if (role === "coach") { const avatar = document.createElement("img"); avatar.className = "emma-mini"; avatar.src = "/emma-coach.png"; avatar.alt = "Emma"; const bubble = document.createElement("span"); bubble.textContent = text; el.append(avatar, bubble); } else { el.textContent = text; } messages.append(el); messages.scrollTop = messages.scrollHeight; }
 function updateTimer() { const elapsed = Date.now() - startedAt - pausedDuration - (isPaused ? Date.now() - pausedAt : 0); checkpointSpeakingTime(); const remaining = Math.max(0, sessionDurationSeconds - Math.floor(elapsed / 1000)); $("timerText").textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`; timer.style.background = `conic-gradient(#1d8b71 ${(sessionDurationSeconds - remaining) / sessionDurationSeconds * 360}deg,#dcece7 0deg)`; if (!remaining) finishWhenEmmaIsDone(); }
 
 function checkpointSpeakingTime() {
@@ -443,7 +446,7 @@ async function startSession() {
     phase = "Sprachverbindung";
     status.textContent = "Sprachverbindung wird hergestellt …";
     pc = new RTCPeerConnection();
-    pc.ontrack = (event) => { remoteAudio = new Audio(); remoteAudio.autoplay = true; remoteAudio.srcObject = event.streams[0]; remoteAudio.onplaying = () => setEmmaSpeaking(true); remoteAudio.onpause = () => setEmmaSpeaking(false); };
+    pc.ontrack = (event) => { remoteAudio = new Audio(); remoteAudio.autoplay = true; remoteAudio.srcObject = event.streams[0]; remoteAudio.onplaying = () => { if(outputPlaying && !isPaused)setEmmaSpeaking(true); }; remoteAudio.onpause = () => setEmmaSpeaking(false); };
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     dataChannel = pc.createDataChannel("oai-events");
     const sessionChannel=dataChannel;
@@ -529,13 +532,13 @@ function handleEvent(event) {
   if(speechBookends && !speechBookends.accept(event))return;
   if(!speechBookends && timeExpired && event.type==='response.created' && !responseActive){if(dataChannel?.readyState==='open')dataChannel.send(JSON.stringify({type:'response.cancel',response_id:event.response?.id}));return;}
   if (event.type === "response.created") { responseActive = true; clearTimeout(finishAfterAudioTimer); }
-  if (event.type === "output_audio_buffer.started") { outputPlaying = true; clearTimeout(finishAfterAudioTimer); }
+  if (event.type === "output_audio_buffer.started") { outputPlaying = true; clearTimeout(finishAfterAudioTimer); if(!isPaused){setMicState("Ich antworte gerade …");setEmmaSpeaking(true);} }
   if (event.type === "response.done") responseActive = false;
-  if (event.type === "output_audio_buffer.stopped" || event.type === "output_audio_buffer.cleared") { outputPlaying = false; setEmmaSpeaking(false); }
+  if (event.type === "output_audio_buffer.stopped" || event.type === "output_audio_buffer.cleared") { outputPlaying = false; setEmmaSpeaking(false); if(!isPaused && !timeExpired && speechBookends?.ready!==false)setMicState("Ich höre dir zu.",true); }
 
-  if (event.type === "response.output_audio.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.created") { if (!isPaused) { setMicState("Ich antworte gerade …"); setEmmaSpeaking(true); } }
+  if (event.type === "response.output_audio.delta" || event.type === "response.output_audio_transcript.delta" || event.type === "response.created") { if (!isPaused) setMicState("Ich antworte gerade …"); }
   if (event.type === "conversation.item.input_audio_transcription.completed") { if (String(event.transcript || "").trim()) recordPracticeDay(); transcript.push({ role:"learner", text:event.transcript }); addMessage("learner", event.transcript); if(!timeExpired && speechBookends?.ready!==false)setMicState("Ich höre dir zu.", true); }
-  if (event.type === "response.output_audio_transcript.done") { transcript.push({ role:"coach", text:event.transcript }); addMessage("coach", event.transcript); setEmmaSpeaking(false); if (!isPaused && !timeExpired && speechBookends?.ready!==false) setMicState("Ich höre dir zu.", true); }
+  if (event.type === "response.output_audio_transcript.done") { transcript.push({ role:"coach", text:event.transcript }); addMessage("coach", event.transcript); if (!outputPlaying && !isPaused && !timeExpired && speechBookends?.ready!==false) setMicState("Ich höre dir zu.", true); }
   if(englishCheck && event.type==='conversation.item.input_audio_transcription.completed')proficiencyUI?.renderCheckProgress(transcript);
   if (event.type === "error") status.textContent = event.error?.message || "Ein Verbindungsfehler ist aufgetreten.";
   checkCompletion?.observe(event);
@@ -717,8 +720,8 @@ $("homeDetailsButton").addEventListener("click", showStatistics);
 updateHomeProgress();
 refreshSpeakingGoal();
 $("conversationCardsButton").addEventListener("click", () => { if (stream?.getAudioTracks().some((track) => track.readyState === "live") && !isPaused) togglePause(); showCardChoice(); });
-$("subtitleButton").addEventListener("click", () => { const visible = $("subtitleButton").getAttribute("aria-pressed") !== "true"; $("subtitleButton").setAttribute("aria-pressed", String(visible)); $("practice").classList.toggle("subtitles-off", !visible); messages.setAttribute("aria-hidden", String(!visible)); });
-startButton.addEventListener("click", startSession); pauseButton.addEventListener("click", togglePause); finishButton.addEventListener("click", finishSession); $("conversationBackButton").addEventListener("click", () => { if (stream && !isPaused) togglePause(); showHome(); }); $("keyboardButton").addEventListener("click", () => { status.textContent = "Sprich einfach weiter – die Tastatur kommt als Nächstes."; }); $("summaryBackButton").addEventListener("click", showHome); $("summaryCloseButton").addEventListener("click", showHome); $("statisticsBackButton").addEventListener("click", showHome); $("profileBackButton").addEventListener("click", showHome); $("continueButton").addEventListener("click", () => { showPractice(); startSession(); }); $("homeNavButton").addEventListener("click", showHome); $("cardsNavButton").addEventListener("click", () => showCardChoice()); $("progressNavButton").addEventListener("click", showStatistics); $("profileNavButton").addEventListener("click", showProfile); $("statisticsHomeButton").addEventListener("click", showHome); $("statisticsCardsButton").addEventListener("click", () => showCardChoice()); $("statisticsProfileButton").addEventListener("click", showProfile); $("cardsHomeButton").addEventListener("click", showHome); $("cardsProgressButton").addEventListener("click", showStatistics); $("cardsProfileButton").addEventListener("click", showProfile); $("profileHomeButton").addEventListener("click", showHome); $("profileCardsButton").addEventListener("click", () => showCardChoice()); $("profileProgressButton").addEventListener("click", showStatistics); $("toCardsButton").addEventListener("click", () => showCardChoice()); $("recordAnswerButton").addEventListener("click", recordAnswer); $("revealButton").addEventListener("click", revealAnswer); $("listenButton").addEventListener("click", speakAnswer); $("backToPractice").addEventListener("click", showPractice); updateDue(); updateFocusHint(); scheduleEmmaBlink();
+$("subtitleButton").addEventListener("click", () => { const visible = $("subtitleButton").getAttribute("aria-pressed") !== "true"; $("subtitleButton").setAttribute("aria-pressed", String(visible)); $("practice").classList.toggle("subtitles-off", !visible); messages.setAttribute("aria-hidden", String(!visible)); $("subtitleButton").setAttribute("aria-label", visible?"Untertitel ausschalten":"Untertitel einschalten"); emmaPortrait.refresh(); });
+startButton.addEventListener("click", startSession); pauseButton.addEventListener("click", togglePause); finishButton.addEventListener("click", finishSession); $("conversationBackButton").addEventListener("click", () => { if (stream && !isPaused) togglePause(); showHome(); }); $("keyboardButton").addEventListener("click", () => { status.textContent = "Sprich einfach weiter – die Tastatur kommt als Nächstes."; }); $("summaryBackButton").addEventListener("click", showHome); $("summaryCloseButton").addEventListener("click", showHome); $("statisticsBackButton").addEventListener("click", showHome); $("profileBackButton").addEventListener("click", showHome); $("continueButton").addEventListener("click", () => { showPractice(); startSession(); }); $("homeNavButton").addEventListener("click", showHome); $("cardsNavButton").addEventListener("click", () => showCardChoice()); $("progressNavButton").addEventListener("click", showStatistics); $("profileNavButton").addEventListener("click", showProfile); $("statisticsHomeButton").addEventListener("click", showHome); $("statisticsCardsButton").addEventListener("click", () => showCardChoice()); $("statisticsProfileButton").addEventListener("click", showProfile); $("cardsHomeButton").addEventListener("click", showHome); $("cardsProgressButton").addEventListener("click", showStatistics); $("cardsProfileButton").addEventListener("click", showProfile); $("profileHomeButton").addEventListener("click", showHome); $("profileCardsButton").addEventListener("click", () => showCardChoice()); $("profileProgressButton").addEventListener("click", showStatistics); $("toCardsButton").addEventListener("click", () => showCardChoice()); $("recordAnswerButton").addEventListener("click", recordAnswer); $("revealButton").addEventListener("click", revealAnswer); $("listenButton").addEventListener("click", speakAnswer); $("backToPractice").addEventListener("click", showPractice); updateDue(); updateFocusHint(); emmaPortrait.refresh();
 account.mount($("profile"), () => hasActiveConversation() || reviewRecorder?.state === "recording" || answerStarting || $("recordAnswerButton").disabled);
 const conversationSummary=setupConversationSummary({course:activeCourse,onCelebrate:playLessonFanfare});
 learningStrategy=setupLearningStrategy(activeCourse);
