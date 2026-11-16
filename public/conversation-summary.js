@@ -6,6 +6,12 @@ export function cleanConversationReview(review) {
 export function setupConversationSummary({onCelebrate,course={name:'Englisch'}}) {
  const $=id=>document.getElementById(id);
  const cardsButton=$('summaryCardsButton'),hintsButton=$('summaryHintsButton'),minutesButton=$('summaryMinutesButton');
+ const celebrated=new Set();
+ function celebrate(){
+  $('summaryCelebration').classList.remove('summary-cheer');
+  requestAnimationFrame(()=>$('summaryCelebration').classList.add('summary-cheer'));
+  try{onCelebrate?.();}catch{/* A sound failure must not hide the reward or block learning. */}
+ }
  function select(button){
   for(const tile of [minutesButton,cardsButton,hintsButton])tile.setAttribute('aria-pressed',String(tile===button));
   for(const [tile,panel]of [[cardsButton,$('summaryCardsPreview')],[hintsButton,$('summaryHintsPreview')]]){const expanded=tile===button;tile.setAttribute('aria-expanded',String(expanded));panel.hidden=!expanded;}
@@ -13,9 +19,9 @@ export function setupConversationSummary({onCelebrate,course={name:'Englisch'}})
  const toggle=button=>select(button.getAttribute('aria-pressed')==='true'?null:button);
  cardsButton.onclick=()=>toggle(cardsButton);
  hintsButton.onclick=()=>toggle(hintsButton);
- minutesButton.onclick=()=>{select(minutesButton);onCelebrate();$('summaryCelebration').classList.remove('summary-cheer');requestAnimationFrame(()=>$('summaryCelebration').classList.add('summary-cheer'));};
+ minutesButton.onclick=()=>{select(minutesButton);celebrate();};
  function node(tag,text){const element=document.createElement(tag);element.textContent=text;return element;}
- return {render({cards,focus,review,seconds}){
+ return {render({cards,focus,review,seconds,celebrationId=null,rewardPoints=0}){
   const minutes=Math.max(0,Math.round(seconds/60)),feedback=cleanConversationReview(review);
   $('summaryText').textContent=`Du hast ${minutes} Minuten ${course.name} gesprochen.`;
   $('summaryMinutes').textContent=minutes;$('summaryCards').textContent=cards.length;$('summaryFocus').textContent=3;
@@ -32,5 +38,10 @@ export function setupConversationSummary({onCelebrate,course={name:'Englisch'}})
   ]){const section=node('section','');section.append(node('h3',title));const list=node('ul','');for(const text of feedback[key].length?feedback[key]:[fallback])list.append(node('li',text));section.append(list);hints.append(section);}
   const topics=$('summaryTopics');topics.replaceChildren();for(const item of focus){const chip=node('span',item.pattern);chip.className='summary-topic';topics.append(chip);}
   select(null);
+  const reward=$('summaryReward');reward.hidden=!celebrationId;reward.replaceChildren();
+  if(celebrationId){
+   reward.append(node('strong','🏅 Gespräch geschafft!'),node('p',rewardPoints>0?`⭐ Deine ${rewardPoints} Tagespunkte sind gesichert · einmal pro Tag.`:'Du hast dir Zeit zum Sprechen genommen. Dein Einsatz zählt!'));
+   if(!celebrated.has(celebrationId)){celebrated.add(celebrationId);celebrate();}
+  }
  }};
 }

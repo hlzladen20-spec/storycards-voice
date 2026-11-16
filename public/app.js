@@ -4,8 +4,8 @@ import { createLearningStorage, getActiveCourse, showLanguageSettings } from "/l
 import { initCloudAccount } from "/cloud-account.js";
 import { planDailyLesson, lessonQueue, retryAllowed, difficultCards } from "/lesson-planner.js";
 import { appendLearningImage } from "/learning-images.js";
-import { learningStreak, addPracticeDay, recoverPracticeDays } from "/learning-streak.js";
-import {rewardPracticeDay} from "/streak-rewards.js";
+import { learningStreak, addPracticeDay, recoverPracticeDays, calendarDayKey } from "/learning-streak.js";
+import {rewardPracticeDay,DAILY_POINTS} from "/streak-rewards.js";
 import {setupStreakRewardsUI} from "/streak-rewards-ui.js";
 import { speakingGoal, remainingSpeakingSeconds, addSpeakingSeconds, approveAnotherSpeakingLesson } from "/speaking-goal.js";
 import { setupVocabularyTrainer } from "/vocabulary-trainer.js";
@@ -624,7 +624,8 @@ async function finishSession() {
 
 function showSummary(newCards,focus,review,seconds=sessionCountedSeconds) {
  $('vocabulary')?.classList.add('hidden');$('cardChoice').classList.add('hidden');$('practice').classList.add('hidden');$('summary').classList.remove('hidden');document.body.classList.remove('in-conversation');
- conversationSummary.render({cards:newCards,focus,review,seconds});
+ const practiced=seconds>0 && transcript.some(turn=>turn.role==='learner' && String(turn.text||'').trim());
+ conversationSummary.render({cards:newCards,focus,review,seconds,celebrationId:practiced?String(startedAt):null,rewardPoints:practiced && learningStats.streakRewards?.earnedDays?.includes(calendarDayKey())?DAILY_POINTS:0});
 }
 function showConversationContinue(){
  const button=$('continueConversationButton');
