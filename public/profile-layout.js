@@ -39,8 +39,10 @@ export function setupProfileLayout({profile,getPlan}){
  const accountPanel=find('.cloud-account');
  const account=group('profileAccountSection','Konto & Sicherung','Anmelden, synchronisieren und Daten sichern','<path d="M7 18H6a4 4 0 0 1-1-8 7 7 0 0 1 13-2 5 5 0 0 1 0 10h-1M12 12v9m-3-3 3 3 3-3"/>',[accountPanel]);
  const developer=find('.developer-tools');
- const admin=find('.admin-usage');if(admin)sections.push(admin);
- if(developer){developer.setAttribute('name','profile-settings');profile.insertBefore(developer,nav);sections.push(developer);}
+ const admin=find('.admin-usage');
+ if(admin){profile.insertBefore(admin,nav);sections.push(admin);}
+ // Nested tools must not join the outer accordion group or close their admin parent.
+ if(developer){const host=admin?.querySelector('.profile-group-content');if(host)host.append(developer);else developer.remove();}
  // Old loose headings are replaced by the labelled groups; voice controls keep their handlers.
  for(const heading of profile.querySelectorAll(':scope > .profile-section-title'))heading.remove();
  find('.coach-choice>b')?.remove();

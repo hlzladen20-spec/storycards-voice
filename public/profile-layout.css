@@ -27,8 +27,8 @@
 .profile-organized #saveProfileButton:disabled{background:#dce5dc;color:#6d8075;box-shadow:none;opacity:1;cursor:default}
 .profile-group-content .vocab-management>h3{margin:0 0 8px}.profile-group-content .vocab-management details{margin:12px 0}
 .profile-group-content .coach-choice{grid-template-columns:40px minmax(0,1fr)}.profile-group-content .coach-choice img{width:40px;height:40px}
-.profile-organized>.developer-tools{margin:22px 0 12px;padding:15px;background:#f0f1eb;border-color:#e0e3d9}
-.profile-organized>.developer-tools>summary{font-size:.8rem;color:#60746a}
+.admin-usage .developer-tools{margin:22px 0 0;padding:15px;background:#f0f1eb;border:1px solid #e0e3d9;border-radius:14px}
+.admin-usage .developer-tools>summary{font-size:.85rem;color:#173f3a}
 .profile-organized summary:focus-visible,.profile-organized button:focus-visible{outline:3px solid #68ab90;outline-offset:3px}
 @media(max-width:350px){.profile-settings-group>summary{padding:15px 11px;gap:8px;grid-template-columns:26px minmax(0,1fr) 16px}.profile-plan-grid strong{font-size:1.25rem}.profile-overview{padding:17px 12px 10px}}
 @media(prefers-reduced-motion:reduce){.profile-settings-group>summary b{transition:none}}

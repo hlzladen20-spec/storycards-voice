@@ -798,7 +798,7 @@ async function startEnglishCheck(){
  learningStats=englishCheckBudget(learningStats,dailySpeakingMinutes);saveStats();
  englishCheck={started:false};showPractice();startSession();
 }
-setupDeveloperTools({profile:$('profile'),deviceStorage:localStorage,
+setupDeveloperTools({profile:$('profile'),isAdmin:accountIdentity.admin,deviceStorage:localStorage,
  isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || repairingCards,
  onReset:()=>{
   const next=resetDailyState({stats:learningStats,lesson:learningStorage.load('lesson',null),vocabulary:learningStorage.load('vocabulary',null)},{minutes:dailySpeakingMinutes});
