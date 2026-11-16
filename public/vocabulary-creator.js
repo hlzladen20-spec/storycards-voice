@@ -1,6 +1,7 @@
 import {vocabularyRequest,cleanVocabularySuggestions,validateVocabularySuggestion} from './vocabulary-suggestions.js';
+import {authenticatedFetch} from './authenticated-fetch.js';
 
-export function setupVocabularyCreator({anchor,course,onSave,onLearn,onListen,request=fetch}){
+export function setupVocabularyCreator({anchor,course,onSave,onLearn,onListen,request=authenticatedFetch}){
  const open=document.createElement('button');open.type='button';open.className='secondary vocab-create-open';open.id='addVocabularyButton';open.textContent='＋ Vokabel hinzufügen';open.setAttribute('aria-expanded','false');open.setAttribute('aria-controls','vocabularyCreator');
  const area=document.createElement('section');area.id='vocabularyCreator';area.className='vocab-create';area.hidden=true;
  area.setAttribute('aria-label','Persönliche Vokabel hinzufügen');

@@ -9,3 +9,18 @@
 .cloud-account .cloud-conflict{padding:12px;margin-top:12px;border:1px solid #e9dcb7;border-radius:12px;background:#fff5de}
 .cloud-account .cloud-import-help{font-size:.73rem;color:#667b74}
 .cloud-account input:focus-visible{outline:2px solid #16846a;outline-offset:3px}
+.account-locked .app,.account-locked .bottom-nav{display:none!important}
+.account-startup{display:none;text-align:center;margin:30px;color:#173f3a}
+.account-locked .account-startup{display:block}
+body:has(.account-gate) .account-startup{display:none}
+.account-gate{max-width:440px;margin:24px auto;padding:24px;background:#fffdf8;border:1px solid #e5e9df;border-radius:26px;box-shadow:0 8px 22px #173f3a10;color:#173f3a}
+.account-gate>img{width:64px;height:64px;border-radius:16px}
+.account-gate h1{font-size:1.8rem;line-height:1.15}
+.account-gate>p{line-height:1.5}.account-gate .account-privacy{font-size:.8rem;color:#50665f}
+.account-gate .cloud-account{box-shadow:none;border:0;padding:0}.account-gate-message:empty{display:none}
+.account-gate .cloud-account h3,.account-gate .cloud-identity,.account-gate .cloud-guest>p{display:none}
+.account-gate{margin:12px auto;padding:20px}.account-gate h1{margin:12px 0}.account-gate>img{width:50px;height:50px}
+.account-gate button{min-height:44px}
+.usage-filter{display:flex;flex-wrap:wrap;gap:8px;align-items:end}.usage-filter label{flex:1;min-width:110px;display:grid;gap:6px;font-size:.8rem}.usage-filter input{max-width:100%;min-width:0;padding:10px;border:1px solid #d3dfd8;border-radius:10px;font:inherit;background:#fffdf8;color:#173f3a}
+.usage-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:12px 0}.usage-totals>div{display:grid;padding:12px 6px;border-radius:12px;background:#e6f1e9;text-align:center;overflow-wrap:anywhere}.usage-totals strong{font-size:1.1rem}.usage-totals small{font-size:.68rem;margin-top:6px}
+.usage-users>details{padding:12px 0;border-bottom:1px solid #dce6dd}.usage-users summary{overflow-wrap:anywhere;cursor:pointer;font-weight:700}.usage-users p,.usage-note,.usage-status{font-size:.8rem;line-height:1.5;overflow-wrap:anywhere}.usage-detail{padding:8px;background:#f2f4ed;border-radius:9px}

@@ -1,3 +1,4 @@
+import {authenticatedFetch as fetch} from './authenticated-fetch.js';
 const messages = document.getElementById('messages');
 const cache = new Map();
 function prepare(message) {

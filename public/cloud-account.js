@@ -1,9 +1,7 @@
-import {createAccountStorage,guestSnapshot,validateSnapshot} from './account-data.js';
+import {createAccountStorage,guestSnapshot,validateSnapshot,hasLearningProgress} from './account-data.js';
+import {SUPABASE_URL as URL,SUPABASE_PUBLIC_KEY as KEY} from './account-config.js';
 import {confirmDialog} from './app-dialog.js';
 
-const URL='https://tidaagozwtxphtkoavab.supabase.co';
-// This is intentionally public. Database access is restricted by RLS, not this key.
-const KEY='sb_publishable_17GIrUmozZ_v-eTtc3ykRQ_S5c4W0jM';
 const SITE='https://storycards-voice.onrender.com';
 
 export async function initCloudAccount(raw) {
@@ -18,7 +16,7 @@ export async function initCloudAccount(raw) {
     const result=await client.auth.getSession();
     if(result.error) throw result.error;
     session=result.data.session;
-  } catch(error) { errorText='Anmeldung derzeit nicht erreichbar. Deine lokalen Karten bleiben verfügbar.'; }
+  } catch(error) { errorText='Anmeldung derzeit nicht erreichbar. Deine lokalen Karten bleiben gespeichert. Bitte erneut versuchen.'; }
   const owner=session?.user?.id || null;
   if(client) client.auth.onAuthStateChange((_event,current)=>{
     if(started && (current?.user?.id || null)!==owner) {
@@ -73,7 +71,10 @@ export async function initCloudAccount(raw) {
       if(version!==meta.version) {conflict=remote || {payload:{},version:0};throw new Error('sync_conflict');}
       await upload();
     } else {
-      if(remote) storage.replace(remote.payload);
+      if(remote) {
+        if(hasLearningProgress(storage.snapshot())&&JSON.stringify(storage.snapshot())!==JSON.stringify(remote.payload))raw.setItem(`storycards-before-sync:${owner}:${Date.now()}`,JSON.stringify(storage.snapshot()));
+        storage.replace(remote.payload);
+      }
       meta.version=version;meta.lastSync=remote?.updated_at;saveMeta();
       notice=remote?'Dein gespeicherter Lernstand wurde geladen.':'Dein Konto ist bereit. Noch keine Lerndaten online gespeichert.';
     }
@@ -112,7 +113,7 @@ export async function initCloudAccount(raw) {
     panel=document.createElement('section');panel.className='profile-card cloud-account';
     panel.innerHTML=`<h3>Dein Konto & Datensicherung</h3>
       <p class="cloud-identity"></p>
-      <div class="cloud-guest"><p>Mit einem Konto kannst du deine Karten und deinen Lernstand auf einem anderen Gerät wiederfinden. Dein Passwort wird von Supabase verwaltet.</p>
+      <div class="cloud-guest"><p>Bitte melde dich an oder erstelle ein Konto. Dein bisheriger Lernstand bleibt auf diesem Gerät erhalten. Dein Passwort wird von Supabase verwaltet.</p>
       <form class="cloud-auth"><label>E-Mail<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
       <label>Passwort<input name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required></label>
       <button class="primary" type="submit">Anmelden</button><button class="secondary" type="button" data-action="signup">Konto erstellen</button>
@@ -122,6 +123,7 @@ export async function initCloudAccount(raw) {
       <p class="cloud-import-help">Die Daten ohne Anmeldung bleiben erhalten. Eine Übernahme ist nur in einen noch leeren Lernstand möglich.</p>
       <button class="ghost" type="button" data-action="export">Sicherung herunterladen</button><button class="ghost" type="button" data-action="logout">Abmelden</button></div>
       <form class="cloud-recovery hidden"><label>Neues Passwort<input name="newPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required></label><button type="submit" class="primary">Neues Passwort speichern</button></form>
+      <button type="button" class="ghost" data-action="guest-backup">Bisherige lokale Lerndaten sichern</button>
       <p class="cloud-status" role="status" aria-live="polite"></p>
       <div class="cloud-conflict hidden"><strong>Unterschiedliche Lernstände</strong><p>Es wird nichts automatisch überschrieben. Lade zuerst eine Sicherung herunter.</p>
       <button class="secondary" type="button" data-action="remote">Online-Stand laden</button><button class="secondary" type="button" data-action="local">Diesen Gerätestand online übernehmen</button></div>`;
@@ -166,15 +168,19 @@ export async function initCloudAccount(raw) {
     });
     panel.querySelector('[data-action=import]').onclick=()=>action(async()=>{
       busy();const current=storage.snapshot();
-      const meaningful=Object.entries(current).some(([key,value])=>key.endsWith(':cards')?JSON.parse(value).length>0:key.endsWith(':stats')?Number(JSON.parse(value).conversations)>0:false);
+      const meaningful=hasLearningProgress(current);
       if(meaningful) {notice='Dein Konto enthält bereits Lerndaten. Sie werden nicht überschrieben. Die bisherigen lokalen Daten bleiben ohne Anmeldung verfügbar.';return;}
       if(!await confirmDialog({title:'Lokale Lerndaten übernehmen?',message:'Deine bisherigen Karten, Lernstände und Einstellungen werden in dieses Konto kopiert.',note:'Die Daten ohne Anmeldung bleiben auf diesem Gerät erhalten.',confirmText:'Daten übernehmen'})){notice='Übernahme abgebrochen. Deine Lerndaten bleiben unverändert.';return;}
       busy();
-      const data=guestSnapshot(raw);storage.replace(data);changed();await sync();location.reload();
+      importGuest();await sync();location.reload();
     });
     panel.querySelector('[data-action=export]').onclick=()=>{
       const blob=new Blob([JSON.stringify({format:'storycards-backup-v1',createdAt:new Date().toISOString(),data:storage.snapshot()},null,2)],{type:'application/json'});
       const href=window.URL.createObjectURL(blob),link=document.createElement('a');link.href=href;link.download='StoryCards-Sicherung.json';link.click();setTimeout(()=>window.URL.revokeObjectURL(href),1000);
+    };
+    panel.querySelector('[data-action=guest-backup]').onclick=()=>{
+      const blob=new Blob([JSON.stringify({format:'storycards-backup-v1',createdAt:new Date().toISOString(),data:guestSnapshot(raw)},null,2)],{type:'application/json'});
+      const href=window.URL.createObjectURL(blob),link=document.createElement('a');link.href=href;link.download='StoryCards-bisheriger-Lernstand.json';link.click();setTimeout(()=>window.URL.revokeObjectURL(href),1000);
     };
     panel.querySelector('[data-action=remote]').onclick=()=>action(async()=>{
       busy();if(!await confirmDialog({title:'Online-Stand laden?',message:'Dein aktueller Gerätestand wird durch den Online-Stand ersetzt.',note:'Vorher wird dein Gerätestand separat auf diesem Gerät gesichert.',confirmText:'Online-Stand laden'})){notice='Laden abgebrochen. Dein Gerätestand bleibt unverändert.';return;}
@@ -197,5 +203,15 @@ export async function initCloudAccount(raw) {
       setInterval(()=>{if(document.visibilityState==='visible')sync().catch(()=>{});},60000);
     }
   }
-  return {storage,mount,user:session?.user||null,sync};
+  function importGuest(){
+    if(!owner||conflict||hasLearningProgress(storage.snapshot()))throw Error('Vorhandene Lerndaten werden nicht überschrieben. Bitte im Profil prüfen.');
+    const data=guestSnapshot(raw);storage.replace(data);changed();
+  }
+  async function accessToken(){
+    if(!client||identityChanged)return null;
+    const {data,error}=await client.auth.getSession();
+    if(error||data.session?.user?.id!==owner)return null;
+    return data.session?.access_token||null;
+  }
+  return {storage,mount,user:session?.user||null,sync,accessToken,importGuest};
 }

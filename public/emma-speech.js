@@ -1,5 +1,6 @@
 // A shared player for cards and vocabulary. No keys or generated audio in learning snapshots.
-export function createEmmaSpeech({getVoice=()=> 'marin',fetcher=(...args)=>fetch(...args),makeAudio=url=>new Audio(url),urls=URL,cacheLimit=40}={}){
+import {authenticatedFetch} from './authenticated-fetch.js';
+export function createEmmaSpeech({getVoice=()=> 'marin',fetcher=(...args)=>authenticatedFetch(...args),makeAudio=url=>new Audio(url),urls=URL,cacheLimit=40}={}){
  let serial=0,current=null,controller=null,lastStatus=()=>{};const cache=new Map();
  function stop(){serial++;controller?.abort();controller=null;if(current){current.pause();current=null;}lastStatus('');lastStatus=()=>{};}
  async function speak(text,{language='en',onStatus=()=>{}}={}){

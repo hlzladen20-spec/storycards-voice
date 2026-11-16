@@ -34,5 +34,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
+  },
+  "dependencies": {
+    "ws": "8.23.0"
   }
 }

@@ -1,6 +1,17 @@
 export function isLearningKey(key) {
   return /^(storycards:(?:[a-z]{2}):(?:[a-z]{2}):(?:cards|profile|stats|lesson|vocabulary)|storycards-(?:daily-limit|speaking-minutes|active-language|image-hints))$/.test(key);
 }
+export function hasLearningProgress(data){
+ return Object.entries(data).some(([key,value])=>{
+  try{const v=JSON.parse(value);
+   if(key.endsWith(':cards'))return Array.isArray(v)&&v.length>0;
+   if(key.endsWith(':vocabulary'))return (v.words?.length||0)>0||(v.history?.length||0)>0;
+   if(key.endsWith(':stats'))return Object.entries(v).some(([name,n])=>!['version'].includes(name)&&(typeof n==='number'?n>0:Array.isArray(n)?n.length>0:n&&typeof n==='object'?Object.keys(n).length>0:false));
+   if(key.endsWith(':profile'))return (v.proficiency?.sessions?.length||0)>0||(v.focus?.length||0)>0;
+   return false;
+  }catch{return true;}
+ });
+}
 export function validateSnapshot(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Ungültige Sicherung.');
   if (JSON.stringify(data).length > 4000000) throw new Error('Die Sicherung ist zu groß. Bitte kontaktiere den Support.');
