@@ -1,0 +1,5 @@
+.streak-rewards{margin:0 0 20px;padding:15px 17px;border:1px solid #d8e5da;border-radius:20px;background:#f8faf4;color:#19483e}
+.streak-rewards>strong{font-size:1rem}.streak-rewards p{font-size:.8rem;line-height:1.5;margin:7px 0 0;color:#526e63}
+.streak-rewards button{width:100%;margin-top:12px;min-height:44px;white-space:normal}.streak-rewards button:disabled{opacity:.55}
+.streak-rewards [hidden]{display:none!important}.streak-rewards button:focus-visible{outline:3px solid #16806a;outline-offset:3px}
+.streak-rewards .streak-rewards-status:empty{display:none}.streak-rewards .streak-rewards-status{color:#126951;font-weight:650}

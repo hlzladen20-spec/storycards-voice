@@ -11,8 +11,8 @@ function validDays(days) {
   });
 }
 
-export function learningStreak(days, now = new Date()) {
-  const dates = new Set(validDays(days));
+export function learningStreak(days, now = new Date(), protectedDays = []) {
+  const dates = new Set([...validDays(days),...validDays(protectedDays)]);
   const cursor = new Date(now);
   cursor.setHours(12,0,0,0);
   // Yesterday's series remains active until the user has all of today to practise.

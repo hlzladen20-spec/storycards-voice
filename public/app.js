@@ -5,6 +5,8 @@ import { initCloudAccount } from "/cloud-account.js";
 import { planDailyLesson, lessonQueue, retryAllowed, difficultCards } from "/lesson-planner.js";
 import { appendLearningImage } from "/learning-images.js";
 import { learningStreak, addPracticeDay, recoverPracticeDays } from "/learning-streak.js";
+import {rewardPracticeDay} from "/streak-rewards.js";
+import {setupStreakRewardsUI} from "/streak-rewards-ui.js";
 import { speakingGoal, remainingSpeakingSeconds, addSpeakingSeconds, approveAnotherSpeakingLesson } from "/speaking-goal.js";
 import { setupVocabularyTrainer } from "/vocabulary-trainer.js";
 import { conversationMode, conversationModeInstructions } from "/conversation-modes.js";
@@ -113,6 +115,7 @@ function moveReviewCard(back = false) {
       $("voiceFeedback").textContent="Versuche den Satz selbst zu sprechen oder decke die Antwort auf.";
       return;
     }
+    if(!introduction && result)recordPracticeDay();
     queue.shift();reviewHistory.push(card);
     if(introduction) {
       const plan=dailyLesson();plan.introduced=[...new Set([...(plan.introduced||[]),card.id])];learningStorage.save("lesson",plan);
@@ -240,6 +243,7 @@ function startReviewMeter(inputStream) {
 }
 let learningProfile = learningStorage.load("profile", {focus:[]});
 let learningStats = learningStorage.load("stats", {conversations:0,minutes:0,practiceDays:[]});
+let streakRewardsUI=null;
 const recoveredStats = recoverPracticeDays(learningStats, cards);
 if (JSON.stringify(recoveredStats.practiceDays) !== JSON.stringify(learningStats.practiceDays)) {
   learningStats = recoveredStats;
@@ -343,7 +347,7 @@ setupCardManager(() => cards, updated => {
 },activeCourse);
 function saveStats() { learningStorage.save("stats", learningStats); updateHomeProgress(); }
 function updateHomeProgress() {
- $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`;
+ $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`;
  $("homeLearned").textContent = cards.filter((card) => Number(card.knownStreak || 0) > 0).length;
  $("homeMinutes").textContent = `${Number(learningStats.minutes || 0)} min`;
  const vocabulary=learningStorage.load("vocabulary",{words:[]});
@@ -351,10 +355,11 @@ function updateHomeProgress() {
  const known=words.filter(word=>word.stage>0 && word.lastRating==='yes').length;
  $("homeVocabulary").textContent=`${known}/${words.length}`;
  $("homeVocabularyButton").setAttribute("aria-label",`${known} von ${words.length} Vokabelkarten gelernt. Alle Vokabelkarten anzeigen`);
+ streakRewardsUI?.refresh();
 }
 function recordPracticeDay() {
-  const updated = addPracticeDay(learningStats);
-  if (JSON.stringify(updated.practiceDays) !== JSON.stringify(learningStats.practiceDays)) {
+  const updated = rewardPracticeDay(learningStats);
+  if (JSON.stringify(updated) !== JSON.stringify(learningStats)) {
     learningStats = updated;
     saveStats();
   }
@@ -706,7 +711,7 @@ function showReview(includeAll = false) {
   repairFailed=false;delete $("card").dataset.finished;renderCard();
 }
 function fillInsightList(id, items, kind) { const list = $(id); list.replaceChildren(); items.forEach((item) => { const row = document.createElement("li"); row.textContent = item; row.className = kind; list.append(row); }); }
-function showStatistics() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = renderLearnedStatistics($("statistics"),cards,learningStorage.load("vocabulary",{words:[]}),activeCourse).cards; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
+function showStatistics() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = renderLearnedStatistics($("statistics"),cards,learningStorage.load("vocabulary",{words:[]}),activeCourse).cards; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
 function showProfile() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
 function renderCard() {
   const card=queue[0];answerVisible=false;
@@ -803,3 +808,8 @@ refreshSpeakingGoal();
 await import("/cards-design.js");
 setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinutes,cards:dailyCardLimit,vocabulary:learningStorage.load('vocabulary',{}).dailyLimit||15})});
 $('saveProfileButton').textContent='Lernziele speichern';
+streakRewardsUI=setupStreakRewardsUI({
+ host:document.querySelector('.home-progress'),getStats:()=>learningStats,
+ saveStats:next=>{learningStorage.save('stats',next);learningStats=next;updateHomeProgress();},
+ isBusy:()=>hasActiveConversation() || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || repairingCards
+});
