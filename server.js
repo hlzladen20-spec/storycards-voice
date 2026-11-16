@@ -183,13 +183,17 @@ export function createApp() {
   });
 }
 
-export function startServer(port = Number(process.env.PORT || 3000)) {
+export function startServer(port = Number(process.env.PORT || 3000), host = '0.0.0.0') {
   const server = createApp();
-  return new Promise((resolve) => server.listen(port, () => {
+  return new Promise((resolve,reject) => {
+   server.once('error',reject);
+   server.listen({port,host}, () => {
+    server.removeListener('error',reject);
     const address = server.address();
-    console.log(`StoryCards Voice is listening on ${address.port}`);
+    console.log(`StoryCards Voice is listening on http://${host}:${address.port} · health: /health`);
     resolve({ server, port: address.port });
-  }));
+   });
+  });
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) startServer();
