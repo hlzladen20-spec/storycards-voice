@@ -6,7 +6,7 @@ import {confirmDialog} from './app-dialog.js';
 import {setupVocabularyCreator} from './vocabulary-creator.js';
 import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
 
-export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[],course=LANGUAGE_COURSES.en}) {
+export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[],speech,course=LANGUAGE_COURSES.en}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now();
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
@@ -14,7 +14,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  panel.innerHTML=`<button class="ghost vocab-back" type="button">← Zurück zu den Karten</button>
  <p class="vocab-time"></p><p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Bereits gekonnte Vokabeln deiner Tagesportion" max="15" value="0"></progress>
  <div class="vocab-word" tabindex="0" aria-label="Kurzer Satz zur Selbstkontrolle"></div>
- <div class="vocab-controls">
+ <p class="vocab-audio-status emma-speech-status" role="status"></p><div class="vocab-controls">
  <p class="vocab-status" role="status" aria-live="polite"></p>
  <button class="primary vocab-reveal" type="button">Antwort aufdecken</button>
  <div class="vocab-ratings" role="group" aria-label="Wie sicher war deine Antwort?" hidden><button type="button" data-grade="no" class="secondary">Nicht gewusst</button><button type="button" data-grade="hard" class="secondary">Mit Fehlern<small>Bald wiederholen</small></button><button type="button" data-grade="yes" class="secondary">Gewusst</button></div>
@@ -53,7 +53,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   button.querySelector('small').textContent=done?(lesson.closed?'Tagesrunde geschafft! Freiwillig weiterlernen.':'Tagesziel geschafft · Zusatzrunde fortsetzen.'):'Aufdecken, vergleichen und üben';
  }
  function line(text,tag='p'){const node=document.createElement(tag);node.textContent=text;return node;}
- function say(text){if(!window.speechSynthesis)return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang=course.locale;utterance.rate=.85;window.speechSynthesis.speak(utterance);}
+ function say(text){void speech?.speak(text,{language:course.target,onStatus:value=>{$('.vocab-audio-status').textContent=value;}});}
  function wordView(word,answer=false){
   const box=$('.vocab-word');box.replaceChildren(line(word.front,'h3'));
   if(answer){const english=line(`${course.flag} ${word.back} 🔊`,'button');english.type='button';english.className='ghost';english.setAttribute('aria-label',`${course.name}: kurzen Satz anhören`);english.onclick=()=>say(word.back);box.append(english);}
@@ -79,6 +79,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
   manage('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
  }
  function render(){
+  speech?.stop();
   state=vocabularyLesson(state);
   if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
   save();progress();renderLists();refreshSettings();refreshChoice();
@@ -116,8 +117,8 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  }
  function syncCards(){state=importConversationVocabulary(state,getCards());save();renderLists();refreshChoice();}
  button.onclick=()=>{syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;render();};
- $('.vocab-back').onclick=()=>document.getElementById('choiceCardsButton').click();
- $('.vocab-finish').onclick=()=>{tick();save();window.speechSynthesis?.cancel();document.getElementById('choiceCardsButton').click();};
+ $('.vocab-back').onclick=()=>{speech?.stop();document.getElementById('choiceCardsButton').click();};
+ $('.vocab-finish').onclick=()=>{speech?.stop();tick();save();window.speechSynthesis?.cancel();document.getElementById('choiceCardsButton').click();};
  panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
  $('.vocab-reveal').onclick=revealCurrent;

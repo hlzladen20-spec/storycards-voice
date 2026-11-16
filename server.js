@@ -6,10 +6,12 @@ import { normaliseCards } from "./lib/flashcards.js";
 import {cleanConversationReview} from './public/conversation-summary.js';
 import {resolveCourse,courseText,courseInstruction} from './public/language-courses.js';
 import {resolveVoice} from './public/emma-voices.js';
+import {createEmmaSpeechService} from './lib/emma-speech.js';
 import {audioServiceError} from './lib/audio-errors.js';
 import {vocabularyRequest,cleanVocabularySuggestions,vocabularySuggestionFormat} from './public/vocabulary-suggestions.js';
 
 const apiKey = process.env.OPENAI_API_KEY;
+const emmaSpeech=createEmmaSpeechService({getKey:()=>apiKey});
 const projectDir = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(projectDir, "public");
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml", ".png": "image/png" };
@@ -142,6 +144,14 @@ async function suggestVocabulary(req,res){
   return json(res,200,{suggestions});
  }catch{return json(res,502,{error:'Der Satz konnte gerade nicht erstellt werden. Bitte erneut versuchen.'});}
 }
+async function readCardSpeech(req,res){
+ const chunks=[];let size=0;
+ for await(const chunk of req){size+=chunk.length;if(size>4096)return json(res,413,{error:'Der Satz ist zu lang.'});chunks.push(Buffer.from(chunk));}
+ const raw=Buffer.concat(chunks).toString('utf8');
+ let input;try{input=JSON.parse(raw);}catch{return json(res,400,{error:'Ungültiger Satz.'});}
+ try{const audio=await emmaSpeech(input);res.writeHead(200,{'Content-Type':'audio/mpeg','Cache-Control':'private, no-store'});res.end(audio);}
+ catch(error){return json(res,error.status||503,{error:error.status?error.message:'Emma kann gerade nicht vorlesen.'});}
+}
 export function createApp() {
   return createServer(async (req, res) => {
   try {
@@ -149,6 +159,7 @@ export function createApp() {
     if (req.method === "POST" && req.url.split('?')[0] === "/api/realtime/session") return await startRealtimeSession(req, res);
     if (req.method === "POST" && req.url === "/api/flashcards") return await createFlashcards(req, res);
     if (req.method === "POST" && req.url === "/api/card-answer") return await reviewCardAnswer(req, res);
+    if (req.method === 'POST' && req.url === '/api/card-speech') return await readCardSpeech(req,res);
     if (req.method === "POST" && req.url === "/api/translate-word") return await translateWord(req, res);
     if (req.method === "POST" && req.url === "/api/vocabulary-suggestion") return await suggestVocabulary(req, res);
     if (req.method === "GET" && ["/cards.js", "/fsrs.mjs"].includes(req.url)) {

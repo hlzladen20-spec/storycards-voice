@@ -9,6 +9,7 @@
 .summary-cheer{animation:summary-cheer .7s ease}@keyframes summary-cheer{30%{transform:scale(1.4) rotate(-10deg)}70%{transform:scale(1.15) rotate(8deg)}}
 .summary-reward{margin:16px 0;padding:16px;border:1px solid #c8dfcc;border-radius:18px;background:linear-gradient(125deg,#e4f3e7,#fff4d8);color:#19483e;text-align:center}
 .summary-reward[hidden]{display:none!important}.summary-reward strong{font-size:1.1rem}.summary-reward p{font-size:.85rem;line-height:1.5;margin:8px 0 0}
+.emma-speech-status{font-size:.8rem;line-height:1.4;color:#526e63;margin:6px 0;overflow-wrap:anywhere}.emma-speech-status:empty{display:none}
 .learning-strategy-dialog{max-width:min(390px,calc(100vw - 32px));padding:26px;border:1px solid #dce7dc;border-radius:22px;background:#fffdf8;color:#153934;box-shadow:0 12px 60px #12392e40}
 .learning-strategy-dialog::backdrop{background:#12392e80}.learning-strategy-dialog h2{font-size:1.4rem}.learning-strategy-dialog p{font-size:1rem;line-height:1.5;margin:14px 0 22px}
 .card-vocabulary-toolbar{display:flex;align-items:center;gap:8px;flex:none;font-size:.75rem}.card-vocabulary-toolbar[hidden]{display:none}.card-vocabulary-mark{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:.75rem;min-height:34px}.card-vocabulary-mark svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.card-vocabulary-mark[aria-pressed=true]{background:#e0f1e7}.card-vocabulary-mark:disabled{opacity:.5}

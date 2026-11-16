@@ -29,6 +29,7 @@ import {setupConversationTopicPicker} from '/conversation-topic-picker.js';
 import {courseText,courseInstruction} from '/language-courses.js';
 import {applyCourseLabels} from '/language-ui.js';
 import {checkGreeting} from '/english-check.js';
+import {createEmmaSpeech} from '/emma-speech.js';
 import {EMMA_VOICES,setupVoiceSettings} from '/emma-voices.js';
 import {checkCompletionTool,createCheckCompletion} from '/check-completion.js';
 const bootNotice = document.createElement("p");
@@ -243,6 +244,11 @@ function startReviewMeter(inputStream) {
   } catch { /* Recording remains available if audio visualisation is unsupported. */ }
 }
 let learningProfile = learningStorage.load("profile", {focus:[]});
+const cardSpeech=createEmmaSpeech({getVoice:()=>EMMA_VOICES.includes(learningProfile.emmaVoice)?learningProfile.emmaVoice:'marin'});
+document.addEventListener('pointerdown',()=>cardSpeech.stop(),true);
+document.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key))cardSpeech.stop();},true);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)cardSpeech.stop();});
+window.addEventListener('pagehide',()=>cardSpeech.clear());
 let learningStats = learningStorage.load("stats", {conversations:0,minutes:0,practiceDays:[]});
 let streakRewardsUI=null;
 const recoveredStats = recoverPracticeDays(learningStats, cards);
@@ -716,6 +722,7 @@ function fillInsightList(id, items, kind) { const list = $(id); list.replaceChil
 function showStatistics() { renderLearningWeek($("statistics"),learningStats); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = renderLearnedStatistics($("statistics"),cards,learningStorage.load("vocabulary",{words:[]}),activeCourse).cards; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
 function showProfile() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
 function renderCard() {
+  cardSpeech.stop();
   const card=queue[0];answerVisible=false;
   window.speechSynthesis?.cancel();vocabularyMark?.refresh(card);
   $("revealButton").classList.add("hidden");$("listenButton").classList.add("hidden");$("ratingButtons").classList.add("hidden");
@@ -738,16 +745,12 @@ function revealAnswer() {
   if(imageHintsEnabled) appendLearningImage($("card"),card);
   $("revealButton").classList.add("hidden");$("recordAnswerButton").classList.remove("hidden");$("speakPrompt").classList.add("hidden");$("listenButton").classList.remove("hidden");$("ratingButtons").classList.remove("hidden");
 }
-function speakAnswer() { const card = queue[0]; if (!card || !window.speechSynthesis) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(card.back); utterance.lang = activeCourse.locale; utterance.rate = 0.85; speechSynthesis.speak(utterance); }
+function speakAnswer() { const card=queue[0];if(!card || reviewRecorder?.state==='recording')return;void cardSpeech.speak(card.back,{language:activeCourse.target,onStatus:text=>{$('cardSpeechStatus').textContent=text;}}); }
 function readCardSentence(element) {
-  if (!window.speechSynthesis || !queue[0] || reviewRecorder?.state === "recording") return;
+  if (!queue[0] || reviewRecorder?.state === "recording") return;
   const english = element.classList.contains("back");
-  speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(english ? queue[0].back : queue[0].front);
-  utterance.lang = english ? activeCourse.locale : "de-DE"; utterance.rate = 0.85;
-  const voice = speechSynthesis.getVoices().find((item) => item.lang.toLowerCase().startsWith(english ? activeCourse.target : "de"));
-  if (voice) utterance.voice = voice;
-  speechSynthesis.speak(utterance);
+  void cardSpeech.speak(english?queue[0].back:queue[0].front,{language:english?activeCourse.target:'de',onStatus:text=>{$('cardSpeechStatus').textContent=text;}});
+
 }
 new MutationObserver(() => { $("card").querySelectorAll(":scope > span").forEach((sentence) => { sentence.tabIndex = 0; sentence.setAttribute("role", "button"); sentence.title = "Antippen zum Vorlesen"; sentence.setAttribute("aria-label", `${sentence.classList.contains("back") ? activeCourse.name+"en" : "Deutschen"} Satz vorlesen`); }); }).observe($("card"), { childList:true });
 $("card").addEventListener("click", (event) => { const sentence = event.target.closest("#card > span"); if (sentence) readCardSentence(sentence); });
@@ -773,7 +776,7 @@ account.mount($("profile"), () => hasActiveConversation() || reviewRecorder?.sta
 const conversationSummary=setupConversationSummary({course:activeCourse,onCelebrate:playLessonFanfare});
 learningStrategy=setupLearningStrategy(activeCourse);
 setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learningProfile.emmaVoice)?learningProfile.emmaVoice:'marin',onChange:voice=>{const next={...learningProfile,emmaVoice:voice};learningStorage.save('profile',next);learningProfile=next;}});
-setupVocabularyTrainer({course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
+setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
 proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});},onCheck:startEnglishCheck});

@@ -7,7 +7,7 @@ export function resolveVoice(value='marin'){
 export function setupVoiceSettings({profile,getVoice,onChange}){
  const section=profile.querySelector('.coach-choice');section.replaceChildren();
  const title=document.createElement('strong');title.textContent='Emmas Stimme';
- const hint=document.createElement('p');hint.textContent='Wähle eine KI-Stimme fürs nächste Gespräch. Die Stimme lässt sich im laufenden Gespräch nicht austauschen. Lernkarten nutzen weiterhin die Vorlesestimme deines Geräts.';
+ const hint=document.createElement('p');hint.textContent='Wähle eine KI-Stimme fürs nächste Gespräch. Die Stimme lässt sich im laufenden Gespräch nicht austauschen. Karten und Vokabeln nutzen dieselbe gewählte KI-Stimme. Beim ersten Vorlesen entstehen zusätzliche KI-Kosten; bereits geladene Sätze werden zwischengespeichert.';
  const choices=document.createElement('div');choices.className='emma-voice-choices';
  const status=document.createElement('p');status.setAttribute('role','status');
  function refresh(){for(const button of choices.children)button.setAttribute('aria-pressed',String(button.dataset.voice===getVoice()));}
