@@ -1,4 +1,16 @@
 /* Shared disclosure styling comes from profile-layout.css. */
+.learning-week{margin-top:18px;padding-top:17px;border-top:1px solid #dce7dc}
+.learning-week-heading{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;color:#173f3a}
+.learning-week-heading h4{margin:0;font-size:1rem}.learning-week-heading small{font-size:.75rem;color:#526e63}
+.learning-week-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;list-style:none;padding:0;margin:13px 0 10px}
+.learning-week-day{display:grid;justify-items:center;gap:5px;padding:10px 2px;border:1px solid #dce7dc;border-radius:12px;background:#fffdf8;color:#526e63;min-width:0}
+.learning-week-day span{font-size:.73rem;font-weight:650}.learning-week-day strong{font-size:1.3rem;line-height:1.2}.learning-week-day small{font-size:.68rem}
+.learning-week-day.status-learned{background:#dceee3;border-color:#aad3be;color:#116146}
+.learning-week-day.status-missed{background:#faeeea;color:#94473c}
+.learning-week-day.status-rescued{background:#fff3d8;color:#765219}
+.learning-week-day.status-future{background:#f1f2ed;color:#758077}
+.learning-week-day[aria-current=date]{outline:2px solid #16806a;outline-offset:1px}
+.learning-week-note{font-size:.75rem!important;line-height:1.5!important;color:#526e63;margin:6px 0 0!important}
 .statistics-screen{max-width:520px;padding:16px 14px 24px;background:#f7f5ed;border:0;box-shadow:none;overflow-wrap:anywhere}
 .statistics-screen .statistics-topbar{margin-bottom:18px;grid-template-columns:40px minmax(0,1fr)}
 .statistics-screen .statistics-topbar h2{font-size:1.2rem}
