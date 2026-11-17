@@ -36,6 +36,7 @@ import {createEmmaSpeech} from '/emma-speech.js';
 import {EMMA_VOICES,setupVoiceSettings} from '/emma-voices.js';
 import {checkCompletionTool,createCheckCompletion} from '/check-completion.js';
 import {createConversationHealth,mountConversationRecovery} from '/conversation-health.js';
+import {setupSectionCollapse} from '/section-collapse.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -868,3 +869,4 @@ streakRewardsUI=setupStreakRewardsUI({
  saveStats:next=>{learningStorage.save('stats',next);learningStats=next;updateHomeProgress();},
  isBusy:()=>hasActiveConversation() || Boolean(sessionBudgetDate) || Boolean(transcript.length&&!sessionWasEvaluated) || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || repairingCards
 });
+setupSectionCollapse(document.querySelector('main.app'));
