@@ -1,6 +1,13 @@
 import {calendarDayKey} from './learning-streak.js';
 export const VOCABULARY_SECONDS=900;
 const intervals=[1,3,7,14,30];
+const phraseKey=word=>JSON.stringify([word.front,word.back].map(text=>String(text||'').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g,' ')));
+export function removeVocabulary(state,id){
+ const word=state.words.find(item=>item.id===id);if(!word)return state;
+ const next={...state,words:state.words.filter(item=>item.id!==id),ignoredSourceIds:[...new Set([...(state.ignoredSourceIds||[]),word.sourceCardId].filter(Boolean))],ignoredPhrases:[...new Set([...(state.ignoredPhrases||[]),phraseKey(word)])]};
+ if(state.lesson){const lesson={...state.lesson,queue:state.lesson.queue.filter(item=>item.id!==id)};for(const key of ['ids','rated','introduced','retryIds','previousIds','previousRated'])if(Array.isArray(lesson[key]))lesson[key]=lesson[key].filter(value=>value!==id);next.lesson=lesson;}
+ return next;
+}
 export function addVocabulary(state,front,back,example='',now=Date.now()) {
  front=String(front||'').trim();back=String(back||'').trim();
  if(!isShortVocabulary({front,back})) throw Error('Bitte wirklich kurze Sätze: je 2–6 Wörter und höchstens 70 Zeichen pro Sprache.');
@@ -28,7 +35,7 @@ export function personalVocabulary(state) {
 export function importConversationVocabulary(state,cards,now=Date.now()) {
  let next=state;
  for(const card of cards) {
-  if(card.source!=='conversation' || !isShortVocabulary(card) || card.lastRating==='yes' || card.knownStreak>0 || (state.ignoredSourceIds||[]).includes(card.id))continue;
+  if(card.source!=='conversation' || !isShortVocabulary(card) || card.lastRating==='yes' || card.knownStreak>0 || (state.ignoredSourceIds||[]).includes(card.id) || (state.ignoredPhrases||[]).includes(phraseKey(card)))continue;
   if(next.words.some(w=>w.sourceCardId===card.id || (w.front.toLowerCase()===card.front.trim().toLowerCase() && w.back.toLowerCase()===card.back.trim().toLowerCase())))continue;
   next=addVocabulary(next,card.front,card.back,'',now);
   next.words[next.words.length-1].sourceCardId=card.id;

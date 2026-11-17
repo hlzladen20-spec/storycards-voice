@@ -8,6 +8,8 @@ body:has(#vocabulary:not(.hidden)) .app{display:flex;flex-direction:column;heigh
 body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 #vocabulary.panel:not(.hidden){display:flex;flex-direction:column;flex:1;gap:10px;width:100%;min-height:0;margin:0;padding:0!important;border:0;border-radius:0;background:transparent;box-shadow:none}
 .vocab-back{align-self:flex-start;flex:none;width:auto;min-height:44px;padding:8px 10px;font-size:.85rem}
+.vocab-toolbar{display:flex;align-items:center;justify-content:space-between;gap:4px;flex:none}.vocab-toolbar button{min-height:44px;font-size:.8rem;margin:0;padding:8px}
+.vocab-toolbar .vocab-delete{color:#846258}
 .vocab-time{flex:none;margin:0 4px;color:#60786d;font-size:.8rem;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-progress{flex:none;margin:0 4px;font-size:1rem;font-weight:750;line-height:1.4;font-variant-numeric:tabular-nums}
 .vocab-bar{flex:none;height:6px;margin:0 0 5px}

@@ -5,13 +5,15 @@ import {calendarDayKey} from './learning-streak.js';
 import {confirmDialog} from './app-dialog.js';
 import {setupVocabularyCreator} from './vocabulary-creator.js';
 import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
+import {removeVocabulary} from './vocabulary.js';
+import {revealProfileTarget} from './profile-layout.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},getCards=()=>[],speech,course=LANGUAGE_COURSES.en}) {
- let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now();
+ let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),deleting=false;
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
  panel.setAttribute('aria-label','Vokabeltrainer');
- panel.innerHTML=`<button class="ghost vocab-back" type="button">← Zurück zu den Karten</button>
+ panel.innerHTML=`<div class="vocab-toolbar"><button class="ghost vocab-back" type="button">← Karten</button><button class="ghost vocab-delete" type="button" aria-label="Aktuelle Vokabel löschen">🗑 Löschen</button><button class="ghost vocab-manage-open" type="button">Verwalten</button></div>
  <p class="vocab-time"></p><p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Bereits gekonnte Vokabeln deiner Tagesportion" max="15" value="0"></progress>
  <div class="vocab-word" tabindex="0" aria-label="Kurzer Satz zur Selbstkontrolle"></div>
  <p class="vocab-audio-status emma-speech-status" role="status"></p><div class="vocab-controls">
@@ -58,6 +60,16 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   const box=$('.vocab-word');box.replaceChildren(line(word.front,'h3'));
   if(answer){const english=line(`${course.flag} ${word.back} 🔊`,'button');english.type='button';english.className='ghost';english.setAttribute('aria-label',`${course.name}: kurzen Satz anhören`);english.onclick=()=>say(word.back);box.append(english);}
  }
+ async function deleteWord(id){
+  if(deleting)return;const word=state.words.find(item=>item.id===id);if(!word)return;
+  deleting=true;speech?.stop();
+  try{
+   if(!await confirmDialog({title:'Vokabel löschen?',message:word.front,note:'Dieser Satz wird aus deinem Vokabeltrainer und den Wiederholungen entfernt. Er wird nicht automatisch erneut aus deinen Gesprächskarten übernommen. Andere Karten und deine bisherige Lernzeit bleiben erhalten.',confirmText:'Vokabel löschen',danger:true}))return;
+   const next=removeVocabulary(state,id);storage.save('vocabulary',next);state=next;answerCard=null;lastTick=Date.now();render();
+   $('.vocab-status').textContent=manage('.vocab-management-status').textContent='Vokabel gelöscht. Sie kommt nicht mehr in die Wiederholung.';
+  }catch{$('.vocab-status').textContent=manage('.vocab-management-status').textContent='Löschen konnte nicht gespeichert werden. Bitte versuche es erneut.';}
+  finally{lastTick=Date.now();deleting=false;}
+ }
  function progress(){
   const p=vocabularyProgress(state),minutes=Math.floor(vocabularyTotalMs(state)/60000);
   $('.vocab-time').textContent=`Insgesamt ${minutes} ${minutes===1?'Minute':'Minuten'} Vokabeln gelernt`;
@@ -73,7 +85,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   for(const word of state.words){
    const row=document.createElement('div');row.append(line(`${word.front} – ${word.back}`,'span'));
    const remove=line('Entfernen','button');remove.type='button';remove.className='ghost';
-   remove.onclick=async()=>{if(!await confirmDialog({title:'Vokabelkarte entfernen?',message:word.front,note:'Dieser kurze Satz wird aus deinem Vokabeltrainer entfernt.',confirmText:'Karte entfernen',danger:true}))return;state={...state,words:state.words.filter(w=>w.id!==word.id),ignoredSourceIds:[...(state.ignoredSourceIds||[]),word.sourceCardId].filter(Boolean)};if(state.lesson){state.lesson.queue=state.lesson.queue.filter(i=>i.id!==word.id);state.lesson.ids=state.lesson.ids.filter(id=>id!==word.id);}answerCard=null;render();};
+   remove.onclick=()=>deleteWord(word.id);
    row.append(remove);list.append(row);
   }
   manage('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
@@ -84,6 +96,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
   save();progress();renderLists();refreshSettings();refreshChoice();
   const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
+  $('.vocab-delete').hidden=ended;
   $('.vocab-reveal').hidden=ended||Boolean(answerCard);
   $('.vocab-ratings').hidden=ended||!answerCard;
   $('.vocab-continue').hidden=!ended || !state.words.length;
@@ -97,7 +110,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  }
  function tick(){
   const now=Date.now(),delta=now-lastTick;lastTick=now;
-  if(panel.classList.contains('hidden')||document.visibilityState!=='visible'||!state.lesson||state.lesson.closed)return;
+  if(deleting||panel.classList.contains('hidden')||document.visibilityState!=='visible'||!state.lesson||state.lesson.closed)return;
   const elapsed=Math.min(Math.max(0,delta),Math.max(0,VOCABULARY_SECONDS*1000-state.lesson.activeMs));
   state.totalActiveMs=vocabularyTotalMs(state)+elapsed;
   state.lesson.activeMs+=elapsed;
@@ -118,6 +131,8 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  function syncCards(){state=importConversationVocabulary(state,getCards());save();renderLists();refreshChoice();}
  button.onclick=()=>{syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;render();};
  $('.vocab-back').onclick=()=>{speech?.stop();document.getElementById('choiceCardsButton').click();};
+ $('.vocab-delete').onclick=()=>{const id=answerCard?.id||state.lesson?.queue[0]?.id;if(id)void deleteWord(id);};
+ $('.vocab-manage-open').onclick=()=>{speech?.stop();document.getElementById('choiceProfileButton').click();const list=manage('.vocab-manager');revealProfileTarget(list);list.open=true;list.scrollIntoView({block:'start',behavior:'smooth'});};
  $('.vocab-finish').onclick=()=>{speech?.stop();tick();save();window.speechSynthesis?.cancel();document.getElementById('choiceCardsButton').click();};
  panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
