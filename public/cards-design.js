@@ -50,7 +50,7 @@ function update() {
 if (progressText) new MutationObserver(update).observe(progressText, {childList:true,characterData:true,subtree:true});
 update();
 function separateFlag() {
-  const cue = card.querySelector(':scope > span:not(.back)');
+  const cue = card.querySelector(':scope > span:not(.back):not(.introduction-translation)');
   if (!cue || cue.dataset.designed) return;
   const text = cue.textContent;
   if (!text.startsWith('🇩🇪')) return;

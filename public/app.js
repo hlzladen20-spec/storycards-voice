@@ -778,7 +778,7 @@ function renderCard() {
   const introduction=!freePractice && card.lessonStage==="introduce";
     if(card.retryPractice || card.weakRetry || introduction) assessedCards.delete(card.id);
   const phase=introduction?"Hören und nachsprechen":card.retryPractice?"Noch einmal ohne Hilfe":"Aus dem Gedächtnis";
-  $("card").innerHTML=`<small class="lesson-phase">${phase}</small>${introduction?`<span class="back">${activeCourse.flag} ${escapeHtml(card.back)}</span>`:`<span>🇩🇪 ${escapeHtml(card.front)}</span>`}`;
+  $("card").innerHTML=`<small class="lesson-phase">${phase}</small>${introduction?`<span class="back">${activeCourse.flag} ${escapeHtml(card.back)}</span><span class="introduction-translation" lang="de">🇩🇪 ${escapeHtml(card.front)}</span>`:`<span>🇩🇪 ${escapeHtml(card.front)}</span>`}`;
   if(introduction) {answerVisible=true;if(imageHintsEnabled) appendLearningImage($("card"),card);}
   $("speakPrompt").textContent=introduction?"Höre den Satz an und sprich ihn nach. Gleich versuchst du ihn ohne Hilfe.":"Sprich die Übersetzung aus dem Gedächtnis.";
   $("speakPrompt").classList.remove("hidden");$("recordAnswerButton").classList.remove("hidden");$("recordAnswerButton").disabled=false;$("recordAnswerButton").textContent="🎙 Zum Sprechen gedrückt halten";

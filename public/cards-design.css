@@ -41,6 +41,7 @@ body:has(#cards:not(.hidden)) .app>header h1{font-size:1.5rem;letter-spacing:-.0
 #cards #card{position:relative;min-height:240px;padding:45px 24px 35px;border:1px solid #eaece3;border-radius:19px;background:linear-gradient(135deg,#fffffb,#fbfcf7);box-shadow:0 4px 9px #163c3309;gap:18px;color:#10383c;font-weight:700;font-size:1.45rem;line-height:1.4}
 #cards .card-language-flag{display:block;margin-bottom:16px;font-size:1.8rem;font-weight:400;line-height:1}
 #cards #card .back{font-size:1.12rem;font-weight:700;color:#087e69}
+#cards #card .introduction-translation{font-size:1.05rem;font-weight:500;line-height:1.45;color:#526e63}
 #cards #card small{font-size:.86rem;font-weight:400;line-height:1.45}
 #cards #speakPrompt{font-size:.78rem;line-height:1.5;color:#536964;margin:17px 5px 12px}
 #cards #recordAnswerButton{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-height:100px;border-radius:15px;padding:65px 12px 12px;background:linear-gradient(160deg,#189680,#0c6256);box-shadow:0 4px 8px #113b3210;font-size:.84rem;line-height:1.25;touch-action:none;user-select:none;-webkit-user-select:none}
