@@ -6,7 +6,7 @@ import {confirmDialog} from './app-dialog.js';
 import {setupVocabularyCreator} from './vocabulary-creator.js';
 import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
 
-export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[],speech,course=LANGUAGE_COURSES.en}) {
+export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},getCards=()=>[],speech,course=LANGUAGE_COURSES.en}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now();
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
@@ -23,7 +23,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,getCards=()=>[
  </div>
  <nav class="bottom-nav" aria-label="Hauptmenü"><button type="button" data-target="choiceHomeButton">⌂<small>Home</small></button><button type="button" data-target="choiceCardsButton" class="active">▣<small>Karten</small></button><button type="button" data-target="choiceProgressButton">▥<small>Statistiken</small></button><button type="button" data-target="choiceProfileButton">♙<small>Profil</small></button></nav>`;
  document.querySelector('main.app').append(panel);
- const $=selector=>panel.querySelector(selector),save=()=>storage.save('vocabulary',state);
+ const $=selector=>panel.querySelector(selector),save=()=>{storage.save('vocabulary',state);onChange();};
  const management=document.createElement('section');management.className='profile-card vocab-management';
  management.innerHTML=`<h3>Deine Vokabelkarten</h3><details class="vocab-learned"><summary>Gelernte Karten nach SRS <span class="vocab-learned-count"></span></summary><div class="vocab-learned-list"></div></details>
  <details class="vocab-manager"><summary>Kurze Sätze hinzufügen und verwalten</summary><form class="vocab-add"><label>Deutsch (2–6 Wörter)<input name="front" required maxlength="70"></label><label>${course.name} (2–6 Wörter)<input name="back" required maxlength="70"></label><button class="primary" type="submit">＋ Kurzen Satz hinzufügen</button></form><p class="vocab-archive"></p><div class="vocab-list"></div><p class="vocab-management-status" role="status"></p></details>`;

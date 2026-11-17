@@ -8,7 +8,7 @@ import {mountAdminUsage} from '/admin-usage.js';
 import { planDailyLesson, lessonQueue, retryAllowed, difficultCards } from "/lesson-planner.js";
 import { appendLearningImage } from "/learning-images.js";
 import { learningStreak, addPracticeDay, recoverPracticeDays, calendarDayKey } from "/learning-streak.js";
-import {rewardPracticeDay,DAILY_POINTS} from "/streak-rewards.js";
+import {dailyLearningGoals} from '/daily-learning-goals.js';
 import {setupStreakRewardsUI} from "/streak-rewards-ui.js";
 import { speakingGoal, remainingSpeakingSeconds, addSpeakingSeconds, approveAnotherSpeakingLesson } from "/speaking-goal.js";
 import { setupVocabularyTrainer } from "/vocabulary-trainer.js";
@@ -154,6 +154,7 @@ function moveReviewCard(back = false) {
     }
   }
   renderCard();
+  updateHomeProgress();
   if(!back && !queue.length) playLessonFanfare();
 }
 function playLessonFanfare() {
@@ -371,7 +372,7 @@ function updateHomeProgress() {
  streakRewardsUI?.refresh();
 }
 function recordPracticeDay() {
-  const updated = rewardPracticeDay(learningStats);
+  const updated = addPracticeDay(learningStats);
   if (JSON.stringify(updated) !== JSON.stringify(learningStats)) {
     learningStats = updated;
     saveStats();
@@ -671,13 +672,13 @@ async function finishSession() {
     if(!responseDecoded && checkState?.assessment && checkAssessment(checkState.assessment,transcript).ready && !sessionWasEvaluated)completeEvaluation({cards:[],focus:[]},'Deine Einstufung ist gespeichert. Zusätzliche Lernkarten konnten wegen eines technischen Fehlers nicht erstellt werden.');
     else{status.textContent=error.name==='TimeoutError'?'Die Auswertung dauert zu lange. Bitte erneut beenden.':error.message;startButton.disabled=false;startButton.textContent='🎙 Weiter sprechen';finishButton.disabled=false;setMicState('Auswertung technisch fehlgeschlagen · erneut beenden zum Wiederholen');}
   }
-  finally{setFinishBusy(false);refreshSpeakingGoal();finishingSession=false;}
+  finally{setFinishBusy(false);finishingSession=false;refreshSpeakingGoal();}
 }
 
 function showSummary(newCards,focus,review,seconds=sessionCountedSeconds) {
  $('vocabulary')?.classList.add('hidden');$('cardChoice').classList.add('hidden');$('practice').classList.add('hidden');$('summary').classList.remove('hidden');document.body.classList.remove('in-conversation');
  const practiced=seconds>0 && transcript.some(turn=>turn.role==='learner' && String(turn.text||'').trim());
- conversationSummary.render({cards:newCards,focus,review,seconds,celebrationId:practiced?String(startedAt):null,rewardPoints:practiced && learningStats.streakRewards?.earnedDays?.includes(calendarDayKey())?DAILY_POINTS:0});
+ conversationSummary.render({cards:newCards,focus,review,seconds,celebrationId:practiced?String(startedAt):null,rewardPoints:0});
 }
 function showConversationContinue(){
  const button=$('continueConversationButton');
@@ -823,7 +824,7 @@ mountAdminUsage($("profile"),accountIdentity);
 const conversationSummary=setupConversationSummary({course:activeCourse,onCelebrate:playLessonFanfare});
 learningStrategy=setupLearningStrategy(activeCourse);
 setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learningProfile.emmaVoice)?learningProfile.emmaVoice:'marin',onChange:voice=>{const next={...learningProfile,emmaVoice:voice};learningStorage.save('profile',next);learningProfile=next;}});
-setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
+setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onChange:updateHomeProgress,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
 proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});},onCheck:startEnglishCheck});
@@ -862,6 +863,8 @@ setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinu
 $('saveProfileButton').textContent='Lernziele speichern';
 streakRewardsUI=setupStreakRewardsUI({
  host:document.querySelector('.home-progress'),getStats:()=>learningStats,
+ getProgress:()=>dailyLearningGoals({stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})}),
+ onLearn:()=>{const goal=dailyLearningGoals({stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})});const next=goal.rows.find(row=>!row.done);if(next?.id==='speaking'){$('homeStartButton').click();}else if(next?.id==='cards'){showReview();}else if(next?.id==='vocabulary'){$('vocabularyChoiceButton').click();}else showCardChoice();},
  saveStats:next=>{learningStorage.save('stats',next);learningStats=next;updateHomeProgress();},
- isBusy:()=>hasActiveConversation() || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || repairingCards
+ isBusy:()=>hasActiveConversation() || Boolean(sessionBudgetDate) || Boolean(transcript.length&&!sessionWasEvaluated) || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || repairingCards
 });

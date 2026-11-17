@@ -3,3 +3,9 @@
 .streak-rewards button{width:100%;margin-top:12px;min-height:44px;white-space:normal}.streak-rewards button:disabled{opacity:.55}
 .streak-rewards [hidden]{display:none!important}.streak-rewards button:focus-visible{outline:3px solid #16806a;outline-offset:3px}
 .streak-rewards .streak-rewards-status:empty{display:none}.streak-rewards .streak-rewards-status{color:#126951;font-weight:650}
+.streak-rewards{display:flex;flex-direction:column;padding:20px;background:linear-gradient(135deg,#e2f4e8,#fff9df);border:2px solid #9dcbb4;box-shadow:0 5px 18px #19483e14}
+.streak-rewards>strong{order:0;font-size:1.35rem}.streak-rewards>h3{order:1;font-size:1.05rem;line-height:1.4;margin:10px 0}
+.streak-rewards>progress{order:2;accent-color:#16836b;width:100%;height:12px;border:0;border-radius:12px;overflow:hidden}
+.streak-rewards>.learning-goal-steps{order:3}.streak-rewards>.primary{order:4}.streak-rewards>details{order:5;margin-top:14px;font-size:.8rem}.streak-rewards>details summary{cursor:pointer;min-height:32px;align-content:center;font-weight:650}
+.streak-rewards>.secondary{order:6}.streak-rewards>.streak-rewards-status{order:7}.streak-rewards .goal-done{color:#568170}.streak-rewards .goal-open{font-weight:650;color:#19483e}
+.streak-rewards[data-complete=true]{border-color:#69b99b}.streak-rewards button{border-radius:14px}

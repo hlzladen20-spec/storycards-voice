@@ -4,10 +4,16 @@ export const DAILY_POINTS=10;
 export const STREAK_RESCUE_COST=30;
 function days(values){return [...new Set((Array.isArray(values)?values:[]).filter(day=>typeof day==='string' && /^\d{4}-\d{2}-\d{2}$/.test(day) && calendarDayKey(`${day}T12:00:00`)===day))].sort();}
 function dayBefore(now,offset){const date=new Date(now);date.setHours(12,0,0,0);date.setDate(date.getDate()-offset);return calendarDayKey(date);}
-function ledger(stats){const data=stats.streakRewards||{};return {earnedDays:days(data.earnedDays),protectedDays:days(data.protectedDays),declinedDays:days(data.declinedDays)};}
+function ledger(stats){const data=stats.streakRewards||{};return {earnedDays:days(data.earnedDays),...(data.bonusDays?{bonusDays:days(data.bonusDays)}:{}),protectedDays:days(data.protectedDays),declinedDays:days(data.declinedDays)};}
 export function rewardBalance(stats,now=new Date()){
  const today=calendarDayKey(now),actual=new Set(days(stats.practiceDays)),data=ledger(stats);
- return Math.max(0,data.earnedDays.filter(day=>day<=today && actual.has(day)).length*DAILY_POINTS-data.protectedDays.filter(day=>day<=today).length*STREAK_RESCUE_COST);
+ return Math.max(0,(data.earnedDays.filter(day=>day<=today && actual.has(day)).length+(data.bonusDays||[]).filter(day=>day<=today&&actual.has(day)&&data.earnedDays.includes(day)).length)*DAILY_POINTS-data.protectedDays.filter(day=>day<=today).length*STREAK_RESCUE_COST);
+}
+export function rewardDailyGoals(stats,progress,now=new Date()){
+ const day=calendarDayKey(now);if(!day||progress?.day!==day||!progress.complete)return stats;
+ const data=ledger(stats),earned=data.earnedDays.includes(day),bonus=(data.bonusDays||[]).includes(day);
+ if(earned&&(!progress.bonus||bonus))return stats;
+ return {...addPracticeDay(stats,now),streakRewards:{...data,earnedDays:days([...data.earnedDays,day]),...(progress.bonus?{bonusDays:days([...(data.bonusDays||[]),day])}:{})}};
 }
 export function rewardPracticeDay(stats,now=new Date()){
  const today=calendarDayKey(now);if(!today)return stats;
