@@ -18,15 +18,14 @@
 #practice.subtitles-off{min-height:0}
 #practice.subtitles-off .conversation-timer{position:static;align-self:flex-end;flex:none;margin:4px 0 6px}
 #practice.subtitles-off .coach-stage{display:block;flex:1;min-height:0;width:100%;margin:0 0 12px;border-radius:22px;overflow:hidden;background:radial-gradient(ellipse at 50% 48%,#dcefe5 0 36%,#edf5ec 64%,#f9faf4 100%)}
-#practice.subtitles-off .coach-stage img{position:absolute;inset:0;width:100%;height:100%;max-width:100%;object-fit:contain;object-position:center bottom;opacity:0;transform-origin:50% 85%;animation:none;filter:drop-shadow(0 5px 8px #15393418)}
-#practice.subtitles-off .coach-stage[data-frame=rest] #emmaAvatar,#practice.subtitles-off .coach-stage[data-frame=talking] .emma-talking-frame,#practice.subtitles-off .coach-stage[data-frame=blink] .emma-blink-frame{opacity:1}
-#practice.subtitles-off .coach-stage[data-motion=on] img{animation:emma-presence 7s ease-in-out infinite}
-#practice.subtitles-off .coach-stage[data-motion=on].speaking img{animation:emma-talk-presence 2.7s ease-in-out infinite}
-#practice.subtitles-off .coach-stage.paused img{animation:none}
+#practice.subtitles-off .emma-portrait{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#practice.subtitles-off #emmaAvatar{opacity:1}
+#practice.subtitles-off .emma-talking-frame{opacity:var(--emma-mouth,0);transition:opacity 75ms linear}
+#practice.subtitles-off .emma-blink-frame{opacity:0;transition:opacity 45ms ease-out}
+#practice.subtitles-off .coach-stage[data-blinking=true] .emma-blink-frame{opacity:1}
+#practice.subtitles-off .coach-stage.paused .emma-talking-frame,#practice.subtitles-off .coach-stage.paused .emma-blink-frame{opacity:0}
 #practice[data-language-check=true].subtitles-off .coach-stage{background:radial-gradient(ellipse at 50% 48%,#dce6f1,#f4f7fb 75%)}
-@keyframes emma-presence{0%,100%{transform:translateY(1px) rotate(-.3deg)}50%{transform:translateY(-2px) rotate(.3deg)}}
-@keyframes emma-talk-presence{0%,100%{transform:translateY(0) rotate(-.5deg)}45%{transform:translateY(-2px) rotate(.5deg)}75%{transform:translateY(1px) rotate(.1deg)}}
-@media(prefers-reduced-motion:reduce){#practice.subtitles-off .coach-stage img{animation:none!important;transform:none!important}}
+@media(prefers-reduced-motion:reduce){#practice.subtitles-off .emma-talking-frame,#practice.subtitles-off .emma-blink-frame{opacity:0!important;transition:none!important}}
 .conversation-screen .messages{max-height:none;min-height:180px;justify-content:flex-start;flex:1;overflow-y:auto}
 .conversation-screen .messages .message{flex-shrink:0}
 .conversation-screen{height:calc(100dvh - 34px);min-height:520px}

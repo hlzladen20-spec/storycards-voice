@@ -65,7 +65,18 @@
       <section id="practice" class="panel hidden conversation-screen">
         <div class="conversation-topbar"><button id="conversationBackButton" class="icon-button" aria-label="Zurück">‹</button><strong>Gespräch</strong><button id="conversationSettingsButton" class="icon-button" aria-label="Gesprächsmodus">☷</button></div>
         <div class="conversation-timer"><div class="timer" id="timer"><span id="timerText">10:00</span><small>/ 10:00</small></div></div>
-        <div id="coachStage" class="coach-stage" data-frame="rest" data-motion="off"><img id="emmaAvatar" src="/emma-coach.png" alt="Emma, deine virtuelle Englischtrainerin" /><img class="emma-talking-frame" src="/emma-coach-talking.png" alt="" aria-hidden="true" /><img class="emma-blink-frame" src="/emma-coach-blink.png" alt="" aria-hidden="true" /></div>
+        <div id="coachStage" class="coach-stage" data-frame="rest" data-motion="off">
+          <svg class="emma-portrait" viewBox="0 0 1322 1190" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Emma, deine virtuelle Sprachtrainerin">
+            <defs>
+              <filter id="emma-soft-edge"><feGaussianBlur stdDeviation="5" /></filter>
+              <mask id="emma-mouth-mask" maskUnits="userSpaceOnUse" x="575" y="550" width="230" height="160"><ellipse cx="690" cy="630" rx="99" ry="68" transform="rotate(-12 690 630)" fill="white" filter="url(#emma-soft-edge)" /></mask>
+              <mask id="emma-eyes-mask" maskUnits="userSpaceOnUse" x="508" y="395" width="315" height="135"><g fill="white" filter="url(#emma-soft-edge)"><ellipse cx="572" cy="481" rx="60" ry="36" transform="rotate(-10 572 481)" /><ellipse cx="748" cy="443" rx="63" ry="38" transform="rotate(-17 748 443)" /></g></mask>
+            </defs>
+            <image id="emmaAvatar" href="/emma-coach.png" width="1322" height="1190" />
+            <image class="emma-talking-frame" href="/emma-coach-talking.png" width="1322" height="1190" mask="url(#emma-mouth-mask)" aria-hidden="true" />
+            <image class="emma-blink-frame" href="/emma-coach-blink.png" width="1322" height="1190" mask="url(#emma-eyes-mask)" aria-hidden="true" />
+          </svg>
+        </div>
         <select id="conversationMode" hidden aria-hidden="true" tabindex="-1"><option value="alltag">☕ Alltag</option><option value="reisen">✈️ Reisen</option><option value="beruf">💼 Beruf</option><option value="einkaufen">🛒 Einkaufen</option><option value="politik">🏛️ Politik</option><option value="essen">🍳 Essen &amp; Kochen</option><option value="rollenspiel">🎭 Rollenspiel</option><option value="ueberraschung">🎲 Überraschung</option><option value="schwaechen">🎯 Schwächen trainieren</option></select>
         <div id="micState" class="mic-state"><span class="mic-dot" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M4 12v4m5-8v12m5-16v20m5-16v12m5-8v4"/></svg></span><span class="listening-wave" aria-hidden="true">▂▅▇▃▆▂</span><span id="micStateText">Ich höre zu …</span></div>
         <div id="messages" class="messages" aria-live="polite"></div>

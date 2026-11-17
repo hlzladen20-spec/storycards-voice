@@ -498,7 +498,7 @@ async function startSession() {
     const health=conversationHealth=createConversationHealth({getState:()=>({active:pc===sessionPeer&&Boolean(sessionBudgetDate)&&!finishingSession&&!sessionWasEvaluated&&!conversationIssue,paused:isPaused,outputPlaying,ended:timeExpired&&!speechBookends?.awaitingFinalReply}),onProblem:reportConversationProblem});
     pc.onconnectionstatechange=()=>health.connection(sessionPeer.connectionState);
     pc.oniceconnectionstatechange=()=>health.connection(sessionPeer.iceConnectionState);
-    pc.ontrack = (event) => { remoteAudio ||= new Audio(); remoteAudio.autoplay = true; remoteAudio.srcObject = event.streams[0]; remoteAudio.onplaying = () => { if(outputPlaying && !isPaused)setEmmaSpeaking(true); }; remoteAudio.onpause = () => {setEmmaSpeaking(false);if(!isPaused&&outputPlaying)health.media();};remoteAudio.onerror=()=>health.media();remoteAudio.play().catch(()=>health.media()); };
+    pc.ontrack = (event) => { emmaPortrait.attachAudio(event.streams[0]);remoteAudio ||= new Audio(); remoteAudio.autoplay = true; remoteAudio.srcObject = event.streams[0]; remoteAudio.onplaying = () => { if(outputPlaying && !isPaused)setEmmaSpeaking(true); }; remoteAudio.onpause = () => {setEmmaSpeaking(false);if(!isPaused&&outputPlaying)health.media();};remoteAudio.onerror=()=>health.media();remoteAudio.play().catch(()=>health.media()); };
     stream.getAudioTracks().forEach(track=>track.addEventListener('ended',()=>health.media('microphone')));
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     dataChannel = pc.createDataChannel("oai-events");
