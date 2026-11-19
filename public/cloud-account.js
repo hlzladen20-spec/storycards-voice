@@ -1,6 +1,7 @@
 import {createAccountStorage,guestSnapshot,validateSnapshot,hasLearningProgress} from './account-data.js';
 import {SUPABASE_URL as URL,SUPABASE_PUBLIC_KEY as KEY} from './account-config.js';
 import {confirmDialog} from './app-dialog.js';
+import {openRegistrationDialog} from './registration-dialog.js';
 
 const SITE='https://storycards-voice.onrender.com';
 
@@ -149,8 +150,10 @@ export async function initCloudAccount(raw) {
       action(async()=>{busy();const {error}=await client.auth.signInWithPassword(values);if(error) throw error;form.reset();location.reload();});
     };
     panel.querySelector('[data-action=signup]').onclick=()=>{
-      const values=credentials();if(!values) return;
-      action(async()=>{busy();const {data,error}=await client.auth.signUp({...values,options:{emailRedirectTo:SITE}});if(error) throw error;form.elements.password.value='';if(data.session) location.reload();else notice='Bitte bestätige deine E-Mail über den Link in deinem Postfach. Melde dich anschließend hier an.';});
+      openRegistrationDialog({email:form.elements.email.value,
+       onSubmit:async values=>{busy();if(!client)throw {userMessage:'Die Anmeldung ist gerade nicht erreichbar. Bitte versuche es später erneut.'};const {data,error}=await client.auth.signUp({...values,options:{emailRedirectTo:SITE}});if(error)throw {userMessage:message(error)};if(data?.session){location.reload();return {signedIn:true};}},
+       onReturn:email=>{form.elements.email.value=email;form.elements.password.value='';errorText='';notice='Bestätige zuerst deine E-Mail-Adresse. Anschließend kannst du dich hier anmelden.';update();}
+      });
     };
     panel.querySelector('[data-action=reset]').onclick=()=>{
       const values=credentials(false);if(!values) return;
