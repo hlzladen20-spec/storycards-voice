@@ -56,7 +56,7 @@ export function createAccountStorage(raw, userId, changed=()=>{}) {
   }
   return {
     getItem:key=>raw.getItem(name(key)) || null,
-    setItem(key,value) { raw.setItem(name(key),value); if(isLearningKey(key)) changed(); },
+    setItem(key,value) { const unchanged=raw.getItem(name(key))===String(value);raw.setItem(name(key),value); if(!unchanged&&isLearningKey(key)) changed(); },
     snapshot,replace
   };
 }

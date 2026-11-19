@@ -1,4 +1,4 @@
-const CACHE = "storycards-shell-registration-dialog-v78";
+const CACHE = "storycards-shell-account-recovery-sync-v79";
 const SHELL = ["/language-courses.js", "/language-ui.js", "/language-courses.css", "/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 SHELL.push('/streak-rewards.js','/streak-rewards-ui.js','/streak-rewards.css');
 SHELL.push('/learning-week.js','/emma-speech.js');
@@ -9,6 +9,7 @@ SHELL.push('/daily-learning-goals.js');
 SHELL.push('/section-collapse.js');
 SHELL.push('/quick-learning.js');
 SHELL.push('/registration-dialog.js');
+SHELL.push('/password-recovery.js');
 
 SHELL.push("/keep-awake.js", "/speaking-goal.js", "/learning-streak.js", "/lesson-planner.js", "/learning-images.js", "/learning-images/workshop-v1.png", "/learning-images/restaurant-v1.png", "/learning-images/travel-v1.png", "/learning-images/shopping-v1.png");
 SHELL.push("/vocabulary.js", "/vocabulary-trainer.js", "/vocabulary.css", "/word-translation.js", "/conversation-modes.js", "/home.css");

@@ -2,22 +2,29 @@ import {createAccountStorage,guestSnapshot,validateSnapshot,hasLearningProgress}
 import {SUPABASE_URL as URL,SUPABASE_PUBLIC_KEY as KEY} from './account-config.js';
 import {confirmDialog} from './app-dialog.js';
 import {openRegistrationDialog} from './registration-dialog.js';
+import {capturePasswordRecovery,showPasswordRecovery} from './password-recovery.js';
 
 const SITE='https://storycards-voice.onrender.com';
 
 export async function initCloudAccount(raw) {
   let client,session,errorText='',notice='',panel,conflict=null,started=false,timer,running=null,identityChanged=false;
-  const recovery=location.hash.includes('type=recovery');
+  const recovery=capturePasswordRecovery();
+  let pageBusy=()=>false;
   try {
     client=window.supabase.createClient(URL,KEY,{
       auth:{storageKey:'storycards-auth-session',persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,
         storage:{getItem:key=>raw.getItem(key)||null,setItem:(key,value)=>raw.setItem(key,value),removeItem:key=>raw.setItem(key,'')}},
       global:{fetch:(input,options={})=>fetch(input,{...options,signal:options.signal || AbortSignal.timeout(15000)})}
     });
+    client.auth.onAuthStateChange((event,current)=>recovery.observe(event,current));
     const result=await client.auth.getSession();
     if(result.error) throw result.error;
     session=result.data.session;
   } catch(error) { errorText='Anmeldung derzeit nicht erreichbar. Deine lokalen Karten bleiben gespeichert. Bitte erneut versuchen.'; }
+  if(recovery.active(session)) {
+    await showPasswordRecovery({client,session,context:recovery,redirectTo:SITE}).finished;
+    const fresh=await client?.auth.getSession();session=fresh?.data?.session||null;
+  }
   const owner=session?.user?.id || null;
   if(client) client.auth.onAuthStateChange((_event,current)=>{
     if(started && (current?.user?.id || null)!==owner) {
@@ -92,8 +99,18 @@ export async function initCloudAccount(raw) {
         else {
           const remote=await cloud();
           if(Number(remote?.version||0)!==meta.version) {
-            conflict=remote || {payload:{},version:0};
-            notice='Ein anderes Gerät hat einen neueren Stand. Lade ihn unten ausdrücklich, bevor du weiterlernst.';
+            if(meta.dirty || !remote) {
+              conflict=remote || {payload:{},version:0};
+              notice='Auf beiden Geräten gibt es Änderungen. Beide Stände bleiben erhalten. Bitte prüfe sie unten.';
+            } else if(pageBusy()) {
+              notice='Ein neuerer Stand ist online. Beende zuerst deine Lernrunde und synchronisiere danach.';
+            } else {
+              const previous=storage.snapshot();
+              if(hasLearningProgress(previous)&&JSON.stringify(previous)!==JSON.stringify(remote.payload))raw.setItem(`storycards-before-sync:${owner}:${Date.now()}`,JSON.stringify(previous));
+              storage.replace(remote.payload);
+              meta={version:Number(remote.version),dirty:false,lastSync:remote.updated_at};saveMeta();
+              notice='Der neuere Lernstand wird geladen …';location.reload();
+            }
           } else notice=meta.lastSync?'Lerndaten sind online gesichert.':'Noch keine Lerndaten online gespeichert.';
         }
       } catch(error) {errorText=message(error);}
@@ -111,6 +128,7 @@ export async function initCloudAccount(raw) {
     if(syncButton) syncButton.disabled=Boolean(running);
   }
   function mount(profile,isBusy=()=>false) {
+    pageBusy=isBusy;
     panel=document.createElement('section');panel.className='profile-card cloud-account';
     panel.innerHTML=`<h3>Dein Konto & Datensicherung</h3>
       <p class="cloud-identity"></p>
@@ -123,7 +141,6 @@ export async function initCloudAccount(raw) {
       <button class="secondary" type="button" data-action="import">Bisherige lokale Lerndaten übernehmen</button>
       <p class="cloud-import-help">Die Daten ohne Anmeldung bleiben erhalten. Eine Übernahme ist nur in einen noch leeren Lernstand möglich.</p>
       <button class="ghost" type="button" data-action="export">Sicherung herunterladen</button><button class="ghost" type="button" data-action="logout">Abmelden</button></div>
-      <form class="cloud-recovery hidden"><label>Neues Passwort<input name="newPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required></label><button type="submit" class="primary">Neues Passwort speichern</button></form>
       <button type="button" class="ghost" data-action="guest-backup">Bisherige lokale Lerndaten sichern</button>
       <p class="cloud-status" role="status" aria-live="polite"></p>
       <div class="cloud-conflict hidden"><strong>Unterschiedliche Lernstände</strong><p>Es wird nichts automatisch überschrieben. Lade zuerst eine Sicherung herunter.</p>
@@ -132,7 +149,6 @@ export async function initCloudAccount(raw) {
     panel.querySelector('.cloud-identity').textContent=owner ? `Angemeldet: ${session.user.email || 'Dein Konto'}` : 'Du nutzt die App ohne Anmeldung.';
     panel.querySelector('.cloud-guest').classList.toggle('hidden',Boolean(owner));
     panel.querySelector('.cloud-member').classList.toggle('hidden',!owner);
-    panel.querySelector('.cloud-recovery').classList.toggle('hidden',!recovery);
     const form=panel.querySelector('.cloud-auth');
     const busy=()=>{if(isBusy()) {const error=new Error();error.userMessage='Bitte beende zuerst das laufende Gespräch oder die Aufnahme.';throw error;}};
     async function action(work) {
@@ -158,10 +174,6 @@ export async function initCloudAccount(raw) {
     panel.querySelector('[data-action=reset]').onclick=()=>{
       const values=credentials(false);if(!values) return;
       action(async()=>{const {error}=await client.auth.resetPasswordForEmail(values.email,{redirectTo:SITE});if(error) throw error;notice='Falls ein Konto existiert, erhältst du eine E-Mail zum Zurücksetzen. Öffne den Link im Browser.';});
-    };
-    panel.querySelector('.cloud-recovery').onsubmit=event=>{
-      event.preventDefault();const recoveryForm=event.currentTarget;if(!recoveryForm.reportValidity()) return;
-      action(async()=>{const {error}=await client.auth.updateUser({password:recoveryForm.elements.newPassword.value});if(error) throw error;recoveryForm.reset();recoveryForm.classList.add('hidden');notice='Dein Passwort wurde geändert.';});
     };
     panel.querySelector('[data-action=sync]').onclick=()=>sync();
     panel.querySelector('[data-action=logout]').onclick=()=>action(async()=>{
@@ -197,7 +209,6 @@ export async function initCloudAccount(raw) {
       const remote=await cloud();raw.setItem(`storycards-conflict-online:${owner}:${Date.now()}`,JSON.stringify(remote?.payload||{}));
       meta.version=Number(remote?.version||0);meta.dirty=true;saveMeta();conflict=null;await sync();
     });
-    if(recovery) {profile.classList.remove('hidden'); document.getElementById('home').classList.add('hidden');}
     update();started=true;
     if(owner) {
       window.addEventListener('online',()=>sync().catch(()=>{}));
