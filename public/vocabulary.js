@@ -1,4 +1,6 @@
 import {calendarDayKey} from './learning-streak.js';
+import {quickToday,quickVocabularyPlan} from './quick-learning.js';
+export const vocabularySessionSeconds=(state,now=new Date())=>quickToday(state,now)?450:900;
 export const VOCABULARY_SECONDS=900;
 const intervals=[1,3,7,14,30];
 const phraseKey=word=>JSON.stringify([word.front,word.back].map(text=>String(text||'').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g,' ')));
@@ -81,11 +83,11 @@ export function additionalVocabularyLesson(state,now=Date.now()) {
 }
 export function vocabularyLesson(state,now=Date.now()) {
  const day=calendarDayKey(now);
- if(state.lesson?.day===day) return {...state,lesson:{...state.lesson,queue:state.lesson.queue.map(item=>({...item,introduce:false}))}};
+ if(state.lesson?.day===day) return {...state,lesson:quickVocabularyPlan({...state.lesson,queue:state.lesson.queue.map(item=>({...item,introduce:false}))},quickToday(state,now))};
  const due=state.words.filter(w=>w.attempts>0 && (vocabularyNeedsRepeat(w)||w.nextReviewAt<=now)).sort((a,b)=>Number(vocabularyNeedsRepeat(b))-Number(vocabularyNeedsRepeat(a))||a.nextReviewAt-b.nextReviewAt);
  const fresh=state.words.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,state.newLimit??3)));
  const selected=[...due,...fresh].slice(0,Math.max(1,Math.min(50,state.dailyLimit||15)));
- return {...state,lesson:{day,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
+ return {...state,lesson:quickVocabularyPlan({day,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false},quickToday(state,now))};
 }
 export function introduceVocabulary(state) {
  const lesson=structuredClone(state.lesson),item=lesson.queue.shift();

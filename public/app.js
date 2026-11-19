@@ -37,6 +37,7 @@ import {EMMA_VOICES,setupVoiceSettings} from '/emma-voices.js';
 import {checkCompletionTool,createCheckCompletion} from '/check-completion.js';
 import {createConversationHealth,mountConversationRecovery} from '/conversation-health.js';
 import {setupSectionCollapse} from '/section-collapse.js';
+import {quickToday,quickCardPlan,setupQuickLearning} from '/quick-learning.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
 bootNotice.setAttribute("role", "status");
@@ -258,7 +259,7 @@ document.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)
 document.addEventListener('visibilitychange',()=>{if(document.hidden)cardSpeech.stop();});
 window.addEventListener('pagehide',()=>cardSpeech.clear());
 let learningStats = learningStorage.load("stats", {conversations:0,minutes:0,practiceDays:[]});
-let streakRewardsUI=null;
+let streakRewardsUI=null,quickLearningUI=null;
 const recoveredStats = recoverPracticeDays(learningStats, cards);
 if (JSON.stringify(recoveredStats.practiceDays) !== JSON.stringify(learningStats.practiceDays)) {
   learningStats = recoveredStats;
@@ -276,13 +277,14 @@ $("profile").insertBefore(speakingSettings, $("profile").querySelector(".profile
 $("dailySpeakingMinutes").value = dailySpeakingMinutes;
 function clockText(seconds) {return `${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;}
 function refreshSpeakingGoal() {
-  document.querySelector(".home-card h2").textContent=`${dailySpeakingMinutes} Minuten`;
+  const effectiveMinutes=speakingGoal(learningStats,dailySpeakingMinutes).minutes;
+  document.querySelector(".home-card h2").textContent=`${effectiveMinutes} Minuten`;
   if (!hasActiveConversation() && !sessionBudgetDate) {
     sessionDurationSeconds=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes);
     $("timerText").textContent=clockText(sessionDurationSeconds);
   }
   timer.querySelector("small").textContent=`/ ${clockText(sessionDurationSeconds)}`;
-  document.querySelector(".home-countdown small").textContent=`/ ${clockText(dailySpeakingMinutes*60)}`;
+  document.querySelector(".home-countdown small").textContent=`/ ${clockText(effectiveMinutes*60)}`;
   syncConversationClocks();
   updateHomeProgress();
 }
@@ -290,7 +292,7 @@ $("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinute
 function localLearningDay() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`; }
 function dailyLesson() { const saved=learningStorage.load("lesson",null);return saved?.day===localLearningDay()?saved:{day:localLearningDay(),completed:[]}; }
 function prepareDailyLesson(persist=false) {
-  const plan=planDailyLesson(cards,dailyLesson(),localLearningDay(),dailyCardLimit);
+  const plan=quickCardPlan(planDailyLesson(cards,dailyLesson(),localLearningDay(),dailyCardLimit),quickToday(learningStats));
   if(persist && plan.plannedIds.length) learningStorage.save("lesson",plan);
   return plan;
 }
@@ -371,6 +373,7 @@ function updateHomeProgress() {
  $("homeVocabulary").textContent=`${known}/${words.length}`;
  $("homeVocabularyButton").setAttribute("aria-label",`${known} von ${words.length} Vokabelkarten gelernt. Alle Vokabelkarten anzeigen`);
  streakRewardsUI?.refresh();
+ quickLearningUI?.refresh();
 }
 function recordPracticeDay() {
   const updated = addPracticeDay(learningStats);
@@ -381,7 +384,7 @@ function recordPracticeDay() {
   updateHomeProgress();
 }
 function recordCompletedSession(seconds=sessionCountedSeconds) { const minutes = Math.max(1, Math.round(seconds / 60)); learningStats.conversations = Number(learningStats.conversations || 0) + 1; learningStats.minutes = Number(learningStats.minutes || 0) + minutes; learningStats = addPracticeDay(learningStats); saveStats(); }
-document.addEventListener("visibilitychange", () => { if (!document.hidden) updateHomeProgress(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshSpeakingGoal(); });
 function updateDue() { $("dueCount").textContent = cards.filter((card) => card.nextReviewAt <= Date.now()).length; }
 function cleanFocus(focus) { return Array.isArray(focus) ? focus.filter((item) => item && typeof item.pattern === "string" && typeof item.practice === "string").map((item) => ({ pattern:item.pattern.trim().slice(0, 90), practice:item.practice.trim().slice(0, 140), example:typeof item.example === "string" ? item.example.trim().slice(0, 120) : "" })).filter((item) => item.pattern && item.practice) : []; }
 function updateFocusHint() { const focus = cleanFocus(learningProfile.focus); const hint = $("focusHint"); if (!focus.length) { hint.classList.add("hidden"); return; } hint.textContent = `Dein nächster Fokus: ${focus[0].pattern} – ${focus[0].practice}`; hint.classList.remove("hidden"); }
@@ -465,7 +468,7 @@ async function startSession() {
   if (timeExpired || finishButton.classList.contains("creating-cards")) return;
   if (!remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)) {
     speakingPromptOpen=true;let approved;
-    try{approved=await confirmDialog({title:'Dein Tagesziel ist geschafft!',message:`Möchtest du noch eine Lektion mit ${dailySpeakingMinutes} Minuten sprechen?`,note:'Dein bisheriger Fortschritt bleibt gespeichert. Die zusätzliche Zeit startet erst nach deiner Bestätigung.',confirmText:'Weiterlernen'});}
+    try{approved=await confirmDialog({title:'Dein Tagesziel ist geschafft!',message:`Möchtest du noch eine Lektion mit ${speakingGoal(learningStats,dailySpeakingMinutes).minutes} Minuten sprechen?`,note:'Dein bisheriger Fortschritt bleibt gespeichert. Die zusätzliche Zeit startet erst nach deiner Bestätigung.',confirmText:'Weiterlernen'});}
     finally{speakingPromptOpen=false;}
     if(!approved){showHome();return;}
     if(hasActiveConversation() || startButton.disabled || finishingSession)return;
@@ -684,7 +687,7 @@ function showSummary(newCards,focus,review,seconds=sessionCountedSeconds) {
 function showConversationContinue(){
  const button=$('continueConversationButton');
  button.hidden=Boolean(englishCheck || !timeExpired || finishingSession || sessionWasEvaluated || !speechBookends?.canResume);
- button.disabled=false;button.textContent=`Gespräch fortführen · ${dailySpeakingMinutes} Min.`;
+ button.disabled=false;button.textContent=`Gespräch fortführen · ${speakingGoal(learningStats,dailySpeakingMinutes).minutes} Min.`;
 }
 function continueConversation(){
  const button=$('continueConversationButton');
@@ -698,7 +701,7 @@ function continueConversation(){
   const opening=coachInstructions()+conversationModeInstructions($('conversationMode').value)+courseText(' The learner explicitly chose to continue this SAME conversation for another time block. The previous farewell no longer ends the conversation. Resume the existing topic and actual conversation context. Do not introduce yourself, repeat a greeting, restart the lesson or repeat an already answered question. Make one brief connected comment and ask exactly ONE natural follow-up question. Keep this opening under 25 words.',activeCourse);
   if(!speechBookends.resume(opening))throw Error('Die Fortsetzung konnte noch nicht gestartet werden.');
   resumed=true;continuedSpeakingSeconds+=sessionCountedSeconds;
-  sessionCountedSeconds=0;sessionDurationSeconds=dailySpeakingMinutes*60;startedAt=Date.now();sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;
+  sessionCountedSeconds=0;sessionDurationSeconds=speakingGoal(learningStats,dailySpeakingMinutes).minutes*60;startedAt=Date.now();sessionBudgetDate=new Date(startedAt);sessionBudgetMinutes=dailySpeakingMinutes;
   isPaused=false;pausedAt=0;pausedDuration=0;timeExpired=false;responseActive=false;outputPlaying=false;resumingConversation=true;
   clearInterval(interval);clearTimeout(finishAfterAudioTimer);button.hidden=true;
   $('coachStage').classList.remove('paused');$('practice').dataset.keepAwake='true';
@@ -825,7 +828,7 @@ mountAdminUsage($("profile"),accountIdentity);
 const conversationSummary=setupConversationSummary({course:activeCourse,onCelebrate:playLessonFanfare});
 learningStrategy=setupLearningStrategy(activeCourse);
 setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learningProfile.emmaVoice)?learningProfile.emmaVoice:'marin',onChange:voice=>{const next={...learningProfile,emmaVoice:voice};learningStorage.save('profile',next);learningProfile=next;}});
-setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,onPractice:recordPracticeDay,onChange:updateHomeProgress,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
+setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,getQuickMode:()=>quickToday(learningStats),onPractice:recordPracticeDay,onChange:updateHomeProgress,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
 proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});},onCheck:startEnglishCheck});
@@ -864,9 +867,20 @@ setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinu
 $('saveProfileButton').textContent='Lernziele speichern';
 streakRewardsUI=setupStreakRewardsUI({
  host:document.querySelector('.home-progress'),getStats:()=>learningStats,
+ rescueHost:$('statistics').querySelector('.statistics-overview'),onRescue:()=>{renderLearningWeek($('statistics'),learningStats);$('statStreak').textContent=`${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`;},
  getProgress:()=>dailyLearningGoals({stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})}),
  onLearn:()=>{const goal=dailyLearningGoals({stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})});const next=goal.rows.find(row=>!row.done);if(next?.id==='speaking'){$('homeStartButton').click();}else if(next?.id==='cards'){showReview();}else if(next?.id==='vocabulary'){$('vocabularyChoiceButton').click();}else showCardChoice();},
  saveStats:next=>{learningStorage.save('stats',next);learningStats=next;updateHomeProgress();},
  isBusy:()=>hasActiveConversation() || Boolean(sessionBudgetDate) || Boolean(transcript.length&&!sessionWasEvaluated) || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || repairingCards
 });
 setupSectionCollapse(document.querySelector('main.app'));
+quickLearningUI=setupQuickLearning({host:document.querySelector('.home-card'),getStats:()=>learningStats,
+ isBusy:()=>hasActiveConversation()||finishingSession||Boolean(sessionBudgetDate)||Boolean(transcript.length&&!sessionWasEvaluated)||reviewRecorder?.state==='recording'||answerStarting,
+ notice:noticeDialog,onChange:enabled=>{
+  const next={...learningStats,quickModeDay:enabled?calendarDayKey():null};
+  next.speakingGoal=speakingGoal(next,dailySpeakingMinutes);
+  learningStorage.save('stats',next);learningStats=next;
+  prepareDailyLesson(true);document.dispatchEvent(new CustomEvent('storycards-quick-mode-changed'));
+  refreshSpeakingGoal();
+ }
+});

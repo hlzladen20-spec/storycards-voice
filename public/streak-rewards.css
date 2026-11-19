@@ -9,3 +9,4 @@
 .streak-rewards>.learning-goal-steps{order:3}.streak-rewards>.primary{order:4}.streak-rewards>details{order:5;margin-top:14px;font-size:.8rem}.streak-rewards>details summary{cursor:pointer;min-height:32px;align-content:center;font-weight:650}
 .streak-rewards>.secondary{order:6}.streak-rewards>.streak-rewards-status{order:7}.streak-rewards .goal-done{color:#568170}.streak-rewards .goal-open{font-weight:650;color:#19483e}
 .streak-rewards[data-complete=true]{border-color:#69b99b}.streak-rewards button{border-radius:14px}
+.streak-rescue{padding:18px;border:1px solid #d5e1d2;border-radius:18px;background:#f5f5e9;color:#19483e;margin:12px 0 18px}.streak-rescue h3{font-size:1.05rem;margin:0 0 8px}.streak-rescue p{font-size:.85rem;line-height:1.55;margin:7px 0}.streak-rescue button{width:100%;min-height:46px;margin-top:10px;border-radius:12px}.streak-rescue[hidden],.streak-rescue [hidden]{display:none!important}.streak-rescue button:disabled{opacity:.5}

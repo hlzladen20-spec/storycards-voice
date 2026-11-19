@@ -6,9 +6,10 @@ import {confirmDialog} from './app-dialog.js';
 import {setupVocabularyCreator} from './vocabulary-creator.js';
 import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
 import {removeVocabulary} from './vocabulary.js';
+import {vocabularySessionSeconds} from './vocabulary.js';
 import {revealProfileTarget} from './profile-layout.js';
 
-export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},getCards=()=>[],speech,course=LANGUAGE_COURSES.en}) {
+export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},getCards=()=>[],getQuickMode=()=>false,speech,course=LANGUAGE_COURSES.en}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),deleting=false;
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
@@ -92,6 +93,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  }
  function render(){
   speech?.stop();
+  state={...state,quickModeDay:getQuickMode()?calendarDayKey(new Date()):null};
   state=vocabularyLesson(state);
   if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
   save();progress();renderLists();refreshSettings();refreshChoice();
@@ -102,7 +104,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   $('.vocab-continue').hidden=!ended || !state.words.length;
   $('.vocab-finish').hidden=!ended;
   if(ended){
-   $('.vocab-word').replaceChildren(line(!state.words.length?'Noch keine persönlichen Kurzsätze':state.lesson.activeMs>=900000?'Deine 15 Minuten sind geschafft!':'Runde geschafft!','h3'));
+   $('.vocab-word').replaceChildren(line(!state.words.length?'Noch keine persönlichen Kurzsätze':state.lesson.activeMs>=vocabularySessionSeconds(state)*1000?'Deine Lernzeit ist geschafft!':'Runde geschafft!','h3'));
    $('.vocab-status').textContent=!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Mit „Weiterlernen“ startest du freiwillig eine weitere Runde – schwierige Karten zuerst.';return;
   }
   wordView(word,Boolean(answerCard));
@@ -111,10 +113,10 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  function tick(){
   const now=Date.now(),delta=now-lastTick;lastTick=now;
   if(deleting||panel.classList.contains('hidden')||document.visibilityState!=='visible'||!state.lesson||state.lesson.closed)return;
-  const elapsed=Math.min(Math.max(0,delta),Math.max(0,VOCABULARY_SECONDS*1000-state.lesson.activeMs));
+  const elapsed=Math.min(Math.max(0,delta),Math.max(0,vocabularySessionSeconds(state)*1000-state.lesson.activeMs));
   state.totalActiveMs=vocabularyTotalMs(state)+elapsed;
   state.lesson.activeMs+=elapsed;
-  if(state.lesson.activeMs>=VOCABULARY_SECONDS*1000){answerCard=null;state=finishVocabulary(state);render();}
+  if(state.lesson.activeMs>=vocabularySessionSeconds(state)*1000){answerCard=null;state=finishVocabulary(state);render();}
   else{save();progress();}
  }
  function revealCurrent(){
@@ -143,6 +145,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  box.addEventListener('keydown',e=>{if(e.target===box && (e.key===' '||e.key==='Enter')){e.preventDefault();revealCurrent();}});
  manage('.vocab-add').onsubmit=e=>{e.preventDefault();try{const data=new FormData(e.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();e.target.reset();renderLists();manage('.vocab-management-status').textContent='Kurzer Satz gespeichert. Er kommt in eine kommende Tagesportion.';}catch(error){manage('.vocab-management-status').textContent=error.message;}};
  document.addEventListener('storycards-cards-updated',syncCards);
+ document.addEventListener('storycards-quick-mode-changed',()=>{state={...state,quickModeDay:getQuickMode()?calendarDayKey(new Date()):null};state=vocabularyLesson(state);answerCard=null;if(!state.lesson.queue.length&&!state.lesson.closed)state=finishVocabulary(state);save();progress();refreshChoice();});
  document.addEventListener('storycards-card-choice-opened',refreshChoice);
  document.addEventListener('storycards-vocabulary-changed',()=>{state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary());answerCard=null;if(!panel.classList.contains('hidden'))render();else renderLists();});
  document.addEventListener('visibilitychange',()=>{lastTick=Date.now();});

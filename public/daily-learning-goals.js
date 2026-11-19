@@ -1,15 +1,16 @@
 import {calendarDayKey} from './learning-streak.js';
 import {initialVocabulary,vocabularyLesson} from './vocabulary.js';
+import {quickToday,dailyAmount} from './quick-learning.js';
 
 // Read-only projection of the existing rounds. Opening Home never completes one.
 export function dailyLearningGoals({stats={},minutes=10,lesson={},vocabulary={},now=new Date()}){
  const day=calendarDayKey(now),date=new Date(now),lessonDay=`${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
- const target=Math.max(1,Math.min(60,Number(minutes)||10))*60;
+ const target=dailyAmount(Math.max(1,Math.min(60,Number(minutes)||10)),quickToday(stats,now))*60;
  const seconds=stats.speakingGoal?.day===day?Math.max(0,Number(stats.speakingGoal.usedSeconds)||0):0;
  const plan=lesson.day===lessonDay?lesson:{};
  const ids=[...new Set(plan.plannedIds||[])],completed=new Set(plan.completed||[]);
  const remaining=ids.filter(id=>!completed.has(id)).length+(plan.pendingRetries||[]).length;
- const state=vocabularyLesson({...initialVocabulary(),...vocabulary,words:Array.isArray(vocabulary.words)?vocabulary.words:[]},Number(date));
+ const state=vocabularyLesson({...initialVocabulary(),...vocabulary,quickModeDay:stats.quickModeDay,words:Array.isArray(vocabulary.words)?vocabulary.words:[]},Number(date));
  const round=state.lesson,history=(state.history||[]).find(item=>item.day===day&&item.reviews>0);
  const available=round.ids.length>0||Boolean(history),vocabDone=Boolean(history&&(round.extraRound||round.closed));
  const rows=[
