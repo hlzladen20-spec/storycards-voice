@@ -1,5 +1,5 @@
 export const MAX_NEW_CARDS = 3;
-export const MAX_DAILY_CARDS = 10;
+export const MAX_DAILY_CARDS = 50;
 export const MAX_EXTRA_RETRIES = 3;
 // Use the latest assessment, not lifetime misses: recovered cards leave this list.
 export function difficultCards(cards) {
@@ -13,7 +13,7 @@ export function eligibleForLesson(card) {
   return typeof card.front==='string' && typeof card.back==='string' && card.front.length<=220 && card.back.length<=220 && card.back.trim().split(/\s+/).length<=24;
 }
 export function planDailyLesson(cards, previous, day, limit, now=Date.now()) {
-  const cap=Math.max(1,Math.min(MAX_DAILY_CARDS,Math.round(Number(limit)||MAX_DAILY_CARDS)));
+  const cap=Math.max(1,Math.min(MAX_DAILY_CARDS,Math.round(Number(limit)||10)));
   const same=previous?.day===day;
   const completed=same ? [...new Set(previous.completed||[])] : [];
   if(same && Array.isArray(previous.plannedIds)) {

@@ -15,11 +15,12 @@ export function mountAdminUsage(profile,identity,{request=authenticatedFetch,now
  area.innerHTML=`<summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6ZM9 12l2 2 4-4"/></svg><span><strong>Adminbereich</strong><small>Übersicht, Nutzer & Werkzeuge</small></span><b aria-hidden="true">⌄</b></summary><div class="profile-group-content">
  <div class="usage-heading"><div><p class="usage-kicker">DEINE APP</p><h3>Alles im Blick</h3></div><button type="button" class="primary usage-sync"><span aria-hidden="true">↻</span> <span class="usage-sync-label">Synchronisieren</span></button></div>
  <p class="usage-last-sync">Noch nicht synchronisiert</p>
+ <div class="usage-tabs" role="group" aria-label="Adminansicht"><button type="button" data-admin-view="overview" aria-pressed="true">Übersicht</button><button type="button" data-admin-view="people" aria-pressed="false">Nutzer & Verbrauch</button></div>
  <div class="usage-presets" role="group" aria-label="Zeitraum auswählen"><button type="button" data-days="1" aria-pressed="false">Heute</button><button type="button" data-days="7" aria-pressed="false">7 Tage</button><button type="button" data-days="30" aria-pressed="true">30 Tage</button></div>
  <p class="usage-period-label"></p>
  <details class="usage-period"><summary>Zeitraum anpassen</summary><form class="usage-filter"><label>Von<input type="date" name="from" required></label><label>Bis<input type="date" name="to" required></label><button class="secondary" type="submit">Zeitraum anwenden</button></form></details>
  <p role="status" class="usage-status" aria-live="polite"></p><section class="usage-overview" aria-label="Verbrauchsübersicht"><div class="usage-totals"></div></section>
- <section class="usage-people"><div class="usage-section-heading"><h4>Nutzer</h4><span class="usage-user-count"></span></div><label class="usage-search-label">Konto suchen<input type="search" class="usage-search" placeholder="E-Mail-Adresse" autocomplete="off"></label><div class="usage-users"></div></section>
+ <section class="usage-people" hidden><div class="usage-section-heading"><h4>Nutzer</h4><span class="usage-user-count"></span></div><label class="usage-search-label">Konto suchen<input type="search" class="usage-search" placeholder="E-Mail-Adresse" autocomplete="off"></label><div class="usage-users"></div></section>
  <details class="usage-info"><summary>Hinweise zur Erfassung</summary><p class="usage-note">Der Sync-Button lädt Verbrauch und Konten vom Server neu. Lernstände werden dabei nicht verändert. Erfassung ab Aktivierung; keine rückwirkende Zuordnung früherer Verbräuche. Zeitraum in UTC. Audio- und Cache-Tokens sind Teilmengen. Fehlende Messwerte bedeuten nicht null Verbrauch. Keine Gesprächsinhalte oder pauschale Euro-Schätzung.</p></details>
  <button type="button" class="ghost usage-export" disabled>↓ Verbrauchsdetails als CSV</button></div>`;
  profile.insertBefore(area,profile.querySelector('.profile-nav'));
@@ -32,6 +33,11 @@ export function mountAdminUsage(profile,identity,{request=authenticatedFetch,now
   presets.forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.days)===presetDays)));
  }
  showRange(activeRange);
+ const views=[...area.querySelectorAll('[data-admin-view]')];
+ for(const tab of views)tab.onclick=()=>{
+  const people=tab.dataset.adminView==='people';$('.usage-people').hidden=!people;$('.usage-overview').hidden=people;
+  views.forEach(item=>item.setAttribute('aria-pressed',String(item===tab)));
+ };
  function renderUsers(){
   const host=$('.usage-users');host.replaceChildren();if(!report)return;
   const term=search.value.trim().toLocaleLowerCase('de-DE'),users=report.users.filter(user=>String(user.email||user.user_id).toLocaleLowerCase('de-DE').includes(term));

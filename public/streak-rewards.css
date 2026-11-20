@@ -1,4 +1,5 @@
 .streak-rewards{margin:0 0 20px;padding:15px 17px;border:1px solid #d8e5da;border-radius:20px;background:#f8faf4;color:#19483e}
+.home-scenery{position:relative}.learning-points-badge{position:absolute;top:12px;right:12px;z-index:3;border:1px solid #a6cbb7;border-radius:22px;background:#fffdf5ed;color:#176b5b;box-shadow:0 3px 12px #173f3a16;padding:9px 12px;font-size:.78rem;max-width:65%;overflow-wrap:anywhere}
 .streak-rewards>strong{font-size:1rem}.streak-rewards p{font-size:.8rem;line-height:1.5;margin:7px 0 0;color:#526e63}
 .streak-rewards button{width:100%;margin-top:12px;min-height:44px;white-space:normal}.streak-rewards button:disabled{opacity:.55}
 .streak-rewards [hidden]{display:none!important}.streak-rewards button:focus-visible{outline:3px solid #16806a;outline-offset:3px}

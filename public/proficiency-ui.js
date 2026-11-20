@@ -41,12 +41,12 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
   section.append(label,bar,next);return section;
  }
  function render(){
-  const view=proficiencyView(getProfile());home.replaceChildren(node('strong',view.level?`${view.legacy?'Frühere Schätzung (unbestätigt)':'Dein Sprechen'}: ungefähr ${view.level} · ${view.stage}`:'Dein Sprechen: Wir lernen dein Niveau noch kennen'));
-  if(view.legacy)home.append(node('small','Bitte mit dem überarbeiteten Sprach-Check neu prüfen. Die alte Einordnung kann zu hoch oder zu niedrig sein.'));
+  const view=proficiencyView(getProfile());home.replaceChildren(node('strong',view.level?`${view.legacy?'Frühere Schätzung (unbestätigt)':'Dein Sprachlevel'}: ungefähr ${view.level} · ${view.stage}`:'Dein Sprachlevel: Wir lernen dein Niveau noch kennen'));
+  if(view.legacy)home.append(node('small','Neue normale Gespräche mit Emma helfen, diese frühere Schätzung zu überprüfen.'));
   if(!view.level){home.append(assessmentProgress(view),node('small','Sprich pro Gespräch mindestens 4 eigene Antworten mit zusammen etwa 40 Wörtern. Es zählt nach dem Beenden und erfolgreicher Auswertung – nicht nur die Gesprächszeit.'));}
   home.append(node('small',view.level?`${view.completed}/5 Lernziele gefestigt · Details ›`:'Dein Lernweg A1–C2 · Details ›'));
-  panel.replaceChildren(node('h3','Dein Sprechen · A1 bis C2'));
-  if(view.legacy)panel.append(node('p','Alte, unbestätigte Einordnung: Bitte starte einen neuen Sprach-Check. Alte Ergebnisse werden nicht in die neue Einstufung hineingemittelt. Deine Karten und Lernstatistik bleiben erhalten.'));
+  panel.replaceChildren(node('h3','Dein Sprachlevel · A1 bis C2'));
+  if(view.legacy)panel.append(node('p','Alte, unbestätigte Einordnung: Weitere normale Gespräche mit Emma helfen bei der neuen Einschätzung. Alte Ergebnisse werden nicht in die neue Einstufung hineingemittelt. Deine Karten und Lernstatistik bleiben erhalten.'));
   const assessmentNotes=[];
   if(view.reason)assessmentNotes.push(node('h4','Begründung'),node('p',view.reason));
   if(view.limits)assessmentNotes.push(node('h4','Noch nicht gesichert'),node('p',view.limits));

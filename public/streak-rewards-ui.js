@@ -1,7 +1,7 @@
 import {DAILY_POINTS,STREAK_RESCUE_COST,rewardBalance,rewardDailyGoals,streakRescueOffer,rescueStreak} from './streak-rewards.js';
 import {confirmDialog,noticeDialog} from './app-dialog.js';
 
-export function setupStreakRewardsUI({host,rescueHost=null,onRescue=()=>{},getStats,saveStats,getProgress=()=>null,onLearn=()=>{},isBusy=()=>false,now=()=>new Date(),confirm=confirmDialog,notice=noticeDialog}){
+export function setupStreakRewardsUI({host,pointsHost=null,rescueHost=null,onRescue=()=>{},getStats,saveStats,getProgress=()=>null,onLearn=()=>{},isBusy=()=>false,now=()=>new Date(),confirm=confirmDialog,notice=noticeDialog}){
  const area=document.createElement('section');area.className='streak-rewards';area.setAttribute('aria-label','Lernpunkte und Serien-Retter');
  const title=document.createElement('strong'),help=document.createElement('p'),button=document.createElement('button'),status=document.createElement('p');
  button.type='button';button.className='secondary';status.className='streak-rewards-status';status.setAttribute('role','status');
@@ -10,6 +10,7 @@ export function setupStreakRewardsUI({host,rescueHost=null,onRescue=()=>{},getSt
  help.textContent=`${DAILY_POINTS} Punkte für dein vollständiges Tagesziel: Sprechen, Tageslektion mit ihren Wiederholungen und Vokabelrunde. Weitere ${DAILY_POINTS} Punkte für eine vollständige zusätzliche Sprechlektion oder Vokabelrunde. Höchstens 20 Punkte pro Tag. Keine fälligen Karten? Dann ist dieser Teil nicht nötig. ${STREAK_RESCUE_COST} Punkte retten einen ausgelassenen Tag. Kein Kauf, kein Geld. Bereits verdiente Punkte bleiben erhalten.`;
  learn.type='button';learn.className='primary';learn.onclick=onLearn;steps.className='learning-goal-steps';progress.max=3;
  area.append(title,details,button,status,headline,progress,steps,learn);host.after(area);let pending=false;
+ if(pointsHost){title.className='learning-points-badge';title.setAttribute('aria-live','polite');pointsHost.append(title);}
  const rescueArea=document.createElement('section'),rescueTitle=document.createElement('h3'),rescueText=document.createElement('p'),rescueStatus=document.createElement('p');
  rescueArea.className='streak-rescue profile-card';rescueArea.setAttribute('aria-label','Ausgelassenen Tag mit Lernpunkten schützen');rescueStatus.setAttribute('role','status');
  if(rescueHost){rescueArea.append(rescueTitle,rescueText,button,rescueStatus);rescueHost.after(rescueArea);}

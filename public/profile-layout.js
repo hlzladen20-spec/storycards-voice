@@ -27,7 +27,7 @@ export function setupProfileLayout({profile,getPlan}){
  const goals=group('profileGoalsSection','Lernziele','Sprechzeit und tägliche Kartenportionen','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',[
   find('#profileSpeakingSettings'),find('#profileDailySettings'),find('.vocab-settings'),find('#profileSaveArea')
  ]);
- group('profileAssessmentSection','Sprachniveau & Sprach-Check','Deine Einschätzung ansehen oder neu prüfen','<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 12l2 2 4-4M9 18h6"/>',[
+ group('profileAssessmentSection','Dein Sprachlevel','Deine Einschätzung aus Gesprächen mit Emma','<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 12l2 2 4-4M9 18h6"/>',[
   find('#profileLearningPath')
  ]);
  group('profileCardsSection','Karten verwalten','Satzkarten und Vokabeln an einem Ort','<rect x="7" y="3" width="13" height="17" rx="2"/><path d="M4 7H3v14h13v-1M11 7h5M11 11h5"/>',[
@@ -38,11 +38,9 @@ export function setupProfileLayout({profile,getPlan}){
  ]);
  const accountPanel=find('.cloud-account');
  const account=group('profileAccountSection','Konto & Sicherung','Anmelden, synchronisieren und Daten sichern','<path d="M7 18H6a4 4 0 0 1-1-8 7 7 0 0 1 13-2 5 5 0 0 1 0 10h-1M12 12v9m-3-3 3 3 3-3"/>',[accountPanel]);
- const developer=find('.developer-tools');
+ find('.developer-tools')?.remove();
  const admin=find('.admin-usage');
  if(admin){profile.insertBefore(admin,nav);sections.push(admin);}
- // Nested tools must not join the outer accordion group or close their admin parent.
- if(developer){const host=admin?.querySelector('.profile-group-content');if(host)host.append(developer);else developer.remove();}
  // Old loose headings are replaced by the labelled groups; voice controls keep their handlers.
  for(const heading of profile.querySelectorAll(':scope > .profile-section-title'))heading.remove();
  find('.coach-choice>b')?.remove();

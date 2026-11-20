@@ -48,3 +48,4 @@
 .admin-usage :is(button,input,summary):focus-visible{outline:2px solid #16846a;outline-offset:3px}
 @keyframes usage-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.admin-usage[aria-busy=true] .usage-sync>span:first-child{animation:none}}
+.admin-usage .usage-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 18px}.admin-usage .usage-tabs button{padding:12px 8px;border:1px solid #d1e2d4;border-radius:12px;background:#f2f6ee;color:#285d4d;font-size:.8rem;min-height:44px}.admin-usage .usage-tabs button[aria-pressed=true]{background:#176b5b;color:white}.admin-usage [hidden]{display:none!important}

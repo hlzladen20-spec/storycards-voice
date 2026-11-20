@@ -20,7 +20,8 @@ import {showLearningTip} from '/learning-tips.js';
 import {recordProficiency,proficiencyCoachInstructions} from '/proficiency.js';
 import {setupProficiencyUI} from '/proficiency-ui.js';
 import {createConversationBookends} from '/conversation-bookends.js';
-import {setupDeveloperTools,resetDailyState} from '/developer-tools.js';
+import {redeemQuickDay} from '/streak-rewards.js';
+import {setupBackNavigation} from '/back-navigation.js';
 import {englishCheckInstructions as baseCheckInstructions,adaptiveCheckInstructions,englishCheckBudget,extendEnglishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
 import {checkAssessment} from '/check-assessment.js';
 import {setupProfileLayout,revealProfileTarget} from '/profile-layout.js';
@@ -265,7 +266,7 @@ if (JSON.stringify(recoveredStats.practiceDays) !== JSON.stringify(learningStats
   learningStats = recoveredStats;
   learningStorage.save("stats", learningStats);
 }
-let dailyCardLimit = Math.min(10, Math.max(1, Number(appStorage.getItem("storycards-daily-limit")) || 10));
+let dailyCardLimit = Math.min(50, Math.max(1, Number(appStorage.getItem("storycards-daily-limit")) || 10));
 let dailySpeakingMinutes = Math.min(60, Math.max(1, Number(appStorage.getItem("storycards-speaking-minutes")) || 10));
 let sessionDurationSeconds = dailySpeakingMinutes * 60;
 let sessionCountedSeconds=0, sessionBudgetDate=null, sessionBudgetMinutes=dailySpeakingMinutes;
@@ -304,10 +305,10 @@ function rememberDailyCard(id,result) {
 const dailySettings = document.createElement("div");
 dailySettings.className = "profile-card";
 dailySettings.id='profileDailySettings';
-dailySettings.innerHTML = '<label for="dailyCardLimit"><strong>Lernkarten pro Tag</strong></label><p>Höchstens 10 Karten plus 3 zusätzliche Wiederholungen</p><input id="dailyCardLimit" type="number" min="1" max="10" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="dailyLimitSaved" role="status"></p>';
+dailySettings.innerHTML = '<label for="dailyCardLimit"><strong>Lernkarten pro Tag</strong></label><p>1–50 Karten · höchstens 3 neue Karten und 3 zusätzliche Wiederholungen. Änderungen gelten für die nächste Tagesrunde.</p><input id="dailyCardLimit" type="number" min="1" max="50" step="1" style="width:100%;padding:10px;margin-top:8px;border:1px solid #d8e2dd;border-radius:10px;font:inherit"><p id="dailyLimitSaved" role="status"></p>';
 $("profile").insertBefore(dailySettings, $("profile").querySelector(".profile-section-title"));
 $("dailyCardLimit").value = dailyCardLimit;
-$("dailyCardLimit").addEventListener("change", () => { dailyCardLimit = Math.min(10, Math.max(1, Math.round(Number($("dailyCardLimit").value) || 10))); $("dailyCardLimit").value = dailyCardLimit; appStorage.setItem("storycards-daily-limit", String(dailyCardLimit)); $("dailyLimitSaved").textContent = `Gespeichert: ${dailyCardLimit} Karten pro Tag.`; });
+$("dailyCardLimit").addEventListener("change", () => { dailyCardLimit = Math.min(50, Math.max(1, Math.round(Number($("dailyCardLimit").value) || 10))); $("dailyCardLimit").value = dailyCardLimit; appStorage.setItem("storycards-daily-limit", String(dailyCardLimit)); $("dailyLimitSaved").textContent = `Gespeichert: ${dailyCardLimit} Karten pro Tag.`; });
 const topicList = $("profile").querySelector(".topic-list");
 if (topicList) { topicList.previousElementSibling?.remove(); topicList.remove(); }
 $("profile").querySelector("h2").textContent = "Profil & Einstellungen";
@@ -831,42 +832,13 @@ setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learn
 setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,getQuickMode:()=>quickToday(learningStats),onPractice:recordPracticeDay,onChange:updateHomeProgress,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
-proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});},onCheck:startEnglishCheck});
-async function startEnglishCheck(){
- if(englishCheckPromptOpen)return;
- if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled){await noticeDialog({title:'Noch ein Schritt davor',message:'Bitte beende zuerst das laufende Gespräch, die Aufnahme oder die Auswertung.'});return;}
- if(transcript.length && !sessionWasEvaluated){await noticeDialog({title:'Dein Gespräch ist noch offen',message:'Bitte beende dein vorheriges Gespräch und lass es auswerten. Danach kannst du den Sprach-Check starten.'});return;}
- const extra=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes)<ENGLISH_CHECK_SECONDS;
- englishCheckPromptOpen=true;let approved;
- try{approved=await confirmDialog({title:`Dein ${activeCourse.name}-Check`,message:`Emma prüft mit unterschiedlich schwierigen Aufgaben, was du in ${activeCourse.name} bereits selbstständig ausdrücken kannst.`,items:[`Zunächst bis zu 5 Minuten · antworte selbstständig auf ${activeCourse.name}`,'Alltag, Erzählen, eine praktische Aufgabe und angepasste Nachfragen','Bei genügend belegter Sprache endet der Check früher. Sonst kannst du freiwillig zweimal um 2 Minuten verlängern.'],note:'Vorläufige Einschätzung deiner verschriftlichten Antworten, kein Zertifikat. Aussprache und Hörverständnis werden nicht verlässlich geprüft. Der Check nutzt Mikrofon und KI und zählt nur die tatsächlich verbrauchte Sprechzeit.'+(extra?' Fehlende Zeit bis zu einem verfügbaren 5-Minuten-Budget wird zusätzlich freigegeben.':''),confirmText:'Check starten'});}
- finally{englishCheckPromptOpen=false;}
- if(!approved)return;
- if(hasActiveConversation() || startButton.disabled || finishingSession || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || (transcript.length && !sessionWasEvaluated))return;
- learningStats=englishCheckBudget(learningStats,dailySpeakingMinutes);saveStats();
- englishCheck={started:false};showPractice();startSession();
-}
-setupDeveloperTools({profile:$('profile'),isAdmin:accountIdentity.admin,deviceStorage:localStorage,
- isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || repairingCards,
- onReset:()=>{
-  const next=resetDailyState({stats:learningStats,lesson:learningStorage.load('lesson',null),vocabulary:learningStorage.load('vocabulary',null)},{minutes:dailySpeakingMinutes});
-  learningStorage.save('lesson',next.lesson);
-  if(next.vocabulary)learningStorage.save('vocabulary',next.vocabulary);
-  learningStorage.save('stats',next.stats);learningStats=next.stats;
-  queue=[];reviewHistory=[];assessedCards.clear();answerVisible=false;freePractice=false;weakPractice=false;
-  sessionBudgetDate=null;sessionCountedSeconds=0;timeExpired=false;englishCheck=null;
-  proficiencyUI?.renderCheckProgress(null);proficiencyUI?.renderCheckResult(null);
-  learningStrategy?.reset();window.speechSynthesis?.cancel();
-  delete $('card').dataset.finished;
-  timer.style.background='#dcece7';refreshSpeakingGoal();updateDue();
-  document.dispatchEvent(new CustomEvent('storycards-vocabulary-changed'));
- }
-});
+proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});}});
 refreshSpeakingGoal();
 await import("/cards-design.js");
 setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinutes,cards:dailyCardLimit,vocabulary:learningStorage.load('vocabulary',{}).dailyLimit||15})});
 $('saveProfileButton').textContent='Lernziele speichern';
 streakRewardsUI=setupStreakRewardsUI({
- host:document.querySelector('.home-progress'),getStats:()=>learningStats,
+ host:document.querySelector('.home-progress'),pointsHost:document.querySelector('.home-scenery'),getStats:()=>learningStats,
  rescueHost:$('statistics').querySelector('.statistics-overview'),onRescue:()=>{renderLearningWeek($('statistics'),learningStats);$('statStreak').textContent=`${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`;},
  getProgress:()=>dailyLearningGoals({stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})}),
  onLearn:()=>{const goal=dailyLearningGoals({stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})});const next=goal.rows.find(row=>!row.done);if(next?.id==='speaking'){$('homeStartButton').click();}else if(next?.id==='cards'){showReview();}else if(next?.id==='vocabulary'){$('vocabularyChoiceButton').click();}else showCardChoice();},
@@ -877,10 +849,12 @@ setupSectionCollapse(document.querySelector('main.app'));
 quickLearningUI=setupQuickLearning({host:document.querySelector('.home-card'),getStats:()=>learningStats,
  isBusy:()=>hasActiveConversation()||finishingSession||Boolean(sessionBudgetDate)||Boolean(transcript.length&&!sessionWasEvaluated)||reviewRecorder?.state==='recording'||answerStarting,
  notice:noticeDialog,onChange:enabled=>{
-  const next={...learningStats,quickModeDay:enabled?calendarDayKey():null};
+  const next=redeemQuickDay(learningStats);
   next.speakingGoal=speakingGoal(next,dailySpeakingMinutes);
   learningStorage.save('stats',next);learningStats=next;
   prepareDailyLesson(true);document.dispatchEvent(new CustomEvent('storycards-quick-mode-changed'));
   refreshSpeakingGoal();
  }
 });
+
+setupBackNavigation({onHome:()=>{if(hasActiveConversation()&&!isPaused)togglePause();showHome();}});

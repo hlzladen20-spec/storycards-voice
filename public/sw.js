@@ -1,4 +1,4 @@
-const CACHE = "storycards-shell-account-recovery-sync-v79";
+const CACHE = "storycards-shell-learning-comfort-v80";
 const SHELL = ["/language-courses.js", "/language-ui.js", "/language-courses.css", "/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 SHELL.push('/streak-rewards.js','/streak-rewards-ui.js','/streak-rewards.css');
 SHELL.push('/learning-week.js','/emma-speech.js');
@@ -18,7 +18,7 @@ SHELL.push('/learning-tips.js');
 SHELL.push('/proficiency.js','/proficiency-ui.js','/proficiency-goals.js','/proficiency.css');
 SHELL.push('/conversation-bookends.js');
 SHELL.push('/emma-avatar.js','/conversation-controls.css','/emma-coach.png','/emma-coach-talking.png','/emma-coach-blink.png');
-SHELL.push('/developer-tools.js');
+SHELL.push('/back-navigation.js');
 SHELL.push('/english-check.js');
 SHELL.push('/profile-layout.js','/profile-layout.css');
 SHELL.push('/statistics-layout.css');

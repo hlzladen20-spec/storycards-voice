@@ -1,9 +1,8 @@
-// Only a visible, running conversation may keep the screen awake.
-const practice = document.getElementById('practice');
+// Keep every visible app screen awake; release when the app is backgrounded.
 let screenLock = null;
 let requesting = false;
 function needsScreenAwake() {
-  return document.visibilityState === 'visible' && practice?.dataset.keepAwake === 'true' && !practice.classList.contains('hidden');
+  return document.visibilityState === 'visible';
 }
 async function releaseScreenLock() {
   const previous = screenLock;
@@ -22,7 +21,6 @@ async function keepScreenAwake() {
   } catch { /* Battery-saving policies can prevent a screen wake lock. */ }
   finally { requesting = false; }
 }
-if (practice) new MutationObserver(keepScreenAwake).observe(practice, {attributes:true,attributeFilter:['class','data-keep-awake']});
 document.addEventListener('visibilitychange', keepScreenAwake);
 window.addEventListener('pageshow', keepScreenAwake);
 window.addEventListener('pagehide', releaseScreenLock);
