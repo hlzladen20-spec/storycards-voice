@@ -6,7 +6,6 @@ import {requireAccount} from '/account-gate.js';
 import {authenticatedFetch as fetch} from '/authenticated-fetch.js';
 import {mountAdminUsage} from '/admin-usage.js';
 import { planDailyLesson, lessonQueue, retryAllowed, difficultCards } from "/lesson-planner.js";
-import { appendLearningImage } from "/learning-images.js";
 import { learningStreak, addPracticeDay, recoverPracticeDays, calendarDayKey } from "/learning-streak.js";
 import {dailyLearningGoals} from '/daily-learning-goals.js';
 import {setupStreakRewardsUI} from "/streak-rewards-ui.js";
@@ -77,7 +76,6 @@ let reviewHistory = [];
 let freePractice = false;
 let weakPractice = false;
 let weakRoundTotal = 0;
-let imageHintsEnabled = appStorage.getItem("storycards-image-hints") !== "off";
 let repairingCards = false;
 let repairFailed = false;
 new MutationObserver(() => { if (queue[0] && queue[0].cueLanguage !== "de" && !repairingCards && !repairFailed) ensureGermanCards(); }).observe($("card"), { childList:true });
@@ -317,13 +315,6 @@ profileSaveArea.id='profileSaveArea';
 profileSaveArea.style.marginTop = "20px";
 profileSaveArea.innerHTML = '<button id="saveProfileButton" class="primary" type="button">Einstellungen speichern</button><p id="profileSavedStatus" role="status" style="color:#16806a;font-size:.85rem;text-align:center"></p>';
 $("profile").insertBefore(profileSaveArea, $("profile").querySelector(".profile-nav"));
-const imageSettings=document.createElement("div");imageSettings.className="profile-card";imageSettings.style.marginTop="12px";
-imageSettings.id='profileImageSettings';
-imageSettings.innerHTML='<label class="image-hint-setting"><input id="imageHintSetting" type="checkbox"> Bilder als Merkhilfe verwenden</label><p style="font-size:.75rem;line-height:1.4">Passende KI-Merkszenen beim Kennenlernen und Aufdecken. Beim selbstständigen Erinnern bleiben sie verborgen. Keine automatische kostenpflichtige Bilderstellung.</p>';
-$("profile").insertBefore(imageSettings,profileSaveArea);
-$("imageHintSetting").checked=imageHintsEnabled;
-$("imageHintSetting").addEventListener("change",()=>{imageHintsEnabled=$("imageHintSetting").checked;appStorage.setItem("storycards-image-hints",imageHintsEnabled?"on":"off");});
-
 $("saveProfileButton").addEventListener("click", () => {
   if (!$("dailySpeakingMinutes").reportValidity() || !$("dailyCardLimit").reportValidity() || $('vocabDailyLimit')?.reportValidity()===false || $('vocabNewLimit')?.reportValidity()===false) return;
   try {
@@ -784,7 +775,7 @@ function renderCard() {
     if(card.retryPractice || card.weakRetry || introduction) assessedCards.delete(card.id);
   const phase=introduction?"Hören und nachsprechen":card.retryPractice?"Noch einmal ohne Hilfe":"Aus dem Gedächtnis";
   $("card").innerHTML=`<small class="lesson-phase">${phase}</small>${introduction?`<span class="back">${activeCourse.flag} ${escapeHtml(card.back)}</span><span class="introduction-translation" lang="de">🇩🇪 ${escapeHtml(card.front)}</span>`:`<span>🇩🇪 ${escapeHtml(card.front)}</span>`}`;
-  if(introduction) {answerVisible=true;if(imageHintsEnabled) appendLearningImage($("card"),card);}
+  if(introduction) {answerVisible=true;}
   $("speakPrompt").textContent=introduction?"Höre den Satz an und sprich ihn nach. Gleich versuchst du ihn ohne Hilfe.":"Sprich die Übersetzung aus dem Gedächtnis.";
   $("speakPrompt").classList.remove("hidden");$("recordAnswerButton").classList.remove("hidden");$("recordAnswerButton").disabled=false;$("recordAnswerButton").textContent="🎙 Zum Sprechen gedrückt halten";
   if(!introduction) $("revealButton").classList.remove("hidden");
@@ -794,7 +785,7 @@ function revealAnswer() {
   const card=queue[0];if(!card||answerVisible) return;
   if(!assessedCards.has(card.id)) {assessedCards.set(card.id,"assisted");cards=cards.map(item=>item.id===card.id?{...item,needsPractice:true}:item);saveCards();}
   answerVisible=true;$("card").innerHTML=`<span>🇩🇪 ${escapeHtml(card.front)}</span><span class="back">${activeCourse.flag} ${escapeHtml(card.back)}</span>`;
-  if(imageHintsEnabled) appendLearningImage($("card"),card);
+
   $("revealButton").classList.add("hidden");$("recordAnswerButton").classList.remove("hidden");$("speakPrompt").classList.add("hidden");$("listenButton").classList.remove("hidden");$("ratingButtons").classList.remove("hidden");
 }
 function speakAnswer() { const card=queue[0];if(!card || reviewRecorder?.state==='recording')return;void cardSpeech.speak(card.back,{language:activeCourse.target,onStatus:text=>{$('cardSpeechStatus').textContent=text;}}); }

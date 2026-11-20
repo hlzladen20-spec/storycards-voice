@@ -33,9 +33,10 @@ export function setupProfileLayout({profile,getPlan}){
  group('profileCardsSection','Karten verwalten','Satzkarten und Vokabeln an einem Ort','<rect x="7" y="3" width="13" height="17" rx="2"/><path d="M4 7H3v14h13v-1M11 7h5M11 11h5"/>',[
   find('.card-manager'),find('.vocab-management')
  ]);
- group('profilePreferencesSection','Sprache & Lernhilfen','Lernsprache, Emma und Merkbilder','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z"/>',[
-  find('.language-settings'),find('.coach-choice'),find('#profileImageSettings')
+ group('profilePreferencesSection','Sprache & Lernhilfen','Lernsprache und Emmas Stimme','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z"/>',[
+  find('.language-settings'),find('.coach-choice')
  ]);
+ find('#profileImageSettings')?.remove();
  const accountPanel=find('.cloud-account');
  const account=group('profileAccountSection','Konto & Sicherung','Anmelden, synchronisieren und Daten sichern','<path d="M7 18H6a4 4 0 0 1-1-8 7 7 0 0 1 13-2 5 5 0 0 1 0 10h-1M12 12v9m-3-3 3 3 3-3"/>',[accountPanel]);
  find('.developer-tools')?.remove();
