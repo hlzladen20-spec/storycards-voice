@@ -185,8 +185,8 @@ export function createApp({accounts=createAccountService(),realtimeFactory=creat
       return json(res,404,{error:'Not found'});
       });
     }
-    if (req.method === "GET" && ["/cards.js", "/fsrs.mjs"].includes(req.url)) {
-      const content = await readFile(join(projectDir, "lib", req.url === "/cards.js" ? "flashcards.js" : "fsrs.mjs"));
+    if (req.method === "GET" && ["/cards.js", "/fsrs.mjs", "/lib/review-scheduler.js", "/lib/fsrs.mjs"].includes(req.url)) {
+      const content = await readFile(join(projectDir, "lib", req.url === "/cards.js" ? "flashcards.js" : req.url.endsWith('/review-scheduler.js') ? "review-scheduler.js" : "fsrs.mjs"));
       res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
       return res.end(content);
     }

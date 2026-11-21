@@ -1,8 +1,8 @@
 import {calendarDayKey} from './learning-streak.js';
 import {quickToday,quickVocabularyPlan} from './quick-learning.js';
-export const vocabularySessionSeconds=(state,now=new Date())=>quickToday(state,now)?450:900;
+import {reviewSchedule} from '../lib/review-scheduler.js';
+export const vocabularySessionSeconds=(state,now=new Date())=>Math.max(60,Number(state.lesson?.sessionSeconds)||Number(state.sessionSeconds)||900)*(quickToday(state,now)?.5:1);
 export const VOCABULARY_SECONDS=900;
-const intervals=[1,3,7,14,30];
 const phraseKey=word=>JSON.stringify([word.front,word.back].map(text=>String(text||'').normalize('NFKC').trim().toLocaleLowerCase().replace(/\s+/g,' ')));
 export function removeVocabulary(state,id){
  const word=state.words.find(item=>item.id===id);if(!word)return state;
@@ -68,6 +68,16 @@ export function vocabularyRoundProgress(state) {
  const pending=new Set((state.lesson?.queue||[]).map(item=>item.id));
  return {total:ids.size,completed:[...ids].filter(id=>rated.has(id) && !pending.has(id)).length};
 }
+export function vocabularyDailyProgress(state,now=new Date()){
+ const day=calendarDayKey(now),lesson=state.lesson;
+ if(lesson?.day!==day)return {total:0,completed:0,pending:0,done:false,hasWork:false};
+ const history=(state.history||[]).find(item=>item.day===day);
+ if(lesson.extraRound&&history?.finished)return {total:history.planned||0,completed:history.completed||0,pending:history.pending||0,done:Boolean(history.timedOut||history.planned>0&&history.completed>=history.planned),hasWork:history.planned>0};
+ if(lesson.extraRound&&history&&!history.finished){const previous=[...new Set(lesson.previousIds||[])],rated=new Set(lesson.previousRated||[]);return {total:previous.length,completed:previous.filter(id=>rated.has(id)).length,pending:0,done:Boolean(history.reviews>0||previous.length&&previous.every(id=>rated.has(id))),hasWork:previous.length>0||history.reviews>0};}
+ const progress=vocabularyRoundProgress(state);
+ const timedOut=lesson.closed&&lesson.rated?.length>0&&lesson.activeMs>=vocabularySessionSeconds(state,now)*1000;
+ return {...progress,pending:lesson.queue.length,repetitions:new Set(lesson.queue.filter(item=>item.retry).map(item=>item.id)).size,done:progress.total>0&&Boolean(timedOut||lesson.closed&&progress.completed===progress.total),hasWork:progress.total>0};
+}
 export function additionalVocabularyLesson(state,now=Date.now()) {
  if(state.lesson && !state.lesson.closed && state.lesson.queue.length)return state;
  const day=calendarDayKey(now),same=state.lesson?.day===day;
@@ -79,7 +89,7 @@ export function additionalVocabularyLesson(state,now=Date.now()) {
  if(!selected.length){selected=finished.words.filter(w=>w.attempts>0).sort((a,b)=>(a.lastReviewedAt||0)-(b.lastReviewedAt||0)).slice(0,finished.dailyLimit||15);practiceOnly=true;}
  if(!selected.length)return finished;
  const previous=finished.lesson;
- return {...finished,lesson:{day,extraRound:true,previousIds:same?[...new Set([...(previous?.previousIds||[]),...(previous?.ids||[])])]:[],previousRated:same?[...new Set([...(previous?.previousRated||[]),...(previous?.rated||[])])]:[],ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id,practiceOnly})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
+ return {...finished,lesson:{day,extraRound:true,countsAsDaily:!vocabularyDailyProgress(finished,new Date(now)).done,sessionSeconds:Number(state.sessionSeconds)||900,previousIds:same?[...new Set([...(previous?.previousIds||[]),...(previous?.ids||[])])]:[],previousRated:same?[...new Set([...(previous?.previousRated||[]),...(previous?.rated||[])])]:[],ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id,practiceOnly})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};
 }
 export function vocabularyLesson(state,now=Date.now()) {
  const day=calendarDayKey(now);
@@ -87,7 +97,7 @@ export function vocabularyLesson(state,now=Date.now()) {
  const due=state.words.filter(w=>w.attempts>0 && (vocabularyNeedsRepeat(w)||w.nextReviewAt<=now)).sort((a,b)=>Number(vocabularyNeedsRepeat(b))-Number(vocabularyNeedsRepeat(a))||a.nextReviewAt-b.nextReviewAt);
  const fresh=state.words.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,state.newLimit??3)));
  const selected=[...due,...fresh].slice(0,Math.max(1,Math.min(50,state.dailyLimit||15)));
- return {...state,lesson:quickVocabularyPlan({day,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false},quickToday(state,now))};
+ return {...state,lesson:quickVocabularyPlan({day,sessionSeconds:Number(state.sessionSeconds)||900,ids:selected.map(w=>w.id),queue:selected.map(w=>({id:w.id})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false},quickToday(state,now))};
 }
 export function introduceVocabulary(state) {
  const lesson=structuredClone(state.lesson),item=lesson.queue.shift();
@@ -105,10 +115,8 @@ export function rateVocabulary(state,rating,now=Date.now()) {
  const cleanStreak=rating==='yes'?Math.min(3,(word.cleanStreak||0)+1):0;
  const relearning=difficult && cleanStreak<3;
  const stage=rating==='yes'?(relearning?(word.stage||0):Math.min(5,(word.stage||0)+1)):rating==='hard'?1:0;
- const due=new Date(now);
- if(rating==='no' || relearning && rating==='yes') due.setTime(now+10*60*1000);
- else {due.setDate(due.getDate()+intervals[stage-1]);due.setHours(9,0,0,0);}
- const updated=item.practiceOnly && rating==='yes' && !difficult?word:{...word,stage,cleanStreak,relearning,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now,nextReviewAt:due.getTime()};
+ const schedule=reviewSchedule(word,rating,now);
+ const updated=item.practiceOnly && rating==='yes' && !difficult?word:{...word,...schedule,stage,cleanStreak,relearning,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now};
  lesson.queue.shift();lesson.rated.push(item.id);
  if(!item.retry && !item.practiceOnly && word.attempts>0) {lesson.reviewCount++;lesson.correctCount+=Number(rating==='yes');}
  if(relearning) {
@@ -120,8 +128,13 @@ export function rateVocabulary(state,rating,now=Date.now()) {
 export function finishVocabulary(state) {
  if(!state.lesson || state.lesson.closed) return state;
  const lesson={...state.lesson,closed:true};
- if(lesson.extraRound)return {...state,lesson};
- const result={day:lesson.day,reviews:lesson.reviewCount,accuracy:lesson.reviewCount?lesson.correctCount/lesson.reviewCount:0,seconds:Math.ceil(lesson.activeMs/1000)};
+ const round=vocabularyRoundProgress(state);
+ const result={day:lesson.day,reviews:lesson.reviewCount,accuracy:lesson.reviewCount?lesson.correctCount/lesson.reviewCount:0,seconds:Math.ceil(lesson.activeMs/1000),finished:true,completed:round.completed,planned:round.total,pending:lesson.queue.length,timedOut:lesson.rated.length>0&&lesson.activeMs>=vocabularySessionSeconds(state,new Date(lesson.day+'T12:00:00'))*1000};
+ if(lesson.extraRound){
+  if(!lesson.countsAsDaily)return {...state,lesson};
+  const previous=(state.history||[]).find(item=>item.day===lesson.day);
+  return {...state,lesson,history:[...(state.history||[]).filter(item=>item.day!==lesson.day),{...result,seconds:(previous?.seconds||0)+result.seconds}].slice(-90)};
+ }
  const history=[...(state.history||[]).filter(h=>h.day!==lesson.day),result].slice(-90);
  const last=history.slice(-3),since=state.lastIncreaseDay;
  const increase=state.autoIncrease!==false && state.newLimit!==0 && last.length===3 && last.every(h=>h.reviews>=3 && h.accuracy>=.85 && h.seconds<VOCABULARY_SECONDS && (!since || h.day>since));

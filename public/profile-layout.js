@@ -1,67 +1,54 @@
-// Reparent existing controls, never recreate forms or their event handlers.
+import {setupLearningPlan} from './learning-plan.js';
 export function revealProfileTarget(target){
  const ancestors=[];
- for(let current=target;current;current=current.parentElement){if(current.tagName==='DETAILS')ancestors.unshift(current);}
+ for(let current=target;current;current=current.parentElement){
+  if(current.tagName==='DETAILS')ancestors.unshift(current);
+  if(current.classList?.contains('profile-subpage'))current.dispatchEvent(new Event('storycards-open-profile-page'));
+ }
  for(const area of ancestors)area.open=true;
 }
-
-export function setupProfileLayout({profile,getPlan}){
- const nav=profile.querySelector('.profile-nav');
+export function setupProfileLayout({profile,getPlan,getConfiguration=()=>null,getData=()=>({}),onPlanSave=async()=>{}}){
  if(profile.querySelector('.profile-overview'))return;
- profile.classList.add('profile-organized');
- const title=profile.querySelector('h2');title.textContent='Dein Profil';
- const overview=document.createElement('section');overview.className='profile-overview';overview.setAttribute('aria-label','Deine eingestellten Tagesziele');
- overview.innerHTML=`<p class="profile-kicker">DEIN LERNPLAN</p><h3>Kleine Schritte. Dein Tempo.</h3>
- <div class="profile-plan-grid"><div><strong data-plan="minutes"></strong><small>Sprechen / Tag</small></div><div><strong data-plan="cards"></strong><small>Satzkarten / Tag</small></div><div><strong data-plan="vocabulary"></strong><small>Vokabeln / Tag</small></div></div>
- <button type="button" class="ghost profile-edit-plan">Lernziele ändern <span aria-hidden="true">→</span></button>`;
+ const nav=profile.querySelector('.profile-nav');profile.classList.add('profile-organized');
+ profile.querySelector('h2').textContent='Dein Profil';
+ const overview=document.createElement('section');overview.className='profile-overview';
+ overview.innerHTML='<p class="profile-kicker">DEIN LERNPLAN</p><h3>Kleine Schritte. Dein Tempo.</h3><div class="profile-plan-grid"><div><strong data-plan="minutes"></strong><small>Sprechen / Tag</small></div><div><strong data-plan="cards"></strong><small>Satzkarten · bis zu</small></div><div><strong data-plan="vocabulary"></strong><small>Vokabeln · bis zu</small></div></div><button type="button" class="ghost profile-edit-plan">Lernplan ändern →</button>';
  profile.insertBefore(overview,nav);
- const sections=[];
- function group(id,label,hint,path,parts){
-  const area=document.createElement('details');area.id=id;area.className='profile-settings-group';area.setAttribute('name','profile-settings');
-  area.innerHTML=`<summary><svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg><span><strong>${label}</strong><small>${hint}</small></span><b aria-hidden="true">⌄</b></summary>`;
-  const content=document.createElement('div');content.className='profile-group-content';area.append(content);
-  for(const part of parts.filter(Boolean))content.append(part);
-  profile.insertBefore(area,nav);sections.push(area);return area;
+ const menu=document.createElement('nav');menu.className='profile-root-menu';menu.setAttribute('aria-label','Profileinstellungen');profile.insertBefore(menu,nav);
+ const find=selector=>profile.querySelector(selector),pages=[];let lastEntry=null;
+ function open(page){
+  for(const item of pages)item.hidden=item!==page;
+  profile.classList.toggle('profile-has-subpage',Boolean(page));
+  if(!page&&lastEntry&&!profile.classList.contains('hidden'))lastEntry.focus();
+  if(page){const admin=page.querySelector('.admin-usage');if(admin)admin.open=true;page.querySelector('h3').focus();page.scrollIntoView({block:'start'});}
  }
- const find=selector=>profile.querySelector(selector);
- const goals=group('profileGoalsSection','Lernziele','Sprechzeit und tägliche Kartenportionen','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',[
-  find('#profileSpeakingSettings'),find('#profileDailySettings'),find('.vocab-settings'),find('#profileSaveArea')
- ]);
- group('profileAssessmentSection','Dein Sprachlevel','Deine Einschätzung aus Gesprächen mit Emma','<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 12l2 2 4-4M9 18h6"/>',[
-  find('#profileLearningPath')
- ]);
- group('profileCardsSection','Karten verwalten','Satzkarten und Vokabeln an einem Ort','<rect x="7" y="3" width="13" height="17" rx="2"/><path d="M4 7H3v14h13v-1M11 7h5M11 11h5"/>',[
-  find('.card-manager'),find('.vocab-management')
- ]);
- group('profilePreferencesSection','Sprache & Lernhilfen','Lernsprache und Emmas Stimme','<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z"/>',[
-  find('.language-settings'),find('.coach-choice')
- ]);
- find('#profileImageSettings')?.remove();
- const accountPanel=find('.cloud-account');
- const account=group('profileAccountSection','Konto & Sicherung','Anmelden, synchronisieren und Daten sichern','<path d="M7 18H6a4 4 0 0 1-1-8 7 7 0 0 1 13-2 5 5 0 0 1 0 10h-1M12 12v9m-3-3 3 3 3-3"/>',[accountPanel]);
- find('.developer-tools')?.remove();
+ function page(id,label,hint,parts,admin=false){
+  const area=document.createElement('section');area.id=id;area.className='profile-subpage';area.hidden=true;
+  const top=document.createElement('div');top.className='profile-subpage-heading';
+  const back=document.createElement('button');back.type='button';back.className='ghost';back.textContent='‹ Profil';back.onclick=()=>open(null);
+  const heading=document.createElement('h3');heading.textContent=label;heading.tabIndex=-1;top.append(back,heading);area.append(top);
+  const content=document.createElement('div');content.className='profile-page-content';for(const part of parts.filter(Boolean))content.append(part);area.append(content);profile.insertBefore(area,nav);pages.push(area);
+  const entry=document.createElement('button');entry.type='button';entry.className='profile-menu-entry'+(admin?' profile-admin-entry':'');entry.setAttribute('aria-controls',id);
+  const name=document.createElement('strong'),small=document.createElement('small'),arrow=document.createElement('span');name.textContent=label;small.textContent=hint;arrow.textContent='›';entry.append(name,small,arrow);entry.onclick=()=>{lastEntry=entry;open(area);};menu.append(entry);
+  area.addEventListener('storycards-open-profile-page',()=>open(area));return {area,content,entry};
+ }
+ const legacy=document.createElement('div');legacy.hidden=true;
+ for(const part of [find('#profileSpeakingSettings'),find('#profileDailySettings'),find('.vocab-settings'),find('#profileSaveArea')].filter(Boolean))legacy.append(part);
+ const goals=page('profileGoalsSection','Lernplan','Tägliche Zeit und eine passende Lernportion',[legacy]);
+ setupLearningPlan({host:goals.content,getConfiguration,getData,getCurrent:()=>{const p=getPlan();return {speakingMinutes:p.minutes,cardLimit:p.cards,vocabularyLimit:p.vocabulary};},onSave:onPlanSave});
+ page('profileAssessmentSection','Sprachniveau','Dein Lernpfad von A1 bis C2',[find('#profileLearningPath')]);
+ page('profilePreferencesSection','Sprache & Stimme','Lernsprache und Emma',[find('.language-settings'),find('.coach-choice')]);
+ find('#profileImageSettings')?.remove();find('.developer-tools')?.remove();
+ const accountPanel=find('.cloud-account'),account=page('profileAccountSection','Konto & Sicherung','Dein Konto und dein gesicherter Lernstand',[accountPanel]);
  const admin=find('.admin-usage');
- if(admin){profile.insertBefore(admin,nav);sections.push(admin);}
- // Old loose headings are replaced by the labelled groups; voice controls keep their handlers.
+ if(admin){page('profileAdminPage','Administration','Nutzer und KI-Verbrauch',[admin],true);admin.open=true;}
  for(const heading of profile.querySelectorAll(':scope > .profile-section-title'))heading.remove();
  find('.coach-choice>b')?.remove();
- for(const area of sections)area.addEventListener('toggle',()=>{
-  if(area.open)for(const other of sections)if(other!==area)other.open=false;
- });
- overview.querySelector('.profile-edit-plan').onclick=()=>{goals.open=true;goals.scrollIntoView({block:'start',behavior:'smooth'});};
- function refresh(){
-  const plan=getPlan();
-  overview.querySelector('[data-plan=minutes]').textContent=`${plan.minutes} Min.`;
-  overview.querySelector('[data-plan=cards]').textContent=String(plan.cards);
-  overview.querySelector('[data-plan=vocabulary]').textContent=String(plan.vocabulary);
- }
+ overview.querySelector('.profile-edit-plan').onclick=()=>open(goals.area);
+ function refresh(){const p=getPlan();overview.querySelector('[data-plan=minutes]').textContent=p.minutes+' Min.';overview.querySelector('[data-plan=cards]').textContent=String(p.cards);overview.querySelector('[data-plan=vocabulary]').textContent=String(p.vocabulary);}
  profile.addEventListener('change',refresh);profile.addEventListener('click',refresh);
- document.addEventListener('storycards-vocabulary-changed',refresh);
- document.addEventListener('storycards-cards-updated',refresh);
- new MutationObserver(refresh).observe(profile,{attributes:true,attributeFilter:['class']});
- function revealAccountIssue(){
-  if(accountPanel && ['.cloud-recovery','.cloud-conflict'].some(selector=>{const item=accountPanel.querySelector(selector);return item && !item.classList.contains('hidden');}))account.open=true;
- }
+ new MutationObserver(()=>{refresh();if(profile.classList.contains('hidden')&&profile.classList.contains('profile-has-subpage'))open(null);}).observe(profile,{attributes:true,attributeFilter:['class']});
+ function revealAccountIssue(){if(accountPanel){const conflict=accountPanel.querySelector('.cloud-conflict');if(conflict&&!conflict.classList.contains('hidden')&&!profile.classList.contains('hidden'))open(account.area);}}
  if(accountPanel)new MutationObserver(revealAccountIssue).observe(accountPanel,{subtree:true,attributes:true,attributeFilter:['class']});
- refresh();revealAccountIssue();return {refresh};
+ refresh();return {refresh,open};
 }

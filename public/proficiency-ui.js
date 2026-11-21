@@ -1,6 +1,7 @@
 import {LANGUAGE_COURSES} from './language-courses.js';
 import {proficiencyView,proficiencyLevels,proficiencyStages,proficiencyMinimumSessions} from './proficiency.js';
 import {skillLabels} from './check-assessment.js';
+import {renderLearningQuality} from './learning-quality.js';
 export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE_COURSES.en}){
  const home=document.createElement('button');home.type='button';home.className='proficiency-home';home.onclick=onDetails;
  const panel=document.querySelector('#statistics .level-card');panel.className='level-card proficiency-card';
@@ -11,6 +12,22 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
  function disclosure(title,...content){const details=document.createElement('details');details.className='proficiency-details';details.append(node('summary',title),...content);return details;}
  function checkButton(){const button=node('button',`🎙 ${course.name}-Check · bis zu 5 Minuten`);button.type='button';button.className='secondary proficiency-check-button';button.onclick=onCheck;return button;}
  profileGoal.append(home);
+ const profilePath=document.createElement('section');profilePath.className='profile-learning-path';profileGoal.append(profilePath);
+ goalTitle.hidden=true;goalText.hidden=true;home.hidden=true;
+ const quality=document.createElement('section');quality.className='learning-quality';document.querySelector('#statisticsSpeakingSection').before(quality);
+ function learningPath(view){
+  profilePath.replaceChildren(node('h3','Dein Lernpfad'));
+  const path=node('ol','');path.className='learning-path';
+  for(const level of proficiencyLevels){const point=node('li',level);if(level===view.level){point.className='current';point.setAttribute('aria-current','step');}path.append(point);}
+  profilePath.append(path,node('p',view.legacy?'Frühere Schätzung (unbestätigt): '+view.level:view.level?'Ungefähr '+view.level+' · '+view.stage:'Dein Startpunkt wird noch eingeschätzt.'));
+  if(view.legacy)profilePath.append(node('small','Neue auswertbare Gespräche mit Emma helfen, diese ältere Einordnung zu überprüfen.'));
+  if(view.level&&!view.legacy){const progress=node('progress','');progress.max=5;progress.value=view.completed;progress.setAttribute('aria-label','Bestätigte Lernziele auf deinem aktuellen Niveau');profilePath.append(progress,node('small',view.completed+' von 5 Lernzielen mehrfach gezeigt · keine Prozentzahl bis zum nächsten Niveau.'));
+   const goals=node('ul','');goals.className='path-next-goals';for(const goal of view.goals.filter(goal=>!goal.confirmed).slice(0,3))goals.append(node('li',goal.label));profilePath.append(node('h4','Deine nächsten Lernziele'),goals);
+  }else if(!view.level)profilePath.append(assessmentProgress(view));
+  profilePath.append(node('small','Die Einschätzung entsteht aus Gesprächen mit Emma und ist kein offizielles Prüfungsergebnis.'));
+  const details=node('button','Belege und Entwicklung ansehen →');details.type='button';details.className='ghost';details.onclick=onDetails;profilePath.append(details);
+ }
+
  if(onCheck){profileGoal.append(checkButton(),disclosure(`Was ist der ${course.name}-Check?`,node('p',`Freiwillig: Statt auf drei Gespräche zu warten, kannst du einen kurzen ${course.name}-Check machen. Bei genügend eigenen Antworten liefert er eine erste Orientierung. Du kannst ihn später wiederholen; er überschreibt deinen bisherigen Lernstand nicht.`)));}
  const practice=document.querySelector('#practice');practice.setAttribute('data-language-check','false');
  const checkResult=node('section','');checkResult.className='english-check-result';checkResult.hidden=true;checkResult.setAttribute('aria-label',`Ergebnis deines ${course.name}-Checks`);document.querySelector('#summaryText').after(checkResult);
@@ -41,6 +58,8 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
   section.append(label,bar,next);return section;
  }
  function render(){
+  learningPath(proficiencyView(getProfile()));
+  renderLearningQuality(quality,getProfile(),{onPractice:()=>document.dispatchEvent(new Event('storycards-targeted-practice'))});
   const view=proficiencyView(getProfile());home.replaceChildren(node('strong',view.level?`${view.legacy?'Frühere Schätzung (unbestätigt)':'Dein Sprachlevel'}: ungefähr ${view.level} · ${view.stage}`:'Dein Sprachlevel: Wir lernen dein Niveau noch kennen'));
   if(view.legacy)home.append(node('small','Neue normale Gespräche mit Emma helfen, diese frühere Schätzung zu überprüfen.'));
   if(!view.level){home.append(assessmentProgress(view),node('small','Sprich pro Gespräch mindestens 4 eigene Antworten mit zusammen etwa 40 Wörtern. Es zählt nach dem Beenden und erfolgreicher Auswertung – nicht nur die Gesprächszeit.'));}

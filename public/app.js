@@ -21,6 +21,9 @@ import {setupProficiencyUI} from '/proficiency-ui.js';
 import {createConversationBookends} from '/conversation-bookends.js';
 import {redeemQuickDay} from '/streak-rewards.js';
 import {setupBackNavigation} from '/back-navigation.js';
+import {resolveLearningPlan,nextPlanConfiguration} from '/learning-plan.js';
+import {initialVocabulary} from '/vocabulary.js';
+import {setupCardLibrary} from '/card-library.js';
 import {englishCheckInstructions as baseCheckInstructions,adaptiveCheckInstructions,englishCheckBudget,extendEnglishCheckBudget,ENGLISH_CHECK_SECONDS} from '/english-check.js';
 import {checkAssessment} from '/check-assessment.js';
 import {setupProfileLayout,revealProfileTarget} from '/profile-layout.js';
@@ -126,6 +129,7 @@ function moveReviewCard(back = false) {
     }
     if(!introduction && result)recordPracticeDay();
     queue.shift();reviewHistory.push(card);
+    if(!introduction&&result&&!freePractice){const day=calendarDayKey(),history=learningStats.cardLearning||[],row=history.find(item=>item.day===day)||{day,seconds:0,ids:[]};learningStats={...learningStats,cardLearning:[...history.filter(item=>item.day!==day),{...row,ids:[...new Set([...row.ids,card.id])]}].slice(-90)};learningStorage.save('stats',learningStats);}
     if(introduction) {
       const plan=dailyLesson();plan.introduced=[...new Set([...(plan.introduced||[]),card.id])];learningStorage.save("lesson",plan);
       assessedCards.delete(card.id);
@@ -266,6 +270,14 @@ if (JSON.stringify(recoveredStats.practiceDays) !== JSON.stringify(learningStats
 }
 let dailyCardLimit = Math.min(50, Math.max(1, Number(appStorage.getItem("storycards-daily-limit")) || 10));
 let dailySpeakingMinutes = Math.min(60, Math.max(1, Number(appStorage.getItem("storycards-speaking-minutes")) || 10));
+const learningPlanData=()=>({stats:learningStats,lesson:learningStorage.load('lesson',{}),vocabulary:learningStorage.load('vocabulary',{})});
+const activeLearningPlan=resolveLearningPlan(learningProfile.learningPlan,{...learningPlanData(),cards});
+if(activeLearningPlan){
+ dailyCardLimit=activeLearningPlan.cardLimit;dailySpeakingMinutes=activeLearningPlan.speakingMinutes;
+ learningStats={...learningStats,dailyPlan:activeLearningPlan};learningStorage.save('stats',learningStats);
+ const vocabulary=learningStorage.load('vocabulary',null)||initialVocabulary();
+ if(vocabulary){const unstarted=!vocabulary.lesson?.ids?.length&&!vocabulary.lesson?.rated?.length&&!vocabulary.lesson?.activeMs;learningStorage.save('vocabulary',{...vocabulary,dailyLimit:activeLearningPlan.vocabularyLimit,newLimit:Math.min(activeLearningPlan.newLimit,activeLearningPlan.vocabularyLimit),sessionSeconds:activeLearningPlan.sessionSeconds,lesson:unstarted?null:vocabulary.lesson});}
+}
 let sessionDurationSeconds = dailySpeakingMinutes * 60;
 let sessionCountedSeconds=0, sessionBudgetDate=null, sessionBudgetMinutes=dailySpeakingMinutes;
 const speakingSettings = document.createElement("div");
@@ -277,13 +289,14 @@ $("dailySpeakingMinutes").value = dailySpeakingMinutes;
 function clockText(seconds) {return `${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;}
 function refreshSpeakingGoal() {
   const effectiveMinutes=speakingGoal(learningStats,dailySpeakingMinutes).minutes;
-  document.querySelector(".home-card h2").textContent=`${effectiveMinutes} Minuten`;
+  document.querySelector(".home-card h2").textContent=`${activeLearningPlan?(quickToday(learningStats)?Math.ceil(activeLearningPlan.totalMinutes/2):activeLearningPlan.totalMinutes):effectiveMinutes} Minuten`;
+  if(activeLearningPlan){document.querySelector('.home-today').textContent='Dein Lernplan heute · ca.';document.querySelector('.home-card>p:not(.home-today)').textContent=`${effectiveMinutes} Minuten mit Emma sprechen und danach deine persönlichen Karten üben.`;}
   if (!hasActiveConversation() && !sessionBudgetDate) {
     sessionDurationSeconds=remainingSpeakingSeconds(learningStats,dailySpeakingMinutes);
     $("timerText").textContent=clockText(sessionDurationSeconds);
   }
   timer.querySelector("small").textContent=`/ ${clockText(sessionDurationSeconds)}`;
-  document.querySelector(".home-countdown small").textContent=`/ ${clockText(effectiveMinutes*60)}`;
+  document.querySelector(".home-countdown small").textContent=`Sprechen / ${clockText(effectiveMinutes*60)}`;
   syncConversationClocks();
   updateHomeProgress();
 }
@@ -291,7 +304,7 @@ $("dailySpeakingMinutes").addEventListener("change", () => { dailySpeakingMinute
 function localLearningDay() { const now = new Date(); return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`; }
 function dailyLesson() { const saved=learningStorage.load("lesson",null);return saved?.day===localLearningDay()?saved:{day:localLearningDay(),completed:[]}; }
 function prepareDailyLesson(persist=false) {
-  const plan=quickCardPlan(planDailyLesson(cards,dailyLesson(),localLearningDay(),dailyCardLimit),quickToday(learningStats));
+  const plan=quickCardPlan(planDailyLesson(cards,dailyLesson(),localLearningDay(),dailyCardLimit,Date.now(),{newLimit:activeLearningPlan?.newLimit||3}),quickToday(learningStats));
   if(persist && plan.plannedIds.length) learningStorage.save("lesson",plan);
   return plan;
 }
@@ -724,7 +737,7 @@ async function offerCheckContinuation(){
 }
 function showCardChoice() {
   document.body.classList.remove("in-conversation");
-  for (const id of ["home","practice","summary","cards","statistics","profile","vocabulary"]) $(id)?.classList.add("hidden");
+  for (const id of ["home","practice","summary","cards","statistics","profile","vocabulary","cardLibrary"]) $(id)?.classList.add("hidden");
   $("cardChoice").classList.remove("hidden");
   const plan=prepareDailyLesson();
   const remaining=lessonQueue(cards,plan).length;
@@ -732,7 +745,7 @@ function showCardChoice() {
   const dailyComplete=remaining===0 && plan.plannedIds.length>0 && plan.plannedIds.every(id=>plan.completed.includes(id));
   $("dailyPracticeButton").classList[dailyComplete?'add':'remove']('is-complete');
   $("dailyChoiceTitle").textContent=dailyComplete?'Tageslektion ✓':'Tageslektion';
-  $("dailyChoiceHint").textContent=remaining?`${remaining} Aufgaben · höchstens 3 neue, Wiederholungen zuerst`:dailyComplete?"Tagesziel erreicht – gut gemacht! Morgen geht’s weiter.":"Heute keine fälligen Karten. Wiederholung und Frei üben bleiben verfügbar.";
+  $("dailyChoiceHint").textContent=remaining?`${remaining} Aufgaben · Wiederholungen zuerst, neue Karten nach Lernplan`:dailyComplete?"Tagesziel erreicht – gut gemacht! Morgen geht’s weiter.":"Heute keine fälligen Karten. Wiederholung und Frei üben bleiben verfügbar.";
   const weakCount=difficultCards(cards).length;
   $("weakPracticeButton").disabled=!weakCount;
   const weakComplete=weakCount===0 && (dailyComplete || plan.weakCompleted===true);
@@ -748,9 +761,9 @@ $("choiceProgressButton").addEventListener("click", showStatistics);
 $("choiceProfileButton").addEventListener("click", showProfile);
 $("cards").querySelector(".cards-nav button.active").addEventListener("click", showCardChoice);
 
-function showHome() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); refreshSpeakingGoal(); }
-function showPractice() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
-function showReview(includeAll = false) {
+function showHome() { $('cardLibrary')?.classList.add('hidden'); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("home").classList.remove("hidden"); refreshSpeakingGoal(); }
+function showPractice() { $('cardLibrary')?.classList.add('hidden'); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.add("in-conversation"); $("home").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.add("hidden"); $("practice").classList.remove("hidden"); }
+function showReview(includeAll = false) { $('cardLibrary')?.classList.add('hidden');
   if(!includeAll && !lessonQueue(cards,prepareDailyLesson()).length){showCardChoice();return;}
   learningStrategy?.reset();
   $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden");freePractice=false;weakPractice=includeAll==="weak";reviewHistory=[];assessedCards.clear();
@@ -762,8 +775,8 @@ function showReview(includeAll = false) {
   repairFailed=false;delete $("card").dataset.finished;renderCard();
 }
 function fillInsightList(id, items, kind) { const list = $(id); list.replaceChildren(); items.forEach((item) => { const row = document.createElement("li"); row.textContent = item; row.className = kind; list.append(row); }); }
-function showStatistics() { renderLearningWeek($("statistics"),learningStats); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = renderLearnedStatistics($("statistics"),cards,learningStorage.load("vocabulary",{words:[]}),activeCourse).cards; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
-function showProfile() { $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
+function showStatistics() { $('cardLibrary')?.classList.add('hidden'); renderLearningWeek($("statistics"),learningStats); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = renderLearnedStatistics($("statistics"),cards,learningStorage.load("vocabulary",{words:[]}),activeCourse).cards; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
+function showProfile() { $('cardLibrary')?.classList.add('hidden'); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
 function renderCard() {
   cardSpeech.stop();
   const card=queue[0];answerVisible=false;
@@ -826,7 +839,12 @@ vocabularyMark.refresh();
 proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});}});
 refreshSpeakingGoal();
 await import("/cards-design.js");
-setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinutes,cards:dailyCardLimit,vocabulary:learningStorage.load('vocabulary',{}).dailyLimit||15})});
+setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinutes,cards:dailyCardLimit,vocabulary:learningStorage.load('vocabulary',{}).dailyLimit||15}),getConfiguration:()=>learningProfile.learningPlan,getData:learningPlanData,onPlanSave:async input=>{
+ if(hasActiveConversation()||finishingSession||sessionBudgetDate||reviewRecorder?.state==='recording')throw Error('Bitte beende zuerst dein laufendes Gespräch oder die Aufnahme.');
+ const configuration=nextPlanConfiguration(input,learningPlanData());
+ const next={...learningProfile,learningPlan:configuration};learningStorage.save('profile',next);learningProfile=next;
+ await account.sync();location.reload();
+}});
 $('saveProfileButton').textContent='Lernziele speichern';
 streakRewardsUI=setupStreakRewardsUI({
  host:document.querySelector('.home-progress'),pointsHost:document.querySelector('.home-scenery'),getStats:()=>learningStats,
@@ -836,7 +854,9 @@ streakRewardsUI=setupStreakRewardsUI({
  saveStats:next=>{learningStorage.save('stats',next);learningStats=next;updateHomeProgress();},
  isBusy:()=>hasActiveConversation() || Boolean(sessionBudgetDate) || Boolean(transcript.length&&!sessionWasEvaluated) || finishingSession || englishCheckPromptOpen || speakingPromptOpen || reviewRecorder?.state==='recording' || answerStarting || repairingCards
 });
+setupCardLibrary({root:document.querySelector('main.app'),profile:$('profile'),choice:$('cardChoice')});
 setupSectionCollapse(document.querySelector('main.app'));
+document.addEventListener('storycards-targeted-practice',()=>{selectConversationMode('schwaechen');showHome();$('homeStartButton').click();});
 quickLearningUI=setupQuickLearning({host:document.querySelector('.home-card'),getStats:()=>learningStats,
  isBusy:()=>hasActiveConversation()||finishingSession||Boolean(sessionBudgetDate)||Boolean(transcript.length&&!sessionWasEvaluated)||reviewRecorder?.state==='recording'||answerStarting,
  notice:noticeDialog,onChange:enabled=>{
@@ -849,3 +869,11 @@ quickLearningUI=setupQuickLearning({host:document.querySelector('.home-card'),ge
 });
 
 setupBackNavigation({onHome:()=>{if(hasActiveConversation()&&!isPaused)togglePause();showHome();}});
+
+let lastCardLearningTick=Date.now();
+setInterval(()=>{
+ const now=Date.now(),seconds=Math.max(0,Math.min(2,(now-lastCardLearningTick)/1000));lastCardLearningTick=now;
+ if(document.visibilityState!=='visible'||$('cards').classList.contains('hidden')||!queue.length||repairingCards)return;
+ const day=calendarDayKey(),history=[...(learningStats.cardLearning||[])],previous=history.find(item=>item.day===day)||{day,seconds:0,ids:[]};
+ const current={...previous,seconds:previous.seconds+seconds};learningStats={...learningStats,cardLearning:[...history.filter(item=>item.day!==day),current].slice(-90)};learningStorage.save('stats',learningStats);
+},1000);

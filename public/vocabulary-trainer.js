@@ -7,20 +7,21 @@ import {setupVocabularyCreator} from './vocabulary-creator.js';
 import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
 import {removeVocabulary} from './vocabulary.js';
 import {vocabularySessionSeconds} from './vocabulary.js';
-import {revealProfileTarget} from './profile-layout.js';
+import {vocabularyRoundProgress,vocabularyDailyProgress} from './vocabulary.js';
+import {reviewIntervalLabel} from '../lib/review-scheduler.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},getCards=()=>[],getQuickMode=()=>false,speech,course=LANGUAGE_COURSES.en}) {
- let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),deleting=false;
+ let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),deleting=false,listening=false,spokenId=null;
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
  panel.setAttribute('aria-label','Vokabeltrainer');
- panel.innerHTML=`<div class="vocab-toolbar"><button class="ghost vocab-back" type="button">← Karten</button><button class="ghost vocab-delete" type="button" aria-label="Aktuelle Vokabel löschen">🗑 Löschen</button><button class="ghost vocab-manage-open" type="button">Verwalten</button></div>
- <p class="vocab-time"></p><p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Bereits gekonnte Vokabeln deiner Tagesportion" max="15" value="0"></progress>
+ panel.innerHTML=`<div class="vocab-toolbar"><button class="ghost vocab-back" type="button">← Karten</button><details class="vocab-menu"><summary aria-label="Weitere Kartenaktionen">⋮</summary><button class="ghost vocab-delete" type="button" aria-label="Aktuelle Vokabel löschen">🗑 Löschen</button><button class="ghost vocab-manage-open" type="button">Verwalten</button><p class="vocab-time"></p></details></div>
+ <button type="button" class="ghost vocab-mode">Übersetzen ⇄ Hören</button><p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Erledigte Karten dieser Lernrunde" max="15" value="0"></progress>
  <div class="vocab-word" tabindex="0" aria-label="Kurzer Satz zur Selbstkontrolle"></div>
  <p class="vocab-audio-status emma-speech-status" role="status"></p><div class="vocab-controls">
  <p class="vocab-status" role="status" aria-live="polite"></p>
  <button class="primary vocab-reveal" type="button">Antwort aufdecken</button>
- <div class="vocab-ratings" role="group" aria-label="Wie sicher war deine Antwort?" hidden><button type="button" data-grade="no" class="secondary">Nicht gewusst</button><button type="button" data-grade="hard" class="secondary">Mit Fehlern<small>Bald wiederholen</small></button><button type="button" data-grade="yes" class="secondary">Gewusst</button></div>
+ <div class="vocab-ratings" role="group" aria-label="Wie sicher war deine Antwort?" hidden><button type="button" data-grade="no" class="secondary">Nochmal</button><button type="button" data-grade="hard" class="secondary">Mit Mühe</button><button type="button" data-grade="yes" class="secondary">Gewusst</button></div>
  <button class="secondary vocab-finish" type="button" hidden>Beenden</button>
  <button class="primary vocab-continue" type="button" hidden>Weiterlernen →</button>
  </div>
@@ -49,8 +50,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  button.innerHTML=vocabularyIcon+'<span><strong>Vokabeltrainer</strong><small>Aufdecken, vergleichen und üben</small></span><b aria-hidden="true">›</b>';
  document.getElementById('cardChoice').insertBefore(button,document.getElementById('freePracticeButton'));
  function refreshChoice(){
-  const lesson=state.lesson,hasCards=(lesson?.ids?.length||0)+(lesson?.previousIds?.length||0)>0;
-  const done=lesson?.day===calendarDayKey(new Date()) && hasCards && (lesson.closed || lesson.extraRound===true);
+  const lesson=state.lesson,done=vocabularyDailyProgress(state).done;
   button.classList[done?'add':'remove']('is-complete');
   button.querySelector('strong').textContent=done?'Vokabeltrainer ✓':'Vokabeltrainer';
   button.querySelector('small').textContent=done?(lesson.closed?'Tagesrunde geschafft! Freiwillig weiterlernen.':'Tagesziel geschafft · Zusatzrunde fortsetzen.'):'Aufdecken, vergleichen und üben';
@@ -58,8 +58,15 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  function line(text,tag='p'){const node=document.createElement(tag);node.textContent=text;return node;}
  function say(text){void speech?.speak(text,{language:course.target,onStatus:value=>{$('.vocab-audio-status').textContent=value;}});}
  function wordView(word,answer=false){
-  const box=$('.vocab-word');box.replaceChildren(line(word.front,'h3'));
-  if(answer){const english=line(`${course.flag} ${word.back} 🔊`,'button');english.type='button';english.className='ghost';english.setAttribute('aria-label',`${course.name}: kurzen Satz anhören`);english.onclick=()=>say(word.back);box.append(english);}
+  const box=$('.vocab-word');box.replaceChildren();
+  if(listening&&!answer){
+   box.append(line('Höre zu. Was bedeutet der Satz?','h3'));
+   const audio=line('Satz noch einmal anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(word.back);box.append(audio);
+   if(spokenId!==word.id){spokenId=word.id;say(word.back);}
+  }else{
+   box.append(line(listening?word.back:word.front,'h3'));
+   if(answer){const answerLine=line(listening?word.front:word.back,'button');answerLine.type='button';answerLine.className='ghost';answerLine.onclick=()=>say(word.back);box.append(answerLine);}
+  }
  }
  async function deleteWord(id){
   if(deleting)return;const word=state.words.find(item=>item.id===id);if(!word)return;
@@ -72,16 +79,17 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   finally{lastTick=Date.now();deleting=false;}
  }
  function progress(){
-  const p=vocabularyProgress(state),minutes=Math.floor(vocabularyTotalMs(state)/60000);
-  $('.vocab-time').textContent=`Insgesamt ${minutes} ${minutes===1?'Minute':'Minuten'} Vokabeln gelernt`;
-  $('.vocab-progress').textContent=p.total?`${p.learned} von ${p.total} Vokabeln kannst du schon`:'Noch keine Vokabeln in deiner Tagesportion';
-  $('.vocab-bar').max=p.total||1;$('.vocab-bar').value=p.learned;$('.vocab-bar').hidden=!p.total;
+  const p=vocabularyRoundProgress(state),minutes=Math.floor(vocabularyTotalMs(state)/60000);
+  $('.vocab-time').textContent='Insgesamt '+minutes+' Minuten gelernt';
+  const pending=new Set((state.lesson?.queue||[]).filter(item=>item.retry).map(item=>item.id)).size;
+  $('.vocab-progress').textContent=p.total?(state.lesson.extraRound?'Zusatzrunde · ':'Heute · ')+p.completed+' von '+p.total+' Karten erledigt'+(pending?' · '+pending+(pending===1?' Wiederholung offen':' Wiederholungen offen'):''):'Keine Karten fällig';
+  $('.vocab-bar').max=p.total||1;$('.vocab-bar').value=p.completed;$('.vocab-bar').hidden=!p.total;
  }
  function renderLists(){
   const list=manage('.vocab-list'),learned=manage('.vocab-learned-list');list.replaceChildren();learned.replaceChildren();
   const known=state.words.filter(vocabularyKnown).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
   manage('.vocab-learned-count').textContent=`(${known.length})`;
-  for(const w of known){const row=line(`${w.front} – ${w.back} · SRS-Stufe ${w.stage} · wieder am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(w.back);row.append(audio);learned.append(row);}
+  for(const w of known){const row=line(`${w.front} – ${w.back} · nächste Wiederholung am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(w.back);row.append(audio);learned.append(row);}
   if(!known.length)learned.append(line('Noch keine Karte sicher erinnert. Nur Aufdecken zählt noch nicht: Erst vergleichen und ehrlich bewerten.'));
   for(const word of state.words){
    const row=document.createElement('div');row.append(line(`${word.front} – ${word.back}`,'span'));
@@ -99,6 +107,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   save();progress();renderLists();refreshSettings();refreshChoice();
   const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
   $('.vocab-delete').hidden=ended;
+  $('.vocab-menu').open=false;
   $('.vocab-reveal').hidden=ended||Boolean(answerCard);
   $('.vocab-ratings').hidden=ended||!answerCard;
   $('.vocab-continue').hidden=!ended || !state.words.length;
@@ -108,6 +117,10 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
    $('.vocab-status').textContent=!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Mit „Weiterlernen“ startest du freiwillig eine weitere Runde – schwierige Karten zuerst.';return;
   }
   wordView(word,Boolean(answerCard));
+  if(answerCard)for(const button of panel.querySelectorAll('[data-grade]')){
+   const hint=document.createElement('small');hint.textContent=vocabularyNeedsRepeat(word)||button.dataset.grade!=='yes'?'erneut in dieser Runde':reviewIntervalLabel(word,button.dataset.grade);
+   button.replaceChildren(line({no:'Nochmal',hard:'Mit Mühe',yes:'Gewusst'}[button.dataset.grade],'span'),hint);
+  }
   $('.vocab-status').textContent=vocabularyNeedsRepeat(word)?`Wiederholung · ${word.cleanStreak||0} von 3 hintereinander fehlerfrei`:'';
  }
  function tick(){
@@ -128,13 +141,14 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   tick();if(state.lesson?.closed)return;
   if(!answerCard){$('.vocab-status').textContent='Bitte zuerst die Antwort aufdecken und mit deiner eigenen Antwort vergleichen.';return;}
   const word=state.words.find(w=>w.id===state.lesson.queue[0]?.id);if(!word || word.id!==answerCard.id)return;
-  state=rateVocabulary(state,rating);answerCard=null;onPractice();render();
+  state=rateVocabulary(state,rating);answerCard=null;spokenId=null;onPractice();render();
  }
  function syncCards(){state=importConversationVocabulary(state,getCards());save();renderLists();refreshChoice();}
- button.onclick=()=>{syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;render();};
+ button.onclick=()=>{syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;spokenId=null;render();};
  $('.vocab-back').onclick=()=>{speech?.stop();document.getElementById('choiceCardsButton').click();};
  $('.vocab-delete').onclick=()=>{const id=answerCard?.id||state.lesson?.queue[0]?.id;if(id)void deleteWord(id);};
- $('.vocab-manage-open').onclick=()=>{speech?.stop();document.getElementById('choiceProfileButton').click();const list=manage('.vocab-manager');revealProfileTarget(list);list.open=true;list.scrollIntoView({block:'start',behavior:'smooth'});};
+ $('.vocab-manage-open').onclick=()=>{speech?.stop();document.dispatchEvent(new CustomEvent('storycards-open-library',{detail:'vocabulary'}));};
+ $('.vocab-mode').onclick=()=>{listening=!listening;spokenId=null;answerCard=null;$('.vocab-mode').textContent=listening?'Hörmodus · zum Übersetzen wechseln':'Übersetzen · zum Hören wechseln';render();};
  $('.vocab-finish').onclick=()=>{speech?.stop();tick();save();window.speechSynthesis?.cancel();document.getElementById('choiceCardsButton').click();};
  panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));
@@ -154,5 +168,6 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   const next=addSuggestedVocabulary(state,word,draft);storage.save('vocabulary',next);state=next;renderLists();refreshChoice();
  }});
  document.addEventListener('storycards-vocabulary-changed',creator.reset);
+ document.dispatchEvent?.(new Event('storycards-navigation-updated'));
  return {panel};
 }
