@@ -115,7 +115,7 @@ export function rateVocabulary(state,rating,now=Date.now()) {
  const cleanStreak=rating==='yes'?Math.min(3,(word.cleanStreak||0)+1):0;
  const relearning=difficult && cleanStreak<3;
  const stage=rating==='yes'?(relearning?(word.stage||0):Math.min(5,(word.stage||0)+1)):rating==='hard'?1:0;
- const schedule=reviewSchedule(word,rating,now);
+ const schedule=reviewSchedule(word,rating,now,{practiceOnly:Boolean(item.practiceOnly)});
  const updated=item.practiceOnly && rating==='yes' && !difficult?word:{...word,...schedule,stage,cleanStreak,relearning,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now};
  lesson.queue.shift();lesson.rated.push(item.id);
  if(!item.retry && !item.practiceOnly && word.attempts>0) {lesson.reviewCount++;lesson.correctCount+=Number(rating==='yes');}

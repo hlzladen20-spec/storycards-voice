@@ -48,8 +48,10 @@ export function setupCardManager(getCards, setCards, course=LANGUAGE_COURSES.en)
         const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Abbrechen'; no.className = 'secondary';
         no.onclick = () => { confirmation.remove(); remove.disabled = false; remove.focus(); };
         yes.onclick = () => {
-          const current = getCards(); removed = {card, index:current.findIndex(item => item.id === card.id)};
-          setCards(current.filter(item => item.id !== card.id)); render(); undo.classList.remove('hidden'); status.textContent = 'Karte entfernt. Du kannst das Löschen rückgängig machen.'; undo.focus();
+          try {
+            const current = getCards(), backup = {card, index:current.findIndex(item => item.id === card.id)};
+            setCards(current.filter(item => item.id !== card.id)); removed=backup; render(); undo.classList.remove('hidden'); status.textContent = 'Karte entfernt. Du kannst das Löschen rückgängig machen.'; undo.focus();
+          } catch { status.textContent='Löschen konnte nicht gespeichert werden. Bitte versuche es erneut.'; }
         };
         confirmation.append(prompt,yes,no); row.append(confirmation); yes.focus();
       };

@@ -2,7 +2,8 @@ import {LANGUAGE_COURSES} from './language-courses.js';
 import {proficiencyView,proficiencyLevels,proficiencyStages,proficiencyMinimumSessions} from './proficiency.js';
 import {skillLabels} from './check-assessment.js';
 import {renderLearningQuality} from './learning-quality.js';
-export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE_COURSES.en}){
+import {setupLearningChart} from './learning-chart.js';
+export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,onDetails,onCheck,course=LANGUAGE_COURSES.en}){
  const home=document.createElement('button');home.type='button';home.className='proficiency-home';home.onclick=onDetails;
  const panel=document.querySelector('#statistics .level-card');panel.className='level-card proficiency-card';
  document.querySelector('#statistics .statistics-topbar>strong').textContent='A1 → C2';
@@ -15,6 +16,9 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
  const profilePath=document.createElement('section');profilePath.className='profile-learning-path';profileGoal.append(profilePath);
  goalTitle.hidden=true;goalText.hidden=true;home.hidden=true;
  const quality=document.createElement('section');quality.className='learning-quality';document.querySelector('#statisticsSpeakingSection').before(quality);
+ const chartHost=document.createElement('section'),overview=document.querySelector('#statistics .statistics-overview');
+ if(overview)overview.after(chartHost);else quality.before(chartHost);
+ const chart=setupLearningChart(chartHost,{getCards,getVocabulary,getStats,language:course.target});
  function learningPath(view){
   profilePath.replaceChildren(node('h3','Dein Lernpfad'));
   const path=node('ol','');path.className='learning-path';
@@ -58,6 +62,7 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
   section.append(label,bar,next);return section;
  }
  function render(){
+  chart.refresh();
   learningPath(proficiencyView(getProfile()));
   renderLearningQuality(quality,getProfile(),{onPractice:()=>document.dispatchEvent(new Event('storycards-targeted-practice'))});
   const view=proficiencyView(getProfile());home.replaceChildren(node('strong',view.level?`${view.legacy?'Frühere Schätzung (unbestätigt)':'Dein Sprachlevel'}: ungefähr ${view.level} · ${view.stage}`:'Dein Sprachlevel: Wir lernen dein Niveau noch kennen'));
@@ -81,5 +86,5 @@ export function setupProficiencyUI({getProfile,onDetails,onCheck,course=LANGUAGE
   if(assessmentNotes.length)panel.append(disclosure('Warum diese Einschätzung?',...assessmentNotes));
   panel.append(disclosure('So funktioniert die Einschätzung',node('p','Die fünf Etappen sind App-Lernschritte, keine offiziellen Zusatzniveaus. Gefestigte Ziele führen nicht automatisch zum nächsten CEFR-Niveau.'),node('p','Orientierung anhand eigener Gesprächsbeiträge, kein Zertifikat. Lesen, Schreiben, Hörverständnis, Aussprache und Sprechflüssigkeit werden hier nicht verlässlich geprüft. Auch C1/C2 bleiben vorläufige Hinweise und brauchen breitere Aufgaben.')));
  }
- render();return {render,renderCheckProgress,renderCheckResult};
+ render();return {render,renderCharts:chart.refresh,renderCheckProgress,renderCheckResult};
 }

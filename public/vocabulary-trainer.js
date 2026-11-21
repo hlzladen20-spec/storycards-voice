@@ -10,7 +10,7 @@ import {vocabularySessionSeconds} from './vocabulary.js';
 import {vocabularyRoundProgress,vocabularyDailyProgress} from './vocabulary.js';
 import {reviewIntervalLabel} from '../lib/review-scheduler.js';
 
-export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},getCards=()=>[],getQuickMode=()=>false,speech,course=LANGUAGE_COURSES.en}) {
+export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},onDelete=()=>{},getCards=()=>[],getQuickMode=()=>false,speech,course=LANGUAGE_COURSES.en}) {
  let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),deleting=false,listening=false,spokenId=null;
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
@@ -73,7 +73,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   deleting=true;speech?.stop();
   try{
    if(!await confirmDialog({title:'Vokabel löschen?',message:word.front,note:'Dieser Satz wird aus deinem Vokabeltrainer und den Wiederholungen entfernt. Er wird nicht automatisch erneut aus deinen Gesprächskarten übernommen. Andere Karten und deine bisherige Lernzeit bleiben erhalten.',confirmText:'Vokabel löschen',danger:true}))return;
-   const next=removeVocabulary(state,id);storage.save('vocabulary',next);state=next;answerCard=null;lastTick=Date.now();render();
+   const next=removeVocabulary(state,id);onDelete(word);storage.save('vocabulary',next);state=next;answerCard=null;lastTick=Date.now();render();
    $('.vocab-status').textContent=manage('.vocab-management-status').textContent='Vokabel gelöscht. Sie kommt nicht mehr in die Wiederholung.';
   }catch{$('.vocab-status').textContent=manage('.vocab-management-status').textContent='Löschen konnte nicht gespeichert werden. Bitte versuche es erneut.';}
   finally{lastTick=Date.now();deleting=false;}

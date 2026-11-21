@@ -1,4 +1,4 @@
-const CACHE = "storycards-shell-learning-renewal-v82";
+const CACHE = "storycards-shell-real-development-v83";
 const SHELL = ["/language-courses.js", "/language-ui.js", "/language-courses.css", "/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 SHELL.push('/streak-rewards.js','/streak-rewards-ui.js','/streak-rewards.css');
 SHELL.push('/learning-week.js','/emma-speech.js');
@@ -29,14 +29,15 @@ SHELL.push('/emma-voices.js','/check-completion.js');
 SHELL.push('/check-assessment.js');
 SHELL.push('/vocabulary-creator.js','/vocabulary-suggestions.js');
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL))));
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("activate", (event) => event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('storycards-shell-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== self.location.origin || !SHELL.includes(url.pathname)) return;
   event.respondWith(fetch(event.request).then((response) => {
     caches.open(CACHE).then((cache) => cache.put(event.request, response.clone()));
     return response;
-  }).catch(() => caches.match(event.request)));
+  }).catch(() => caches.open(CACHE).then(cache=>cache.match(event.request))));
 });
 
 SHELL.push('/review-scheduler.js','/lib/review-scheduler.js','/lib/fsrs.mjs','/learning-plan.js','/card-library.js','/learning-quality.js','/learning-renewal.css');
+SHELL.push('/retention-history.js','/speaking-metrics.js','/learning-chart.js','/learning-chart.css');

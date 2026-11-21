@@ -40,6 +40,8 @@ import {EMMA_VOICES,setupVoiceSettings} from '/emma-voices.js';
 import {checkCompletionTool,createCheckCompletion} from '/check-completion.js';
 import {createConversationHealth,mountConversationRecovery} from '/conversation-health.js';
 import {setupSectionCollapse} from '/section-collapse.js';
+import {archiveRetention} from '/retention-history.js';
+import {createSpeakingMetrics,saveSpeakingMeasurement} from '/speaking-metrics.js';
 import {quickToday,quickCardPlan,setupQuickLearning} from '/quick-learning.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
@@ -73,6 +75,7 @@ let checkCompletion;
 let continuedSpeakingSeconds=0;
 let resumingConversation=false;
 let conversationHealth=null,conversationIssue=null,recoveryContext=null,reconnecting=false;
+let speakingMetrics=null;
 let cards = learningStorage.load("cards", []), queue = [];
 let answerVisible = false;
 let reviewHistory = [];
@@ -360,6 +363,8 @@ $("installButton").addEventListener("click", async () => { if (!installPrompt) r
 function saveCards() { learningStorage.save("cards", cards); updateDue(); updateHomeProgress(); document.dispatchEvent(new CustomEvent("storycards-cards-updated")); }
 showLanguageSettings($('profile'),activeCourse,{storage:appStorage,notice:noticeDialog,isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || repairingCards || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || englishCheckPromptOpen || speakingPromptOpen || (transcript.length>0 && !sessionWasEvaluated)});
 setupCardManager(() => cards, updated => {
+  archiveRemovedReviews(cards.filter(card=>!updated.some(item=>item.id===card.id)),'cards');
+  learningStorage.save('cards',updated);
   cards = updated;
   const ids = new Set(cards.map(card => card.id));
   queue = queue.filter(card => ids.has(card.id));
@@ -367,6 +372,10 @@ setupCardManager(() => cards, updated => {
   for (const id of assessedCards.keys()) if (!ids.has(id)) assessedCards.delete(id);
   saveCards();
 },activeCourse);
+function archiveRemovedReviews(items,kind){
+ const next=archiveRetention(learningStats,items,kind);
+ if(next!==learningStats){learningStorage.save('stats',next);learningStats=next;}
+}
 function saveStats() { learningStorage.save("stats", learningStats); updateHomeProgress(); }
 function updateHomeProgress() {
  $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`;
@@ -433,6 +442,7 @@ function updateTimer() { const elapsed = Date.now() - startedAt - pausedDuration
 const conversationRecovery=mountConversationRecovery({host:$('practice'),onReconnect:reconnectConversation,onFinish:finishSession});
 function reportConversationProblem(problem){
   if(conversationIssue || finishingSession || sessionWasEvaluated)return;
+  speakingMetrics?.interrupt();
   if(!isPaused){pausedAt=Date.now();isPaused=true;}
   checkpointSpeakingTime();clearInterval(interval);
   recoveryContext={seconds:(englishCheck?(englishCheck.previousSeconds||0):continuedSpeakingSeconds)+sessionCountedSeconds,remaining:Math.max(0,sessionDurationSeconds-sessionCountedSeconds)};
@@ -490,6 +500,8 @@ async function startSession() {
   if(englishCheck){sessionDurationSeconds=Math.min(englishCheck.continuation?120:ENGLISH_CHECK_SECONDS,remainingSpeakingSeconds(learningStats,dailySpeakingMinutes));timer.querySelector('small').textContent=`/ ${clockText(sessionDurationSeconds)}`;}
   if(recovering){sessionDurationSeconds=Math.min(sessionDurationSeconds,recovering.remaining);if(englishCheck)englishCheck.previousSeconds=recovering.seconds;timer.querySelector('small').textContent=`/ ${clockText(sessionDurationSeconds)}`;}
   let phase = "Mikrofon";
+  if(!recovering&&!englishCheck?.continuation&&(sessionWasEvaluated||!transcript.length||!speakingMetrics))speakingMetrics=createSpeakingMetrics();
+  speakingMetrics?.beginConnection();
   try {
     if(englishCheck && !englishCheck.started){transcript=[];messages.replaceChildren();englishCheck.started=true;}
     proficiencyUI?.renderCheckProgress(englishCheck?transcript:null);
@@ -602,6 +614,7 @@ function handleEvent(event) {
     return;
   }
   if(speechBookends && !speechBookends.accept(event))return;
+  speakingMetrics?.observe(event,{blocked:isPaused||outputPlaying||finishingSession});
   if(!speechBookends && timeExpired && event.type==='response.created' && !responseActive){if(dataChannel?.readyState==='open')dataChannel.send(JSON.stringify({type:'response.cancel',response_id:event.response?.id}));return;}
   if (event.type === "response.created") { responseActive = true; clearTimeout(finishAfterAudioTimer); }
   if (event.type === "output_audio_buffer.started") { outputPlaying = true; clearTimeout(finishAfterAudioTimer); if(!isPaused){setMicState("Ich antworte gerade …");setEmmaSpeaking(true);} }
@@ -624,6 +637,7 @@ function togglePause() {
   isPaused = !isPaused;
   $("practice").dataset.keepAwake=String(!isPaused);
   if (isPaused) {
+    speakingMetrics?.interrupt();
     pausedAt = Date.now(); clearInterval(interval); checkpointSpeakingTime(true); stream.getAudioTracks().forEach((track) => track.enabled = false); remoteAudio?.pause();
     setPauseLabel(true); status.textContent = "Pausiert – das Mikrofon hört gerade nicht zu."; setMicState("Gespräch pausiert"); setEmmaSpeaking(false); $("coachStage").classList.add("paused");
   } else {
@@ -653,8 +667,13 @@ async function finishSession() {
   $("practice").dataset.keepAwake="false";
   checkpointSpeakingTime(true);
   sessionBudgetDate=null;
+  speakingMetrics?.interrupt();
   finishingSession = true; timeExpired = false; clearTimeout(finishAfterAudioTimer);
   clearInterval(interval); isPaused = false; setEmmaSpeaking(false); $("coachStage").classList.remove("paused"); pauseButton.disabled = true; finishButton.disabled = true; setFinishBusy(true); startButton.textContent = "Gespräch beendet"; setMicState("Gespräch wird ausgewertet …"); stream?.getTracks().forEach((t) => t.stop()); pc?.close();
+  if(speakingMetrics){
+    const measured=saveSpeakingMeasurement(learningStats,speakingMetrics.snapshot({language:activeCourse.target,kind:englishCheck?'placement':'conversation'}));
+    try{learningStorage.save('stats',measured);learningStats=measured;}catch{console.warn('Sprachmesswerte konnten noch nicht gespeichert werden.');}
+  }
   if (!transcript.length) { status.textContent = "Noch kein Gespräch zum Auswerten. Versuch es noch einmal."; startButton.disabled = false; startButton.textContent = "🎙 Gespräch starten"; setFinishBusy(false); finishingSession=false; return; }
   status.textContent = "Ich erstelle deine persönlichen Karten …";
   const checkState=englishCheck,evaluationId=String(checkState?.id||startedAt),totalSeconds=(checkState?(checkState.previousSeconds||0):continuedSpeakingSeconds)+sessionCountedSeconds;
@@ -775,7 +794,7 @@ function showReview(includeAll = false) { $('cardLibrary')?.classList.add('hidde
   repairFailed=false;delete $("card").dataset.finished;renderCard();
 }
 function fillInsightList(id, items, kind) { const list = $(id); list.replaceChildren(); items.forEach((item) => { const row = document.createElement("li"); row.textContent = item; row.className = kind; list.append(row); }); }
-function showStatistics() { $('cardLibrary')?.classList.add('hidden'); renderLearningWeek($("statistics"),learningStats); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = renderLearnedStatistics($("statistics"),cards,learningStorage.load("vocabulary",{words:[]}),activeCourse).cards; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
+function showStatistics() { proficiencyUI?.renderCharts(); $('cardLibrary')?.classList.add('hidden'); renderLearningWeek($("statistics"),learningStats); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("profile").classList.add("hidden"); $("statistics").classList.remove("hidden"); const known = renderLearnedStatistics($("statistics"),cards,learningStorage.load("vocabulary",{words:[]}),activeCourse).cards; const focus = cleanFocus(learningProfile.focus); $("statConversations").textContent = Number(learningStats.conversations || 0); $("statMinutes").textContent = Number(learningStats.minutes || 0); $("statCards").textContent = known; $("statStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`; const strengths = []; if (Number(learningStats.conversations || 0)) strengths.push("Regelmäßig sprechen"); if (known) strengths.push("Karten wiederholen"); if (cards.length) strengths.push("Eigene Sätze lernen"); fillInsightList("strengthList", strengths.length ? strengths : ["Dein erster Schritt ist gemacht"], "strength"); fillInsightList("workList", focus.length ? focus.map((item) => item.pattern) : ["Freies Sprechen", "Neue Wörter festigen"], "work"); }
 function showProfile() { $('cardLibrary')?.classList.add('hidden'); $("vocabulary")?.classList.add("hidden");$("cardChoice").classList.add("hidden"); document.body.classList.remove("in-conversation"); $("home").classList.add("hidden"); $("practice").classList.add("hidden"); $("summary").classList.add("hidden"); $("cards").classList.add("hidden"); $("statistics").classList.add("hidden"); $("profile").classList.remove("hidden"); }
 function renderCard() {
   cardSpeech.stop();
@@ -833,10 +852,10 @@ mountAdminUsage($("profile"),accountIdentity);
 const conversationSummary=setupConversationSummary({course:activeCourse,onCelebrate:playLessonFanfare});
 learningStrategy=setupLearningStrategy(activeCourse);
 setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learningProfile.emmaVoice)?learningProfile.emmaVoice:'marin',onChange:voice=>{const next={...learningProfile,emmaVoice:voice};learningStorage.save('profile',next);learningProfile=next;}});
-setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,getQuickMode:()=>quickToday(learningStats),onPractice:recordPracticeDay,onChange:updateHomeProgress,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
+setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,getQuickMode:()=>quickToday(learningStats),onDelete:word=>archiveRemovedReviews([word],'vocabulary'),onPractice:recordPracticeDay,onChange:updateHomeProgress,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
-proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});}});
+proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,getCards:()=>cards,getVocabulary:()=>learningStorage.load('vocabulary',{}),getStats:()=>learningStats,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});}});
 refreshSpeakingGoal();
 await import("/cards-design.js");
 setupProfileLayout({profile:$('profile'),getPlan:()=>({minutes:dailySpeakingMinutes,cards:dailyCardLimit,vocabulary:learningStorage.load('vocabulary',{}).dailyLimit||15}),getConfiguration:()=>learningProfile.learningPlan,getData:learningPlanData,onPlanSave:async input=>{
