@@ -9,14 +9,15 @@ import {removeVocabulary} from './vocabulary.js';
 import {vocabularySessionSeconds} from './vocabulary.js';
 import {vocabularyRoundProgress,vocabularyDailyProgress} from './vocabulary.js';
 import {reviewIntervalLabel} from '../lib/review-scheduler.js';
+import {vocabularyMode,setVocabularyMode,prepareVocabularyQuestion,vocabularyQuestion} from './vocabulary-directions.js';
 
-export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{},onDelete=()=>{},getCards=()=>[],getQuickMode=()=>false,speech,course=LANGUAGE_COURSES.en}) {
- let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),deleting=false,listening=false,spokenId=null;
+export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChange=()=>{},onDelete=()=>{},getCards=()=>[],getQuickMode=()=>false,speech,course=LANGUAGE_COURSES.en}) {
+ let state=personalVocabulary(storage.load('vocabulary',null)||initialVocabulary()),answerCard=null,lastTick=Date.now(),deleting=false,spokenId=null;
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
  panel.setAttribute('aria-label','Vokabeltrainer');
  panel.innerHTML=`<div class="vocab-toolbar"><button class="ghost vocab-back" type="button">← Karten</button><details class="vocab-menu"><summary aria-label="Weitere Kartenaktionen">⋮</summary><button class="ghost vocab-delete" type="button" aria-label="Aktuelle Vokabel löschen">🗑 Löschen</button><button class="ghost vocab-manage-open" type="button">Verwalten</button><p class="vocab-time"></p></details></div>
- <button type="button" class="ghost vocab-mode">Übersetzen ⇄ Hören</button><p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Erledigte Karten dieser Lernrunde" max="15" value="0"></progress>
+ <div class="vocab-mode-wrap"><button type="button" class="ghost vocab-mode" aria-label="Übungsrichtung wählen" aria-expanded="false" aria-controls="vocabPracticeOptions">Gemischt ▾</button><div id="vocabPracticeOptions" class="vocab-mode-options" role="group" aria-label="Übungsrichtung" hidden><button type="button" data-vocab-mode="mixed">Gemischt<small>Beide Richtungen im Wechsel</small></button><button type="button" data-vocab-mode="de-target">Deutsch → ${course.name}</button><button type="button" data-vocab-mode="target-de">${course.name} → Deutsch</button><button type="button" data-vocab-mode="listening">Hören → Deutsch</button></div></div><p class="vocab-progress" role="status"></p><progress class="vocab-bar" aria-label="Erledigte Karten dieser Lernrunde" max="15" value="0"></progress>
  <div class="vocab-word" tabindex="0" aria-label="Kurzer Satz zur Selbstkontrolle"></div>
  <p class="vocab-audio-status emma-speech-status" role="status"></p><div class="vocab-controls">
  <p class="vocab-status" role="status" aria-live="polite"></p>
@@ -59,14 +60,11 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  function say(text){void speech?.speak(text,{language:course.target,onStatus:value=>{$('.vocab-audio-status').textContent=value;}});}
  function wordView(word,answer=false){
   const box=$('.vocab-word');box.replaceChildren();
-  if(listening&&!answer){
-   box.append(line('Höre zu. Was bedeutet der Satz?','h3'));
-   const audio=line('Satz noch einmal anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(word.back);box.append(audio);
-   if(spokenId!==word.id){spokenId=word.id;say(word.back);}
-  }else{
-   box.append(line(listening?word.back:word.front,'h3'));
-   if(answer){const answerLine=line(listening?word.front:word.back,'button');answerLine.type='button';answerLine.className='ghost';answerLine.onclick=()=>say(word.back);box.append(answerLine);}
-  }
+  const view=vocabularyQuestion(state,word,answer,course),label=line(view.label,'small');label.className='vocab-direction';
+  const question=line(view.question,'h3');question.lang=view.questionLanguage;box.append(label,question);
+  if(view.answer){const solution=line(view.answer);solution.className='vocab-solution';solution.lang=view.answerLanguage;box.append(solution);}
+  if(view.canListen){const audio=line('Mit Emma anhören','button');audio.type='button';audio.className='ghost vocab-listen';audio.setAttribute('aria-label',course.name+'en Satz mit Emma anhören');audio.onclick=()=>say(word.back);box.append(audio);}
+  if(view.listening&&!answer&&spokenId!==word.id){spokenId=word.id;say(word.back);}
  }
  async function deleteWord(id){
   if(deleting)return;const word=state.words.find(item=>item.id===id);if(!word)return;
@@ -103,11 +101,15 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
   speech?.stop();
   state={...state,quickModeDay:getQuickMode()?calendarDayKey(new Date()):null};
   state=vocabularyLesson(state);
+  state=prepareVocabularyQuestion(state);
   if(!state.lesson.queue.length && !state.lesson.closed && !answerCard)state=finishVocabulary(state);
   save();progress();renderLists();refreshSettings();refreshChoice();
   const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
   $('.vocab-delete').hidden=ended;
   $('.vocab-menu').open=false;
+  const mode=vocabularyMode(state);$('.vocab-mode').textContent=({mixed:'Gemischt', 'de-target':'Deutsch → '+course.name,'target-de':course.name+' → Deutsch',listening:'Hören → Deutsch'}[mode])+' ▾';
+  $('.vocab-mode-options').hidden=true;$('.vocab-mode').setAttribute('aria-expanded','false');
+  for(const button of panel.querySelectorAll('[data-vocab-mode]'))button.setAttribute('aria-pressed',String(button.dataset.vocabMode===mode));
   $('.vocab-reveal').hidden=ended||Boolean(answerCard);
   $('.vocab-ratings').hidden=ended||!answerCard;
   $('.vocab-continue').hidden=!ended || !state.words.length;
@@ -148,7 +150,9 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice,onChange=()=>{
  $('.vocab-back').onclick=()=>{speech?.stop();document.getElementById('choiceCardsButton').click();};
  $('.vocab-delete').onclick=()=>{const id=answerCard?.id||state.lesson?.queue[0]?.id;if(id)void deleteWord(id);};
  $('.vocab-manage-open').onclick=()=>{speech?.stop();document.dispatchEvent(new CustomEvent('storycards-open-library',{detail:'vocabulary'}));};
- $('.vocab-mode').onclick=()=>{listening=!listening;spokenId=null;answerCard=null;$('.vocab-mode').textContent=listening?'Hörmodus · zum Übersetzen wechseln':'Übersetzen · zum Hören wechseln';render();};
+ $('.vocab-mode').onclick=()=>{const options=$('.vocab-mode-options');options.hidden=!options.hidden;$('.vocab-mode').setAttribute('aria-expanded',String(!options.hidden));};
+ for(const button of panel.querySelectorAll('[data-vocab-mode]'))button.onclick=()=>{state=setVocabularyMode(state,button.dataset.vocabMode);spokenId=null;answerCard=null;render();};
+ $('.vocab-mode-options').addEventListener('keydown',event=>{if(event.key==='Escape'){$('.vocab-mode-options').hidden=true;$('.vocab-mode').setAttribute('aria-expanded','false');$('.vocab-mode').focus();}});
  $('.vocab-finish').onclick=()=>{speech?.stop();tick();save();window.speechSynthesis?.cancel();document.getElementById('choiceCardsButton').click();};
  panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());
  panel.querySelectorAll('[data-grade]').forEach(n=>n.onclick=()=>rate(n.dataset.grade));

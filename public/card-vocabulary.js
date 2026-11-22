@@ -22,5 +22,5 @@ export function setupVocabularyMark({storage,getCard,onChange}){
   button.title=button.disabled?'Im Vokabeltrainer sind nur kurze Sätze mit 2–6 Wörtern pro Seite möglich.':'';
  }
  button.onclick=()=>{const card=getCard();if(!card)return;try{storage.save('vocabulary',toggleCardVocabulary(load(),card));refresh(card);document.dispatchEvent(new Event('storycards-vocabulary-changed'));onChange();}catch(error){status.textContent=error.message;}};
- return {refresh};
+ return {refresh,toolbar};
 }

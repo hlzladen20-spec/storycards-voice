@@ -116,12 +116,13 @@ export function rateVocabulary(state,rating,now=Date.now()) {
  const relearning=difficult && cleanStreak<3;
  const stage=rating==='yes'?(relearning?(word.stage||0):Math.min(5,(word.stage||0)+1)):rating==='hard'?1:0;
  const schedule=reviewSchedule(word,rating,now,{practiceOnly:Boolean(item.practiceOnly)});
- const updated=item.practiceOnly && rating==='yes' && !difficult?word:{...word,...schedule,stage,cleanStreak,relearning,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now};
+ if(['de-target','target-de'].includes(item.direction))schedule.reviewLog.at(-1).direction=item.direction;
+ const updated=item.practiceOnly && rating==='yes' && !difficult?word:{...word,...schedule,stage,cleanStreak,relearning,relearningDirection:relearning?(item.direction||word.relearningDirection||null):null,attempts:(word.attempts||0)+1,lastRating:rating,lastReviewedAt:now};
  lesson.queue.shift();lesson.rated.push(item.id);
  if(!item.retry && !item.practiceOnly && word.attempts>0) {lesson.reviewCount++;lesson.correctCount+=Number(rating==='yes');}
  if(relearning) {
   if(!lesson.retryIds.includes(item.id))lesson.retryIds.push(item.id);
-  lesson.queue.splice(Math.min(2,lesson.queue.length),0,{id:item.id,retry:true});
+  lesson.queue.splice(Math.min(2,lesson.queue.length),0,{id:item.id,retry:true,...(item.direction?{direction:item.direction}:{})});
  }
  return {...state,words:state.words.map(w=>w.id===word.id?updated:w),lesson};
 }

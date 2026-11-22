@@ -42,6 +42,7 @@ import {createConversationHealth,mountConversationRecovery} from '/conversation-
 import {setupSectionCollapse} from '/section-collapse.js';
 import {archiveRetention} from '/retention-history.js';
 import {createSpeakingMetrics,saveSpeakingMeasurement} from '/speaking-metrics.js';
+import {pruneSentenceLesson,setupSentenceCardDeletion} from '/sentence-card-deletion.js';
 import {quickToday,quickCardPlan,setupQuickLearning} from '/quick-learning.js';
 const bootNotice = document.createElement("p");
 bootNotice.textContent = "Dein Lernstand wird geladen …";
@@ -66,7 +67,7 @@ const startButton = $("startButton"), pauseButton = $("pauseButton"), finishButt
 timer.style.position = "relative";
 let pc, dataChannel, stream, remoteAudio, interval, startedAt, transcript = [];
 let timeExpired = false, responseActive = false, outputPlaying = false, finishingSession = false, finishAfterAudioTimer;
-let vocabularyMark, learningStrategy;
+let vocabularyMark, learningStrategy, sentenceDeletion;
 let proficiencyUI;
 let englishCheck=null;
 let englishCheckPromptOpen=false,speakingPromptOpen=false;
@@ -212,7 +213,7 @@ new MutationObserver(() => {
   if(!queue[0] && !$("card").dataset.finished) {
     $("card").dataset.finished="yes";
     const correct=plan.plannedIds.filter(id=>plan.results?.[id]==="correct").length;
-    $("card").innerHTML=`<strong>🎉 Für heute geschafft!</strong><small>${total?`${correct} Formulierungen selbstständig abgerufen. Schwierige Karten üben wir später wieder.`:"Heute gibt es keine weitere kurze Lernrunde. Deine gesamte Sammlung findest du unter Frei üben."}</small>`;
+    $("card").innerHTML=total?`<strong>🎉 Für heute geschafft!</strong><small>${correct} Formulierungen selbstständig abgerufen. Schwierige Karten üben wir später wieder.</small>`:'<strong>Keine Satzkarten offen</strong><small>In dieser Runde gibt es keine weitere Karte. Unter „Meine Karten verwalten“ kannst du neue Sätze hinzufügen.</small>';
   } else if(queue[0]) delete $("card").dataset.finished;
 }).observe($("card"),{childList:true});
 let sessionWasEvaluated = false;
@@ -363,15 +364,22 @@ $("installButton").addEventListener("click", async () => { if (!installPrompt) r
 function saveCards() { learningStorage.save("cards", cards); updateDue(); updateHomeProgress(); document.dispatchEvent(new CustomEvent("storycards-cards-updated")); }
 showLanguageSettings($('profile'),activeCourse,{storage:appStorage,notice:noticeDialog,isBusy:()=>hasActiveConversation() || startButton.disabled || finishingSession || repairingCards || reviewRecorder?.state==='recording' || answerStarting || $('recordAnswerButton').disabled || englishCheckPromptOpen || speakingPromptOpen || (transcript.length>0 && !sessionWasEvaluated)});
 setupCardManager(() => cards, updated => {
-  archiveRemovedReviews(cards.filter(card=>!updated.some(item=>item.id===card.id)),'cards');
-  learningStorage.save('cards',updated);
+  replaceSentenceCards(updated);
+},activeCourse);
+function replaceSentenceCards(updated){
+  const removed=cards.filter(card=>!updated.some(item=>item.id===card.id)),removedIds=removed.map(card=>card.id);
+  archiveRemovedReviews(removed,'cards');
+  const plan=learningStorage.load('lesson',null),nextPlan=pruneSentenceLesson(plan,removedIds),changedPlan=JSON.stringify(plan)!==JSON.stringify(nextPlan);
+  if(changedPlan)learningStorage.save('lesson',nextPlan);
+  try{learningStorage.save('cards',updated);}catch(error){if(changedPlan)learningStorage.save('lesson',plan);throw error;}
+  weakRoundTotal=Math.max(0,weakRoundTotal-new Set(queue.filter(card=>removedIds.includes(card.id)).map(card=>card.id)).size);
   cards = updated;
   const ids = new Set(cards.map(card => card.id));
   queue = queue.filter(card => ids.has(card.id));
   reviewHistory = reviewHistory.filter(card => ids.has(card.id));
   for (const id of assessedCards.keys()) if (!ids.has(id)) assessedCards.delete(id);
   saveCards();
-},activeCourse);
+}
 function archiveRemovedReviews(items,kind){
  const next=archiveRetention(learningStats,items,kind);
  if(next!==learningStats){learningStorage.save('stats',next);learningStats=next;}
@@ -800,6 +808,7 @@ function renderCard() {
   cardSpeech.stop();
   const card=queue[0];answerVisible=false;
   window.speechSynthesis?.cancel();vocabularyMark?.refresh(card);
+  sentenceDeletion?.refresh(card);
   $("revealButton").classList.add("hidden");$("listenButton").classList.add("hidden");$("ratingButtons").classList.add("hidden");
   $("speakPrompt").classList.add("hidden");$("recordAnswerButton").classList.add("hidden");$("voiceFeedback").className="voice-feedback hidden";
   if(!card) {$("card").innerHTML="<strong>Für heute geschafft!</strong>";return;}
@@ -812,6 +821,7 @@ function renderCard() {
   $("speakPrompt").classList.remove("hidden");$("recordAnswerButton").classList.remove("hidden");$("recordAnswerButton").disabled=false;$("recordAnswerButton").textContent="🎙 Zum Sprechen gedrückt halten";
   if(!introduction) $("revealButton").classList.remove("hidden");
   learningStrategy?.announce(introduction?'listen':'recall',()=>{if(introduction && queue[0]?.id===card.id)speakAnswer();});
+  sentenceDeletion?.refresh(card);
 }
 function revealAnswer() {
   const card=queue[0];if(!card||answerVisible) return;
@@ -855,6 +865,7 @@ setupVoiceSettings({profile:$('profile'),getVoice:()=>EMMA_VOICES.includes(learn
 setupVocabularyTrainer({speech:cardSpeech,course:activeCourse,storage:learningStorage,getCards:()=>cards,getQuickMode:()=>quickToday(learningStats),onDelete:word=>archiveRemovedReviews([word],'vocabulary'),onPractice:recordPracticeDay,onChange:updateHomeProgress,onOpen:()=>{showCardChoice();$("cardChoice").classList.add("hidden");}});
 vocabularyMark=setupVocabularyMark({storage:learningStorage,getCard:()=>queue[0],onChange:updateHomeProgress});
 vocabularyMark.refresh();
+sentenceDeletion=setupSentenceCardDeletion({toolbar:vocabularyMark.toolbar,getCard:()=>queue[0],isBusy:()=>answerStarting||reviewRecorder?.state==='recording'||$('recordAnswerButton').disabled||repairingCards,onDelete:card=>{replaceSentenceCards(cards.filter(item=>item.id!==card.id));renderCard();}});
 proficiencyUI=setupProficiencyUI({course:activeCourse,getProfile:()=>learningProfile,getCards:()=>cards,getVocabulary:()=>learningStorage.load('vocabulary',{}),getStats:()=>learningStats,onDetails:()=>{showStatistics();const section=$("statisticsSpeakingSection");section.open=true;section.scrollIntoView({block:"start"});}});
 refreshSpeakingGoal();
 await import("/cards-design.js");
