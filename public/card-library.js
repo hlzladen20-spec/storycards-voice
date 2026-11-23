@@ -1,4 +1,4 @@
-export function setupCardLibrary({root,profile,choice}){
+export function setupCardLibrary({root,profile,choice,sentencePractice=true}){
  const section=document.createElement('section');section.id='cardLibrary';section.className='panel hidden card-library';
  section.innerHTML='<div class="library-heading"><button class="ghost library-back" type="button">‹ Karten</button><h2>Meine Karten</h2></div><div class="library-tabs" role="group" aria-label="Kartensammlung"><button type="button" data-library="cards">Satzkarten</button><button type="button" data-library="vocabulary">Vokabeln</button></div><div class="library-cards"></div><div class="library-vocabulary" hidden></div>';
  root.append(section);
@@ -12,7 +12,9 @@ export function setupCardLibrary({root,profile,choice}){
  if(vocabulary){addForm(vocabulary,vocabulary.querySelector('.vocab-add'),'＋ Eigenen Kurzsatz hinzufügen');const main=vocabulary.querySelector('.vocab-manager'),learned=vocabulary.querySelector('.vocab-learned');if(main&&learned)vocabulary.insertBefore(main,learned);}
  const entry=document.createElement('button');entry.type='button';entry.className='secondary library-open';entry.textContent='Meine Karten verwalten →';choice.append(entry);
  const tabs=[...section.querySelectorAll('[data-library]')];
+ if(!sentencePractice){section.querySelector('.library-tabs').hidden=true;section.querySelector('h2').textContent='Deine Vokabeln';entry.textContent='Vokabeln verwalten →';}
  function select(kind){
+  if(!sentencePractice)kind='vocabulary';
   section.querySelector('.library-cards').hidden=kind!=='cards';section.querySelector('.library-vocabulary').hidden=kind!=='vocabulary';
   tabs.forEach(tab=>tab.setAttribute('aria-pressed',String(tab.dataset.library===kind)));
  }

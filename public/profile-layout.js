@@ -7,13 +7,15 @@ export function revealProfileTarget(target){
  }
  for(const area of ancestors)area.open=true;
 }
-export function setupProfileLayout({profile,getPlan,getConfiguration=()=>null,getData=()=>({}),onPlanSave=async()=>{}}){
+export function setupProfileLayout({profile,getPlan,getConfiguration=()=>null,getData=()=>({}),onPlanSave=async()=>{},sentencePractice=true,exactVocabularyTarget=false}){
  if(profile.querySelector('.profile-overview'))return;
  const nav=profile.querySelector('.profile-nav');profile.classList.add('profile-organized');
  profile.querySelector('h2').textContent='Dein Profil';
  const overview=document.createElement('section');overview.className='profile-overview';
  overview.innerHTML='<p class="profile-kicker">DEIN LERNPLAN</p><h3>Kleine Schritte. Dein Tempo.</h3><div class="profile-plan-grid"><div><strong data-plan="minutes"></strong><small>Sprechen / Tag</small></div><div><strong data-plan="cards"></strong><small>Satzkarten · bis zu</small></div><div><strong data-plan="vocabulary"></strong><small>Vokabeln · bis zu</small></div></div><button type="button" class="ghost profile-edit-plan">Lernplan ändern →</button>';
  profile.insertBefore(overview,nav);
+ if(!sentencePractice)overview.querySelector('[data-plan=cards]').parentElement.hidden=true;
+ if(exactVocabularyTarget)overview.querySelector('[data-plan=vocabulary]').parentElement.querySelector('small').textContent='Vokabeln / Tag';
  const menu=document.createElement('nav');menu.className='profile-root-menu';menu.setAttribute('aria-label','Profileinstellungen');profile.insertBefore(menu,nav);
  const find=selector=>profile.querySelector(selector),pages=[];let lastEntry=null;
  function open(page){
@@ -35,7 +37,7 @@ export function setupProfileLayout({profile,getPlan,getConfiguration=()=>null,ge
  const legacy=document.createElement('div');legacy.hidden=true;
  for(const part of [find('#profileSpeakingSettings'),find('#profileDailySettings'),find('.vocab-settings'),find('#profileSaveArea')].filter(Boolean))legacy.append(part);
  const goals=page('profileGoalsSection','Lernplan','Tägliche Zeit und eine passende Lernportion',[legacy]);
- setupLearningPlan({host:goals.content,getConfiguration,getData,getCurrent:()=>{const p=getPlan();return {speakingMinutes:p.minutes,cardLimit:p.cards,vocabularyLimit:p.vocabulary};},onSave:onPlanSave});
+ setupLearningPlan({host:goals.content,getConfiguration,getData,getCurrent:()=>{const p=getPlan();return {speakingMinutes:p.minutes,cardLimit:p.cards,vocabularyLimit:p.vocabulary};},onSave:onPlanSave,sentencePractice,exactVocabularyTarget});
  page('profileAssessmentSection','Sprachniveau','Dein Lernpfad von A1 bis C2',[find('#profileLearningPath')]);
  page('profilePreferencesSection','Sprache & Stimme','Lernsprache und Emma',[find('.language-settings'),find('.coach-choice')]);
  find('#profileImageSettings')?.remove();find('.developer-tools')?.remove();

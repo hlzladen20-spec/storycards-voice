@@ -3,7 +3,7 @@ import {initialVocabulary,vocabularyLesson,vocabularyDailyProgress} from './voca
 import {quickToday,dailyAmount} from './quick-learning.js';
 
 // Read-only projection of the existing rounds. Opening Home never completes one.
-export function dailyLearningGoals({stats={},minutes=10,lesson={},vocabulary={},now=new Date()}){
+export function dailyLearningGoals({stats={},minutes=10,lesson={},vocabulary={},now=new Date(),sentencePractice=true}){
  const day=calendarDayKey(now),date=new Date(now),lessonDay=`${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
  const target=dailyAmount(Math.max(1,Math.min(60,Number(minutes)||10)),quickToday(stats,now))*60;
  const seconds=stats.speakingGoal?.day===day?Math.max(0,Number(stats.speakingGoal.usedSeconds)||0):0;
@@ -15,7 +15,7 @@ export function dailyLearningGoals({stats={},minutes=10,lesson={},vocabulary={},
  const available=vocab.hasWork,vocabDone=vocab.done;
  const rows=[
   {id:'speaking',label:'Sprechen',done:seconds>=target,detail:`${Math.min(Math.floor(seconds/60),target/60)} / ${target/60} Min.`,available:true},
-  {id:'cards',label:'Tageslektion & Wiederholungen',done:remaining===0,detail:ids.length?`${ids.length-ids.filter(id=>!completed.has(id)).length} / ${ids.length} Karten${(plan.pendingRetries||[]).length?' · Wiederholung offen':''}`:'Keine Karten fällig',available:ids.length>0},
+  ...(sentencePractice?[{id:'cards',label:'Tageslektion & Wiederholungen',done:remaining===0,detail:ids.length?`${ids.length-ids.filter(id=>!completed.has(id)).length} / ${ids.length} Karten${(plan.pendingRetries||[]).length?' · Wiederholung offen':''}`:'Keine Karten fällig',available:ids.length>0}]:[]),
   {id:'vocabulary',label:'Vokabeltrainer',done:!available||vocabDone,detail:vocabDone?'Tagesrunde geschafft':available?`${vocab.completed} / ${vocab.total} Karten erledigt${vocab.repetitions?' · Wiederholungen offen':''}`:'Keine Vokabeln fällig',available}
  ];
  const complete=rows.every(row=>row.done);

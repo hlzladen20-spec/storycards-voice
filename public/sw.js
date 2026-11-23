@@ -1,4 +1,4 @@
-const CACHE = "storycards-shell-mixed-vocabulary-v84";
+const CACHE = "storycards-shell-speaking-vocabulary-v85";
 const SHELL = ["/language-courses.js", "/language-ui.js", "/language-courses.css", "/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 SHELL.push('/streak-rewards.js','/streak-rewards-ui.js','/streak-rewards.css');
 SHELL.push('/learning-week.js','/emma-speech.js');
@@ -42,3 +42,4 @@ self.addEventListener("fetch", (event) => {
 SHELL.push('/review-scheduler.js','/lib/review-scheduler.js','/lib/fsrs.mjs','/learning-plan.js','/card-library.js','/learning-quality.js','/learning-renewal.css');
 SHELL.push('/retention-history.js','/speaking-metrics.js','/learning-chart.js','/learning-chart.css');
 SHELL.push('/vocabulary-directions.js','/sentence-card-deletion.js');
+SHELL.push('/app-features.js','/home-learning.js');

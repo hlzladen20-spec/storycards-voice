@@ -51,7 +51,7 @@ export function setupLearningChart(host,{getCards=()=>[],getVocabulary=()=>({}),
   if(!chart.hasData||current.some(item=>item.point.value===null))status.textContent+=' '+current.filter(item=>item.point.value===null).map(item=>item.label+': '+item.point.total+'/'+chart.minimum).join(' · ');
   const summary=node('summary','So werden die Werte gemessen');
   details.replaceChildren(summary,...(retention?[
-   node('p','Gezählt wird der erste bewertete Abruf pro Karte und Kalendertag, wenn du die Karte bereits an einem früheren Tag geübt hast. Neue Karten und sofortige Wiederholungen zählen nicht. Freiwilliges Üben bereits erledigter Vokabeln zählt ebenfalls nicht.'),
+   node('p','Gezählt wird der erste bewertete Abruf pro Karte und Kalendertag, wenn du die Karte bereits an einem früheren Tag geübt hast. Neue Karten und sofortige Wiederholungen zählen nicht. Zusätzliche Wiederholungen noch nicht fälliger Vokabeln zählen ebenfalls nicht.'),
    node('p','„Gewusst“ zählt als sicher erinnert. „Nochmal“ und „Mit Mühe“ zählen als noch nicht sicher. Decke die Antwort zur Selbstkontrolle auf und bewerte ehrlich. Die Kurve misst deine Selbstbewertung, nicht deinen gesamten Wortschatz.'),
    node('p','Mindestens 20 gültige Abrufe pro Kartenart und Woche oder Monat. Kleine Stichproben und fehlende Daten bleiben Lücken. Der aktuelle Zeitraum läuft noch. Unterschiedliche Karten und ihre Schwierigkeit beeinflussen die Quote. Vorhandene echte Bewertungen werden verwendet; fehlende Vergangenheit wird nicht ergänzt. Gelöschte Karten verändern frühere Ergebnisse nicht.')
   ]:[
