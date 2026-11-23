@@ -91,7 +91,7 @@ function vocabularyPortion(state,now,excluded=[]){
  return selected;
 }
 function expandVocabularyTarget(state,lesson,now){
- if(!state.fillDailyLimit||lesson.extraRound)return lesson;
+ if(!state.fillDailyLimit)return lesson;
  const ids=lesson.normalIds||lesson.ids,cap=Math.max(1,Math.min(50,state.dailyLimit||15)),needed=Math.max(0,cap-ids.length);
  const additions=needed?vocabularyPortion(state,now,ids).slice(0,needed):[];
  if(!additions.length)return lesson.closed&&lesson.queue.length?{...lesson,closed:false}:lesson;

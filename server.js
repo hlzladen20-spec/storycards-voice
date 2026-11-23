@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { normaliseCards } from "./lib/flashcards.js";
 import {cleanConversationReview} from './public/conversation-summary.js';
 import {resolveCourse,courseText,courseInstruction} from './public/language-courses.js';
-import {resolveVoice} from './public/emma-voices.js';
+import {resolveVoice,coachIdentity} from './public/emma-voices.js';
 import {createEmmaSpeechService} from './lib/emma-speech.js';
 import {audioServiceError} from './lib/audio-errors.js';
 import {createAccountService} from './lib/account-service.js';
@@ -39,7 +39,7 @@ export function sessionConfig(course=resolveCourse(),voice=resolveVoice()) {
       output: { voice: resolveVoice(voice), speed: 0.85 },
       input: { transcription: { model: "gpt-4o-mini-transcribe", language: course.target } }
     },
-    instructions: courseText("You are a friendly English conversation coach for learners from A1 to C2. Adapt to the learner's demonstrated language, starting with accessible questions if unknown. Use one concise question at a time and let the learner finish. Respond to the meaning and occasionally correct one important or recurring error, even when understandable. Let minor one-off slips pass. For unsolicited corrections, allow at least THREE substantive learner answers between corrections; never correct the opening exchange or consecutive turns, and never invent an error to fill a quota. Give ONE brief natural corrected phrase, then continue the topic without requiring repetition or giving unsolicited grammar lectures. Save additional useful errors for the written review after the conversation. Misunderstandings and explicitly requested corrections are exceptions to the spacing rule; then return to natural conversation. More specific learner and topic instructions will follow.",course)+courseInstruction(course)
+    instructions: courseText("You are a friendly English conversation coach for learners from A1 to C2. Adapt to the learner's demonstrated language, starting with accessible questions if unknown. Use one concise question at a time and let the learner finish. Respond to the meaning and occasionally correct one important or recurring error, even when understandable. Let minor one-off slips pass. For unsolicited corrections, allow at least THREE substantive learner answers between corrections; never correct the opening exchange or consecutive turns, and never invent an error to fill a quota. Give ONE brief natural corrected phrase, then continue the topic without requiring repetition or giving unsolicited grammar lectures. Save additional useful errors for the written review after the conversation. Misunderstandings and explicitly requested corrections are exceptions to the spacing rule; then return to natural conversation. More specific learner and topic instructions will follow.",course)+courseInstruction(course)+coachIdentity(voice)
   };
 }
 

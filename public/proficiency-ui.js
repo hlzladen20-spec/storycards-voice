@@ -3,7 +3,7 @@ import {proficiencyView,proficiencyLevels,proficiencyStages,proficiencyMinimumSe
 import {skillLabels} from './check-assessment.js';
 import {renderLearningQuality} from './learning-quality.js';
 import {setupLearningChart} from './learning-chart.js';
-export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,onDetails,onCheck,course=LANGUAGE_COURSES.en}){
+export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,onDetails,onCheck,course=LANGUAGE_COURSES.en,getCoachName=()=> 'Emma',coachLabel=text=>text}){
  const home=document.createElement('button');home.type='button';home.className='proficiency-home';home.onclick=onDetails;
  const panel=document.querySelector('#statistics .level-card');panel.className='level-card proficiency-card';
  document.querySelector('#statistics .statistics-topbar>strong').textContent='A1 → C2';
@@ -24,11 +24,11 @@ export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,o
   const path=node('ol','');path.className='learning-path';
   for(const level of proficiencyLevels){const point=node('li',level);if(level===view.level){point.className='current';point.setAttribute('aria-current','step');}path.append(point);}
   profilePath.append(path,node('p',view.legacy?'Frühere Schätzung (unbestätigt): '+view.level:view.level?'Ungefähr '+view.level+' · '+view.stage:'Dein Startpunkt wird noch eingeschätzt.'));
-  if(view.legacy)profilePath.append(node('small','Neue auswertbare Gespräche mit Emma helfen, diese ältere Einordnung zu überprüfen.'));
+  if(view.legacy)profilePath.append(node('small',coachLabel('Neue auswertbare Gespräche mit Emma helfen, diese ältere Einordnung zu überprüfen.')));
   if(view.level&&!view.legacy){const progress=node('progress','');progress.max=5;progress.value=view.completed;progress.setAttribute('aria-label','Bestätigte Lernziele auf deinem aktuellen Niveau');profilePath.append(progress,node('small',view.completed+' von 5 Lernzielen mehrfach gezeigt · keine Prozentzahl bis zum nächsten Niveau.'));
    const goals=node('ul','');goals.className='path-next-goals';for(const goal of view.goals.filter(goal=>!goal.confirmed).slice(0,3))goals.append(node('li',goal.label));profilePath.append(node('h4','Deine nächsten Lernziele'),goals);
   }else if(!view.level)profilePath.append(assessmentProgress(view));
-  profilePath.append(node('small','Die Einschätzung entsteht aus Gesprächen mit Emma und ist kein offizielles Prüfungsergebnis.'));
+  profilePath.append(node('small',coachLabel('Die Einschätzung entsteht aus Gesprächen mit Emma und ist kein offizielles Prüfungsergebnis.')));
   const details=node('button','Belege und Entwicklung ansehen →');details.type='button';details.className='ghost';details.onclick=onDetails;profilePath.append(details);
  }
 
@@ -64,13 +64,13 @@ export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,o
  function render(){
   chart.refresh();
   learningPath(proficiencyView(getProfile()));
-  renderLearningQuality(quality,getProfile(),{onPractice:()=>document.dispatchEvent(new Event('storycards-targeted-practice'))});
+  renderLearningQuality(quality,getProfile(),{getCoachName,onPractice:()=>document.dispatchEvent(new Event('storycards-targeted-practice'))});
   const view=proficiencyView(getProfile());home.replaceChildren(node('strong',view.level?`${view.legacy?'Frühere Schätzung (unbestätigt)':'Dein Sprachlevel'}: ungefähr ${view.level} · ${view.stage}`:'Dein Sprachlevel: Wir lernen dein Niveau noch kennen'));
-  if(view.legacy)home.append(node('small','Neue normale Gespräche mit Emma helfen, diese frühere Schätzung zu überprüfen.'));
+  if(view.legacy)home.append(node('small',coachLabel('Neue normale Gespräche mit Emma helfen, diese frühere Schätzung zu überprüfen.')));
   if(!view.level){home.append(assessmentProgress(view),node('small','Sprich pro Gespräch mindestens 4 eigene Antworten mit zusammen etwa 40 Wörtern. Es zählt nach dem Beenden und erfolgreicher Auswertung – nicht nur die Gesprächszeit.'));}
   home.append(node('small',view.level?`${view.completed}/5 Lernziele gefestigt · Details ›`:'Dein Lernweg A1–C2 · Details ›'));
   panel.replaceChildren(node('h3','Dein Sprachlevel · A1 bis C2'));
-  if(view.legacy)panel.append(node('p','Alte, unbestätigte Einordnung: Weitere normale Gespräche mit Emma helfen bei der neuen Einschätzung. Alte Ergebnisse werden nicht in die neue Einstufung hineingemittelt. Deine Karten und Lernstatistik bleiben erhalten.'));
+  if(view.legacy)panel.append(node('p',coachLabel('Alte, unbestätigte Einordnung: Weitere normale Gespräche mit Emma helfen bei der neuen Einschätzung. Alte Ergebnisse werden nicht in die neue Einstufung hineingemittelt. Deine Karten und Lernstatistik bleiben erhalten.')));
   const assessmentNotes=[];
   if(view.reason)assessmentNotes.push(node('h4','Begründung'),node('p',view.reason));
   if(view.limits)assessmentNotes.push(node('h4','Noch nicht gesichert'),node('p',view.limits));

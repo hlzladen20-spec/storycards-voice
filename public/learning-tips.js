@@ -33,4 +33,4 @@ export function nextLearningTip(storage){
  try{storage.setItem(key,String(index));}catch{/* Tips also work without persistence. */}
  return learningTips[index];
 }
-export function showLearningTip(element,storage){if(element)element.textContent=nextLearningTip(storage);}
+export function showLearningTip(element,storage){if(element){const tip=nextLearningTip(storage);element.setAttribute?.('data-coach-template',tip);element.textContent=tip;}}

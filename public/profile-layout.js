@@ -7,7 +7,7 @@ export function revealProfileTarget(target){
  }
  for(const area of ancestors)area.open=true;
 }
-export function setupProfileLayout({profile,getPlan,getConfiguration=()=>null,getData=()=>({}),onPlanSave=async()=>{},sentencePractice=true,exactVocabularyTarget=false}){
+export function setupProfileLayout({profile,getPlan,getConfiguration=()=>null,getData=()=>({}),onPlanSave=async()=>{},sentencePractice=true,exactVocabularyTarget=false,getCoachName=()=> 'Emma'}){
  if(profile.querySelector('.profile-overview'))return;
  const nav=profile.querySelector('.profile-nav');profile.classList.add('profile-organized');
  profile.querySelector('h2').textContent='Dein Profil';
@@ -39,7 +39,8 @@ export function setupProfileLayout({profile,getPlan,getConfiguration=()=>null,ge
  const goals=page('profileGoalsSection','Lernplan','Tägliche Zeit und eine passende Lernportion',[legacy]);
  setupLearningPlan({host:goals.content,getConfiguration,getData,getCurrent:()=>{const p=getPlan();return {speakingMinutes:p.minutes,cardLimit:p.cards,vocabularyLimit:p.vocabulary};},onSave:onPlanSave,sentencePractice,exactVocabularyTarget});
  page('profileAssessmentSection','Sprachniveau','Dein Lernpfad von A1 bis C2',[find('#profileLearningPath')]);
- page('profilePreferencesSection','Sprache & Stimme','Lernsprache und Emma',[find('.language-settings'),find('.coach-choice')]);
+ const preferences=page('profilePreferencesSection','Sprache & Stimme','Lernsprache und '+getCoachName(),[find('.language-settings'),find('.coach-choice')]);
+ preferences.entry.children[1].setAttribute('data-coach-template','Lernsprache und Emma');
  find('#profileImageSettings')?.remove();find('.developer-tools')?.remove();
  const accountPanel=find('.cloud-account'),account=page('profileAccountSection','Konto & Sicherung','Dein Konto und dein gesicherter Lernstand',[accountPanel]);
  const admin=find('.admin-usage');

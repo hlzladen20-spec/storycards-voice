@@ -13,6 +13,7 @@ import {vocabularyMode,setVocabularyMode,prepareVocabularyQuestion,vocabularyQue
 import {dailyAmount} from './quick-learning.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChange=()=>{},onDelete=()=>{},getCards=()=>[],getQuickMode=()=>false,exactTarget=false,speech,course=LANGUAGE_COURSES.en}) {
+ const coach=()=>speech?.name?.()||'Emma';
  const trainerState=value=>({...personalVocabulary(value||initialVocabulary()),...(exactTarget?{fillDailyLimit:true}:{})});
  let state=trainerState(storage.load('vocabulary',null)),answerCard=null,lastTick=Date.now(),deleting=false,spokenId=null;
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
@@ -65,7 +66,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   const view=vocabularyQuestion(state,word,answer,course),label=line(view.label,'small');label.className='vocab-direction';
   const question=line(view.question,'h3');question.lang=view.questionLanguage;box.append(label,question);
   if(view.answer){const solution=line(view.answer);solution.className='vocab-solution';solution.lang=view.answerLanguage;box.append(solution);}
-  if(view.canListen){const audio=line('Mit Emma anhören','button');audio.type='button';audio.className='ghost vocab-listen';audio.setAttribute('aria-label',course.name+'en Satz mit Emma anhören');audio.onclick=()=>say(word.back);box.append(audio);}
+  if(view.canListen){const audio=line('Mit '+coach()+' anhören','button');audio.type='button';audio.className='ghost vocab-listen';audio.setAttribute('aria-label',course.name+'en Satz mit '+coach()+' anhören');audio.onclick=()=>say(word.back);box.append(audio);}
   if(view.listening&&!answer&&spokenId!==word.id){spokenId=word.id;say(word.back);}
  }
  async function deleteWord(id){
@@ -98,7 +99,10 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   for(const w of known){const row=line(`${w.front} – ${w.back} · nächste Wiederholung am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(w.back);row.append(audio);learned.append(row);}
   if(!known.length)learned.append(line('Noch keine Karte sicher erinnert. Nur Aufdecken zählt noch nicht: Erst vergleichen und ehrlich bewerten.'));
   for(const word of state.words){
-   const row=document.createElement('div');row.append(line(`${word.front} – ${word.back}`,'span'));
+   const known=vocabularyKnown(word),row=document.createElement('div');row.className='vocab-management-row'+(known?' is-known':'');
+   const text=line(`${word.front} – ${word.back}`,'span');text.className='vocab-managed-copy';
+   if(known){const badge=line('✓ Gekonnt','small');badge.className='vocab-known-badge';text.append(badge);}
+   row.append(text);
    const remove=line('Entfernen','button');remove.type='button';remove.className='ghost';
    remove.onclick=()=>deleteWord(word.id);
    row.append(remove);list.append(row);

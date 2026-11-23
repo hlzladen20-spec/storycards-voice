@@ -15,7 +15,7 @@ export function learningQuality(profile={}){
  const focus=(Array.isArray(profile?.focus)?profile.focus:[]).find(item=>item&&typeof item.pattern==='string'&&typeof item.practice==='string');
  return {skills,sessions:sessions.length,recommendation:focus?`${focus.pattern}: ${focus.practice}`:nextGoal?nextGoal.label:'Sprich über ein eigenes Erlebnis und begründe deine Meinung. Weitere Gespräche helfen, deinen nächsten Lernschritt zu erkennen.'};
 }
-export function renderLearningQuality(host,profile,{onPractice=()=>{}}={}){
+export function renderLearningQuality(host,profile,{onPractice=()=>{},getCoachName=()=> 'Emma'}={}){
  const data=learningQuality(profile),node=(tag,text)=>{const element=document.createElement(tag);element.textContent=text;return element;};
  host.replaceChildren(node('h3','Deine Lernentwicklung'),node('p','Vorläufige Hinweise aus eigenen Gesprächsbeiträgen. Keine Prozentwerte und keine Sprachprüfung.'));
  const list=node('div','');list.className='quality-skills';
@@ -28,6 +28,6 @@ export function renderLearningQuality(host,profile,{onPractice=()=>{}}={}){
   list.append(row);
  }
  const next=node('div','');next.className='quality-next';next.append(node('strong','Dein nächster Lernschritt'),node('p',data.recommendation));
- const button=node('button','Mit Emma gezielt üben →');button.type='button';button.className='primary';button.onclick=onPractice;next.append(button);
+ const button=node('button','Mit '+getCoachName()+' gezielt üben →');button.type='button';button.className='primary';button.onclick=onPractice;next.append(button);
  host.append(list,next,node('small','Sprachfluss, Aussprache und Hörverständnis werden aus dem Gesprächstext nicht zuverlässig bewertet.'));
 }

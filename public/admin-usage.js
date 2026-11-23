@@ -4,7 +4,7 @@ export function usageCSV(rows){
  const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&").replaceAll('"','""')+'"';
  return '\uFEFF'+[keys,...rows.map(row=>keys.map(key=>row[key]))].map(row=>row.map(cell).join(';')).join('\r\n');
 }
-const featureLabels={'conversation':'Gespräch','conversation-transcription':'Spracherkennung','realtime/session':'Gespräch','flashcards':'Gesprächsauswertung','card-answer':'Ausspracheprüfung','card-speech':'Emma liest vor','translate-word':'Wortübersetzung','vocabulary-suggestion':'Neue Vokabeln'};
+const featureLabels={'conversation':'Gespräch','conversation-transcription':'Spracherkennung','realtime/session':'Gespräch','flashcards':'Gesprächsauswertung','card-answer':'Ausspracheprüfung','card-speech':'Sprachausgabe','translate-word':'Wortübersetzung','vocabulary-suggestion':'Neue Vokabeln'};
 export function adminPresetRange(days,now=new Date()){
  const to=now.toISOString().slice(0,10);
  return {from:new Date(Date.parse(to)-(days-1)*86400000).toISOString().slice(0,10),to};
