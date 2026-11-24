@@ -3,7 +3,7 @@ import {proficiencyView,proficiencyLevels,proficiencyStages,proficiencyMinimumSe
 import {skillLabels} from './check-assessment.js';
 import {renderLearningQuality} from './learning-quality.js';
 import {setupLearningChart} from './learning-chart.js';
-export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,onDetails,onCheck,course=LANGUAGE_COURSES.en,getCoachName=()=> 'Emma',coachLabel=text=>text}){
+export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,onDetails,onCheck,onVocabularyGoalSave=null,course=LANGUAGE_COURSES.en,getCoachName=()=> 'Emma',coachLabel=text=>text}){
  const home=document.createElement('button');home.type='button';home.className='proficiency-home';home.onclick=onDetails;
  const panel=document.querySelector('#statistics .level-card');panel.className='level-card proficiency-card';
  document.querySelector('#statistics .statistics-topbar>strong').textContent='A1 → C2';
@@ -18,7 +18,7 @@ export function setupProficiencyUI({getProfile,getCards,getVocabulary,getStats,o
  const quality=document.createElement('section');quality.className='learning-quality';document.querySelector('#statisticsSpeakingSection').before(quality);
  const chartHost=document.createElement('section'),overview=document.querySelector('#statistics .statistics-overview');
  if(overview)overview.after(chartHost);else quality.before(chartHost);
- const chart=setupLearningChart(chartHost,{getCards,getVocabulary,getStats,language:course.target});
+ const chart=setupLearningChart(chartHost,{getCards,getVocabulary,getStats,getProfile,onVocabularyGoalSave,language:course.target});
  function learningPath(view){
   profilePath.replaceChildren(node('h3','Dein Lernpfad'));
   const path=node('ol','');path.className='learning-path';

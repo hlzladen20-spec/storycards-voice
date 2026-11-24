@@ -1,10 +1,11 @@
 import {retentionChart} from './retention-history.js';
 import {speakingChart} from './speaking-metrics.js';
+import {setupVocabularyGoal} from './vocabulary-goal.js';
 const ns='http://www.w3.org/2000/svg';
 const decimal=value=>value.toLocaleString('de-DE',{maximumFractionDigits:1});
 function node(tag,text='',className=''){const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el;}
 function svgNode(tag,attributes,text){const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));if(text!==undefined)el.textContent=text;return el;}
-export function setupLearningChart(host,{getCards=()=>[],getVocabulary=()=>({}),getStats=()=>({}),language='en',now=()=>new Date()}={}){
+export function setupLearningChart(host,{getCards=()=>[],getVocabulary=()=>({}),getStats=()=>({}),getProfile=()=>({}),onVocabularyGoalSave=null,language='en',now=()=>new Date()}={}){
  let mode='week',view='retention',metric='pace';
  host.className='learning-chart';host.setAttribute('aria-label','Deine Entwicklung');
  const heading=node('h3','Deine Entwicklung'),subtitle=node('p','','chart-subtitle');
@@ -17,8 +18,10 @@ export function setupLearningChart(host,{getCards=()=>[],getVocabulary=()=>({}),
  const toolbar=node('div','','chart-toolbar');toolbar.append(views,periods);
  const legend=node('div','','chart-legend'),plot=node('div','','chart-plot'),status=node('p','','chart-status'),selected=node('p','','chart-selected'),details=node('details','','chart-explanation');
  status.setAttribute('role','status');selected.setAttribute('aria-live','polite');
- host.append(heading,subtitle,toolbar,metrics,legend,plot,status,selected,details);
+ const goalHost=node('section'),goal=setupVocabularyGoal(goalHost,{getVocabulary,getGoal:()=>getProfile()?.vocabularyGoal,onSave:onVocabularyGoalSave});
+ host.append(heading,goalHost,subtitle,toolbar,metrics,legend,plot,status,selected,details);
  function refresh(){
+  goal.refresh();
   const retention=view==='retention';
   for(const [key,button]of viewButtons)button.setAttribute('aria-pressed',String(view===key));
   for(const [key,button]of periodButtons)button.setAttribute('aria-pressed',String(mode===key));

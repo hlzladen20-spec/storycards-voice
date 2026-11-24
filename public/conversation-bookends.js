@@ -1,5 +1,6 @@
 // Spoken bookends share the existing Realtime voice session. Never replay them
 // on pause/resume, duplicate configuration events, or repeated timer ticks.
+import {conversationTurnDetection} from './conversation-turns.js';
 export function createConversationBookends({send,greetingInstructions,onReady,onClosing,onClosed,farewellInstructions,onFinalReply=()=>{},onFinalReplyEnd=()=>{},schedule=setTimeout,cancel=clearTimeout,token=crypto.randomUUID()}){
  const phases={greeting:{sent:false,done:false,id:null},farewell:{sent:false,done:false,id:null}};
  const rejected=new Set();let expected=null,closing=false,closed=false,ready=false,disposed=false,busy=false,drainTimer=null,timeoutTimer=null;
@@ -62,7 +63,7 @@ export function createConversationBookends({send,greetingInstructions,onReady,on
   allowFinalReply(activity){
    if(disposed || closed || closing || reply)return false;
    busy=Boolean(activity);reply={phase:'draining',configured:false,done:false,answered:false,itemId:speaking?speechId:null};clearDrain();clearTimeout();
-   const sent=send({type:'session.update',event_id:`storycards-final-reply-${token}`,session:{type:'realtime',audio:{input:{turn_detection:{type:'server_vad',threshold:0.7,prefix_padding_ms:300,silence_duration_ms:1200,create_response:false,interrupt_response:false,idle_timeout_ms:null}}}}});
+   const sent=send({type:'session.update',event_id:`storycards-final-reply-${token}`,session:{type:'realtime',audio:{input:{turn_detection:conversationTurnDetection({createResponse:false})}}}});
    if(sent===false){endReply(false);return true;}
    replyState(speaking?'capturing':'draining');
    if(!speaking)replyTimer=schedule(()=>endReply(false),15000);

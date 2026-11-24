@@ -1,14 +1,22 @@
 import {addPracticeDay,calendarDayKey,learningStreak} from './learning-streak.js';
 
-export const DAILY_POINTS=10;
+export const DAILY_POINTS=5;
+const LEGACY_POINTS=10,POINTS_CHANGE_DAY='2026-11-24';
+const newAward=day=>day<POINTS_CHANGE_DAY?LEGACY_POINTS:DAILY_POINTS;
 export const STREAK_RESCUE_COST=30;
 export const QUICK_DAY_COST=20;
 function days(values){return [...new Set((Array.isArray(values)?values:[]).filter(day=>typeof day==='string' && /^\d{4}-\d{2}-\d{2}$/.test(day) && calendarDayKey(`${day}T12:00:00`)===day))].sort();}
 function dayBefore(now,offset){const date=new Date(now);date.setHours(12,0,0,0);date.setDate(date.getDate()-offset);return calendarDayKey(date);}
-function ledger(stats){const data=stats.streakRewards||{};return {earnedDays:days(data.earnedDays),...(data.bonusDays?{bonusDays:days(data.bonusDays)}:{}),...(data.quickDays?{quickDays:days(data.quickDays)}:{}),protectedDays:days(data.protectedDays),declinedDays:days(data.declinedDays)};}
+function ledger(stats){const data=stats.streakRewards||{};return {earnedDays:days(data.earnedDays),...(data.bonusDays?{bonusDays:days(data.bonusDays)}:{}),...(data.earnedValues?{earnedValues:{...data.earnedValues}}:{}),...(data.bonusValues?{bonusValues:{...data.bonusValues}}:{}),...(data.quickDays?{quickDays:days(data.quickDays)}:{}),protectedDays:days(data.protectedDays),declinedDays:days(data.declinedDays)};}
+const recordedValue=(data,key,day)=>[DAILY_POINTS,LEGACY_POINTS].includes(data[key]?.[day])?data[key][day]:LEGACY_POINTS;
+export function rewardEarnedOnDay(stats,day){
+ const data=ledger(stats);if(!data.earnedDays.includes(day)||!days(stats.practiceDays).includes(day))return 0;
+ return recordedValue(data,'earnedValues',day)+((data.bonusDays||[]).includes(day)?recordedValue(data,'bonusValues',day):0);
+}
 export function rewardBalance(stats,now=new Date()){
  const today=calendarDayKey(now),actual=new Set(days(stats.practiceDays)),data=ledger(stats);
- return Math.max(0,(data.earnedDays.filter(day=>day<=today && actual.has(day)).length+(data.bonusDays||[]).filter(day=>day<=today&&actual.has(day)&&data.earnedDays.includes(day)).length)*DAILY_POINTS-data.protectedDays.filter(day=>day<=today).length*STREAK_RESCUE_COST-(data.quickDays||[]).filter(day=>day<=today).length*QUICK_DAY_COST);
+ const earned=data.earnedDays.filter(day=>day<=today&&actual.has(day)).reduce((sum,day)=>sum+recordedValue(data,'earnedValues',day),0),bonus=(data.bonusDays||[]).filter(day=>day<=today&&actual.has(day)&&data.earnedDays.includes(day)).reduce((sum,day)=>sum+recordedValue(data,'bonusValues',day),0);
+ return Math.max(0,earned+bonus-data.protectedDays.filter(day=>day<=today).length*STREAK_RESCUE_COST-(data.quickDays||[]).filter(day=>day<=today).length*QUICK_DAY_COST);
 }
 export function redeemQuickDay(stats,now=new Date()){
  const day=calendarDayKey(now),data=ledger(stats);
@@ -22,12 +30,12 @@ export function rewardDailyGoals(stats,progress,now=new Date()){
  const day=calendarDayKey(now);if(!day||progress?.day!==day||!progress.complete)return stats;
  const data=ledger(stats),earned=data.earnedDays.includes(day),bonus=(data.bonusDays||[]).includes(day);
  if(earned&&(!progress.bonus||bonus))return stats;
- return {...addPracticeDay(stats,now),streakRewards:{...data,earnedDays:days([...data.earnedDays,day]),...(progress.bonus?{bonusDays:days([...(data.bonusDays||[]),day])}:{})}};
+ return {...addPracticeDay(stats,now),streakRewards:{...data,earnedDays:days([...data.earnedDays,day]),...(!earned?{earnedValues:{...data.earnedValues,[day]:newAward(day)}}:{}),...(progress.bonus?{bonusDays:days([...(data.bonusDays||[]),day]),...(!bonus?{bonusValues:{...data.bonusValues,[day]:newAward(day)}}:{})}:{})}};
 }
 export function rewardPracticeDay(stats,now=new Date()){
  const today=calendarDayKey(now);if(!today)return stats;
  const updated=addPracticeDay(stats,now),data=ledger(stats);
- return {...updated,streakRewards:{...data,earnedDays:days([...data.earnedDays,today])}};
+ return {...updated,streakRewards:{...data,earnedDays:days([...data.earnedDays,today]),...(!data.earnedDays.includes(today)?{earnedValues:{...data.earnedValues,[today]:newAward(today)}}:{})}};
 }
 export function streakRescueOffer(stats,now=new Date()){
  const today=calendarDayKey(now);if(!today)return null;

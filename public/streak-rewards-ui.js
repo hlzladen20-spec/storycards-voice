@@ -1,4 +1,4 @@
-import {DAILY_POINTS,STREAK_RESCUE_COST,rewardBalance,rewardDailyGoals,streakRescueOffer,rescueStreak} from './streak-rewards.js';
+import {DAILY_POINTS,STREAK_RESCUE_COST,rewardBalance,rewardDailyGoals,rewardEarnedOnDay,streakRescueOffer,rescueStreak} from './streak-rewards.js';
 import {confirmDialog,noticeDialog} from './app-dialog.js';
 
 export function setupStreakRewardsUI({host,pointsHost=null,rescueHost=null,onRescue=()=>{},getStats,saveStats,getProgress=()=>null,onLearn=()=>{},isBusy=()=>false,now=()=>new Date(),confirm=confirmDialog,notice=noticeDialog}){
@@ -7,7 +7,7 @@ export function setupStreakRewardsUI({host,pointsHost=null,rescueHost=null,onRes
  button.type='button';button.className='secondary';status.className='streak-rewards-status';status.setAttribute('role','status');
  const details=document.createElement('details'),summary=document.createElement('summary'),headline=document.createElement('h3'),progress=document.createElement('progress'),steps=document.createElement('div'),learn=document.createElement('button');
  summary.textContent='So funktionieren deine Lernpunkte';details.append(summary,help);
- help.textContent=`${DAILY_POINTS} Punkte für dein vollständiges Tagesziel: Sprechen, Tageslektion mit ihren Wiederholungen und Vokabelrunde. Weitere ${DAILY_POINTS} Punkte für eine vollständige zusätzliche Sprechlektion oder Vokabelrunde. Höchstens 20 Punkte pro Tag. Keine fälligen Karten? Dann ist dieser Teil nicht nötig. ${STREAK_RESCUE_COST} Punkte retten einen ausgelassenen Tag. Kein Kauf, kein Geld. Bereits verdiente Punkte bleiben erhalten.`;
+ help.textContent=`${DAILY_POINTS} Punkte für dein vollständiges Tagesziel: Sprechen und die geplante Vokabelrunde. Weitere ${DAILY_POINTS} Punkte für eine vollständige zusätzliche Sprechlektion oder Vokabelrunde. Jede Gutschrift gibt es einmal pro Tag. Keine Vokabelkarten vorhanden? Dann ist dieser Teil nicht nötig. ${STREAK_RESCUE_COST} Punkte retten einen ausgelassenen Tag. Bereits verdiente Punkte bleiben erhalten.`;
  learn.type='button';learn.className='primary';learn.onclick=onLearn;steps.className='learning-goal-steps';progress.max=3;
  area.append(title,details,button,status,headline,progress,steps,learn);host.after(area);let pending=false;
  if(pointsHost){title.className='learning-points-badge';title.setAttribute('aria-live','polite');pointsHost.append(title);}
@@ -17,15 +17,16 @@ export function setupStreakRewardsUI({host,pointsHost=null,rescueHost=null,onRes
  function refresh(){
   const goal=getProgress(),current=getStats();
   const next=isBusy()?current:rewardDailyGoals(current,goal,now());
-  if(next!==current){try{saveStats(next);status.textContent=goal.bonus?'🎉 Tagesziel plus Zusatzrunde geschafft – heute insgesamt 20 Lernpunkte!':'🎉 Alles für heute geschafft – deine 10 Lernpunkte sind gutgeschrieben!';}catch{status.textContent='Tagesziel geschafft! Die Punkte konnten noch nicht gespeichert werden. Bitte öffne die Übersicht später erneut.';}}
+  if(next!==current){try{saveStats(next);status.textContent=`🎉 ${goal.bonus?'Tagesziel plus Zusatzrunde':'Alles für heute'} geschafft – heute ${rewardEarnedOnDay(next,goal.day)} Lernpunkte gutgeschrieben!`;}catch{status.textContent='Tagesziel geschafft! Die Punkte konnten noch nicht gespeichert werden. Bitte öffne die Übersicht später erneut.';}}
   const offer=streakRescueOffer(getStats(),now());
   title.textContent=`⭐ ${rewardBalance(getStats(),now())} Lernpunkte`;
   const today=goal?.day;
   const earned=getStats().streakRewards?.earnedDays?.includes(today),bonus=getStats().streakRewards?.bonusDays?.includes(today);
-  headline.textContent=bonus?'🎉 Heute 20 Lernpunkte verdient!':earned?(goal?.complete?'✓ Tagesziel geschafft · 10 Punkte verdient!':'Heute bereits 10 Punkte gutgeschrieben'):'Dein Tagesziel wartet · +10 Lernpunkte';
+  const todayPoints=rewardEarnedOnDay(getStats(),today);
+  headline.textContent=bonus?`🎉 Heute ${todayPoints} Lernpunkte verdient!`:earned?(goal?.complete?`✓ Tagesziel geschafft · ${todayPoints} Punkte verdient!`:`Heute bereits ${todayPoints} Punkte gutgeschrieben`):`Dein Tagesziel wartet · +${DAILY_POINTS} Lernpunkte`;
   progress.value=goal?.completed||0;progress.max=goal?.total||3;progress.setAttribute('aria-label',`${goal?.completed||0} von ${goal?.total||3} Tageszielen geschafft`);
   if(goal){steps.replaceChildren(...goal.rows.map(row=>{const item=document.createElement('p');item.className=row.done?'goal-done':'goal-open';item.textContent=`${row.done?'✓':'○'} ${row.label} · ${row.detail}`;return item;}));}
-  learn.hidden=Boolean(bonus&&goal?.complete);learn.textContent=earned&&goal?.complete?'Freiwillig weiterlernen · +10 Bonuspunkte':'Heute weitermachen';
+  learn.hidden=Boolean(bonus&&goal?.complete);learn.textContent=earned&&goal?.complete?`Freiwillig weiterlernen · +${DAILY_POINTS} Bonuspunkte`:'Heute weitermachen';
   area.setAttribute('data-complete',String(Boolean(earned)));
   const yesterday=new Date(now());yesterday.setDate(yesterday.getDate()-1);const dateKey=`${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`,protectedDay=getStats().streakRewards?.protectedDays?.includes(dateKey);
   rescueArea.hidden=!offer&&!protectedDay;rescueTitle.textContent=protectedDay?'🛡 Deine Serie ist geschützt.':'Eine Pause gehört dazu.';
