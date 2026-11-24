@@ -2,6 +2,7 @@ import {createAccountStorage,guestSnapshot,validateSnapshot,hasLearningProgress}
 import {SUPABASE_URL as URL,SUPABASE_PUBLIC_KEY as KEY} from './account-config.js';
 import {confirmDialog} from './app-dialog.js';
 import {openRegistrationDialog} from './registration-dialog.js';
+import {cleanLearnerName,learnerFirstName} from './learner-name.js';
 import {capturePasswordRecovery,showPasswordRecovery} from './password-recovery.js';
 
 const SITE='https://storycards-voice.onrender.com';
@@ -27,6 +28,7 @@ export async function initCloudAccount(raw) {
   }
   const owner=session?.user?.id || null;
   if(client) client.auth.onAuthStateChange((_event,current)=>{
+    if(current?.user?.id===owner)session=current;
     if(started && (current?.user?.id || null)!==owner) {
       identityChanged=true;clearTimeout(timer);location.reload();
     }
@@ -137,7 +139,7 @@ export async function initCloudAccount(raw) {
       <label>Passwort<input name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required></label>
       <button class="primary" type="submit">Anmelden</button><button class="secondary" type="button" data-action="signup">Konto erstellen</button>
       <button class="ghost" type="button" data-action="reset">Passwort vergessen?</button></form></div>
-      <div class="cloud-member hidden"><button class="primary" type="button" data-action="sync">Jetzt synchronisieren</button>
+      <div class="cloud-member hidden"><form class="cloud-name"><label>Dein Vorname<input name="firstName" autocomplete="given-name" maxlength="60" required></label><button class="secondary" type="submit">Name speichern</button></form><button class="primary" type="button" data-action="sync">Jetzt synchronisieren</button>
       <button class="secondary" type="button" data-action="import">Bisherige lokale Lerndaten übernehmen</button>
       <p class="cloud-import-help">Die Daten ohne Anmeldung bleiben erhalten. Eine Übernahme ist nur in einen noch leeren Lernstand möglich.</p>
       <button class="ghost" type="button" data-action="export">Sicherung herunterladen</button><button class="ghost" type="button" data-action="logout">Abmelden</button></div>
@@ -150,6 +152,7 @@ export async function initCloudAccount(raw) {
     panel.querySelector('.cloud-guest').classList.toggle('hidden',Boolean(owner));
     panel.querySelector('.cloud-member').classList.toggle('hidden',!owner);
     const form=panel.querySelector('.cloud-auth');
+    const nameForm=panel.querySelector('.cloud-name');nameForm.elements.firstName.value=learnerFirstName(session?.user);
     const busy=()=>{if(isBusy()) {const error=new Error();error.userMessage='Bitte beende zuerst das laufende Gespräch oder die Aufnahme.';throw error;}};
     async function action(work) {
       const buttons=[...panel.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
@@ -157,6 +160,12 @@ export async function initCloudAccount(raw) {
       try {await work();} catch(error) {errorText=error.userMessage || message(error);}
       finally {buttons.forEach(b=>b.disabled=false);update();}
     }
+    nameForm.onsubmit=event=>{
+      event.preventDefault();const firstName=cleanLearnerName(nameForm.elements.firstName.value);
+      nameForm.elements.firstName.setCustomValidity(firstName?'':'Bitte gib deinen Vornamen ein.');if(!nameForm.reportValidity())return;
+      action(async()=>{busy();const {data,error}=await client.auth.updateUser({data:{first_name:firstName}});if(error)throw error;if(!data?.user)throw Error('missing user');session={...session,user:data.user};nameForm.elements.firstName.value=learnerFirstName(session.user);notice='Dein Vorname ist gespeichert. Dein Sprachcoach begrüßt dich damit.';document.dispatchEvent(new Event('storycards-learner-name-changed'));});
+    };
+    nameForm.elements.firstName.oninput=()=>nameForm.elements.firstName.setCustomValidity('');
     function credentials(needsPassword=true) {
       if(!form.elements.email.reportValidity() || (needsPassword && !form.elements.password.reportValidity())) return null;
       return {email:form.elements.email.value.trim(),password:form.elements.password.value};
@@ -167,7 +176,7 @@ export async function initCloudAccount(raw) {
     };
     panel.querySelector('[data-action=signup]').onclick=()=>{
       openRegistrationDialog({email:form.elements.email.value,
-       onSubmit:async values=>{busy();if(!client)throw {userMessage:'Die Anmeldung ist gerade nicht erreichbar. Bitte versuche es später erneut.'};const {data,error}=await client.auth.signUp({...values,options:{emailRedirectTo:SITE}});if(error)throw {userMessage:message(error)};if(data?.session){location.reload();return {signedIn:true};}},
+       onSubmit:async values=>{busy();if(!client)throw {userMessage:'Die Anmeldung ist gerade nicht erreichbar. Bitte versuche es später erneut.'};const {data,error}=await client.auth.signUp({email:values.email,password:values.password,options:{emailRedirectTo:SITE,data:{first_name:values.firstName}}});if(error)throw {userMessage:message(error)};if(data?.session){location.reload();return {signedIn:true};}},
        onReturn:email=>{form.elements.email.value=email;form.elements.password.value='';errorText='';notice='Bestätige zuerst deine E-Mail-Adresse. Anschließend kannst du dich hier anmelden.';update();}
       });
     };
@@ -227,5 +236,5 @@ export async function initCloudAccount(raw) {
     if(error||data.session?.user?.id!==owner)return null;
     return data.session?.access_token||null;
   }
-  return {storage,mount,user:session?.user||null,sync,accessToken,importGuest};
+  return {storage,mount,get user(){return session?.user||null;},sync,accessToken,importGuest};
 }

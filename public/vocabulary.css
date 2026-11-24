@@ -44,3 +44,15 @@ body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 .vocab-create-option span{display:block;font-size:.8rem;line-height:1.5;margin-top:5px;font-weight:400}
 .vocab-create-option[aria-pressed=true]{border-color:#14836a;background:#e6f2e7}
 .vocab-create :focus-visible{outline:3px solid #69b89d;outline-offset:2px}
+.vocab-collection{flex:none;margin:0 4px;color:#396451;font-size:.76rem;line-height:1.4;font-weight:650}
+.word-course-picker{margin:4px 0 16px}.word-course-picker [hidden]{display:none!important}
+.word-course-list{display:grid;gap:10px}.word-course-entry{padding:0 14px 13px;border:1px solid #d5e3d1;border-radius:16px;background:#f1f6eb}
+.word-course-button,.word-topic-start{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;min-height:56px;padding:13px 0;border:0;background:transparent;color:#173f3a;text-align:left;border-radius:10px;margin:0}
+.word-course-button strong{font-size:1rem;line-height:1.35}.word-course-button>span{font-size:1.6rem;color:#16806a}
+.word-course-picker progress{display:block;width:100%;height:7px;accent-color:#168368;margin:0 0 7px}.word-course-picker small{display:block;color:#527060;font-size:.75rem;line-height:1.4;font-variant-numeric:tabular-nums}
+#cardChoice.word-course-open>:not(.word-course-picker):not(.bottom-nav){display:none!important}
+.word-course-back{width:auto;min-height:44px;margin:0 0 8px;padding:9px 0;font-size:.85rem}.word-course-catalog h2{margin:0 0 6px;font-size:1.45rem}.word-course-description{font-size:.83rem;color:#567161;margin:0 0 16px}.word-course-summary{padding:14px;border:1px solid #cee0cb;border-radius:13px;background:#edf5e7;margin:0 0 14px}
+.word-course-catalog>.primary{min-height:48px;margin:0 0 20px}.word-course-catalog>h3{font-size:1rem;margin:0 0 12px}.word-topic-list{display:grid;gap:10px}
+.word-topic-card{padding:0 13px 5px;background:#fffef8;border:1px solid #dae4d5;border-radius:14px}.word-topic-start{min-height:55px;padding:12px 0}.word-topic-start strong{font-size:.92rem;line-height:1.35}.word-topic-start>span{white-space:nowrap;color:#16806a;font-size:.76rem;font-weight:650}
+.word-topic-card details{margin-top:3px}.word-topic-card summary,.word-course-info summary{min-height:40px;align-content:center;cursor:pointer;font-size:.76rem;color:#38654e}.word-topic-words{max-height:330px;overflow:auto;border-top:1px solid #e3e9dc}.word-topic-words p{display:grid;gap:3px;margin:0;padding:10px 0;border-bottom:1px solid #e7ecdf;font-size:.82rem}.word-topic-words p>span{color:#5e7567}.word-course-info{margin:18px 0 0}.word-course-info p{font-size:.8rem;line-height:1.6;color:#567161}
+.word-course-picker button:focus-visible,.word-course-picker summary:focus-visible{outline:3px solid #69b89d;outline-offset:3px}

@@ -1,3 +1,4 @@
+import {cleanLearnerName} from './learner-name.js';
 let activeRegistration=null;
 
 // Opening this window never signs up. Only a validated, explicit submit does.
@@ -9,7 +10,7 @@ export function openRegistrationDialog({email='',onSubmit,onReturn=()=>{}}){
  dialog.setAttribute('aria-labelledby','registration-title');dialog.setAttribute('aria-describedby','registration-description');dialog.setAttribute('aria-modal','true');
  dialog.innerHTML=`<p class="registration-kicker">STORYCARDS VOICE</p><h2 id="registration-title">Dein neues Konto</h2>
  <p id="registration-description">Schön, dass du dabei bist. Erstelle dein Konto und bestätige danach deine E-Mail-Adresse. Dein bisheriger Lernstand bleibt erhalten.</p>
- <form class="registration-form"><label>E-Mail-Adresse<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+ <form class="registration-form"><label>Dein Vorname<input name="firstName" autocomplete="given-name" maxlength="60" required></label><label>E-Mail-Adresse<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
  <label>Neues Passwort<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required aria-describedby="registration-password-help"></label>
  <small id="registration-password-help">Mindestens 10 Zeichen. Verwende ein eigenes Passwort für StoryCards Voice.</small>
  <label>Passwort wiederholen<input name="repeatPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
@@ -30,11 +31,13 @@ export function openRegistrationDialog({email='',onSubmit,onReturn=()=>{}}){
  const instance={close,dialog};activeRegistration=instance;
  back.onclick=close;
  fields.password.oninput=fields.repeatPassword.oninput=()=>fields.repeatPassword.setCustomValidity('');
+ fields.firstName.oninput=()=>fields.firstName.setCustomValidity('');
  form.onsubmit=async event=>{
   event.preventDefault();if(pending||closed||registeredEmail)return;
   fields.repeatPassword.setCustomValidity(fields.password.value===fields.repeatPassword.value?'':'Die Passwörter stimmen noch nicht überein.');
+  fields.firstName.setCustomValidity(cleanLearnerName(fields.firstName.value)?'':'Bitte gib deinen Vornamen ein.');
   if(!form.reportValidity())return;
-  const values={email:fields.email.value.trim(),password:fields.password.value};
+  const values={email:fields.email.value.trim(),password:fields.password.value,firstName:cleanLearnerName(fields.firstName.value)};
   pending=true;for(const field of [...form.querySelectorAll('input,button'),back])field.disabled=true;
   status.textContent='Dein Konto wird angelegt …';
   try{
@@ -52,7 +55,7 @@ export function openRegistrationDialog({email='',onSubmit,onReturn=()=>{}}){
  dialog.addEventListener('keydown',event=>{
   if(event.key==='Escape'){event.preventDefault();close();return;}
   if(event.key!=='Tab')return;
-  const first=form.hidden?back:fields.email,last=back;
+  const first=form.hidden?back:fields.firstName,last=back;
   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
  });
@@ -60,7 +63,7 @@ export function openRegistrationDialog({email='',onSubmit,onReturn=()=>{}}){
   for(const root of roots)root.element.inert=true;
   if(typeof dialog.showModal==='function')dialog.showModal();
   else{overlay.classList.add('app-dialog-fallback');dialog.setAttribute('open','');dialog.setAttribute('role','dialog');}
-  fields.email.focus();
+  fields.firstName.focus();
  }catch{close();}
  return instance;
 }

@@ -21,5 +21,5 @@ export function prepareVocabularyQuestion(state){
 export function vocabularyQuestion(state,word,revealed=false,course={target:'en',name:'Englisch'}){
  const direction=state.lesson?.queue?.[0]?.direction||'de-target',listening=vocabularyMode(state)==='listening'&&direction==='target-de';
  const reverse=direction==='target-de',label=listening?'Hören → Deutsch':reverse?course.name+' → Deutsch':'Deutsch → '+course.name;
- return {direction,listening,label,question:listening&&!revealed?'Höre zu. Was bedeutet der Satz?':reverse?word.back:word.front,questionLanguage:listening&&!revealed?'de':reverse?course.target:'de',answer:revealed?(reverse?word.front:word.back):null,answerLanguage:reverse?'de':course.target,canListen:listening||reverse||revealed};
+ return {direction,listening,label,question:listening&&!revealed?(word.courseId?'Höre zu. Was bedeutet das Wort?':'Höre zu. Was bedeutet der Satz?'):reverse?word.back:word.front,questionLanguage:listening&&!revealed?'de':reverse?course.target:'de',answer:revealed?(reverse?word.front:word.back):null,answerLanguage:reverse?'de':course.target,canListen:listening||reverse||revealed};
 }

@@ -1,5 +1,5 @@
 import {calendarDayKey} from './learning-streak.js';
-import {quickToday,quickVocabularyPlan} from './quick-learning.js';
+import {quickToday,quickVocabularyPlan,dailyAmount} from './quick-learning.js';
 import {reviewSchedule} from '../lib/review-scheduler.js';
 export const vocabularySessionSeconds=(state,now=new Date())=>state.fillDailyLimit?Infinity:Math.max(60,Number(state.lesson?.sessionSeconds)||Number(state.sessionSeconds)||900)*(quickToday(state,now)?.5:1);
 export const VOCABULARY_SECONDS=900;
@@ -7,7 +7,9 @@ const phraseKey=word=>JSON.stringify([word.front,word.back].map(text=>String(tex
 export function removeVocabulary(state,id){
  const word=state.words.find(item=>item.id===id);if(!word)return state;
  const next={...state,words:state.words.filter(item=>item.id!==id),ignoredSourceIds:[...new Set([...(state.ignoredSourceIds||[]),word.sourceCardId].filter(Boolean))],ignoredPhrases:[...new Set([...(state.ignoredPhrases||[]),phraseKey(word)])]};
- if(state.lesson){const lesson={...state.lesson,queue:state.lesson.queue.filter(item=>item.id!==id)};for(const key of ['ids','normalIds','rated','introduced','retryIds','previousIds','previousRated'])if(Array.isArray(lesson[key]))lesson[key]=lesson[key].filter(value=>value!==id);if(Array.isArray(lesson.quickDeferred))lesson.quickDeferred=lesson.quickDeferred.filter(item=>item.id!==id);next.lesson=lesson;}
+ const prune=previous=>{if(!previous)return previous;const lesson={...previous,queue:(previous.queue||[]).filter(item=>item.id!==id)};for(const key of ['ids','normalIds','rated','introduced','retryIds','previousIds','previousRated'])if(Array.isArray(lesson[key]))lesson[key]=lesson[key].filter(value=>value!==id);if(Array.isArray(lesson.quickDeferred))lesson.quickDeferred=lesson.quickDeferred.filter(item=>item.id!==id);return lesson;};
+ if(state.lesson)next.lesson=prune(state.lesson);
+ if(state.collectionLessons)next.collectionLessons=Object.fromEntries(Object.entries(state.collectionLessons).map(([key,lesson])=>[key,prune(lesson)]));
  return next;
 }
 export function addVocabulary(state,front,back,example='',now=Date.now()) {
@@ -70,22 +72,38 @@ export function vocabularyRoundProgress(state) {
 }
 export function vocabularyDailyProgress(state,now=new Date()){
  const day=calendarDayKey(now),lesson=state.lesson;
- if(lesson?.day!==day)return {total:0,completed:0,pending:0,done:false,hasWork:false};
  const history=(state.history||[]).find(item=>item.day===day);
+ const target=state.fillDailyLimit?Math.min(state.words.length,dailyAmount(state.dailyLimit||15,quickToday(state,now))):0;
+ if(history?.finished&&history.planned>0&&history.planned>=target&&(history.timedOut||history.completed>=history.planned&&!history.pending))return {total:history.planned,completed:history.completed||0,pending:history.pending||0,done:true,hasWork:true};
+ if(lesson?.day!==day)return {total:0,completed:0,pending:0,done:false,hasWork:false};
  if(lesson.extraRound&&history?.finished)return {total:history.planned||0,completed:history.completed||0,pending:history.pending||0,done:Boolean(history.timedOut||history.planned>0&&history.completed>=history.planned),hasWork:history.planned>0};
  if(lesson.extraRound&&history&&!history.finished){const previous=[...new Set(lesson.previousIds||[])],rated=new Set(lesson.previousRated||[]);return {total:previous.length,completed:previous.filter(id=>rated.has(id)).length,pending:0,done:Boolean(history.reviews>0||previous.length&&previous.every(id=>rated.has(id))),hasWork:previous.length>0||history.reviews>0};}
  const progress=vocabularyRoundProgress(state);
  const timedOut=lesson.closed&&lesson.rated?.length>0&&lesson.activeMs>=vocabularySessionSeconds(state,now)*1000;
  return {...progress,pending:lesson.queue.length,repetitions:new Set(lesson.queue.filter(item=>item.retry).map(item=>item.id)).size,done:progress.total>0&&Boolean(timedOut||lesson.closed&&progress.completed===progress.total),hasWork:progress.total>0};
 }
+export function vocabularyCandidates(state){
+ const filter=state.activeCollection;
+ return filter?state.words.filter(word=>word.courseId===filter.courseId&&(!filter.topicId||word.topicId===filter.topicId)):state.words;
+}
+function mixedTopicWords(words,candidates){
+ const groups=new Map(),seen=new Map();
+ for(const word of candidates)if(word.attempts>0)seen.set(word.topicId,(seen.get(word.topicId)||0)+1);
+ for(const word of words){if(!groups.has(word.topicId))groups.set(word.topicId,[]);groups.get(word.topicId).push(word);}
+ const topics=[...groups].sort(([a],[b])=>(seen.get(a)||0)-(seen.get(b)||0)).map(([,items])=>items),mixed=[];
+ for(let index=0;mixed.length<words.length;index++)for(const items of topics)if(items[index])mixed.push(items[index]);
+ return mixed;
+}
 function vocabularyPortion(state,now,excluded=[]){
  const blocked=new Set(excluded),cap=Math.max(1,Math.min(50,state.dailyLimit||15));
- const due=state.words.filter(w=>!blocked.has(w.id)&&w.attempts>0&&(vocabularyNeedsRepeat(w)||w.nextReviewAt<=now)).sort((a,b)=>Number(vocabularyNeedsRepeat(b))-Number(vocabularyNeedsRepeat(a))||a.nextReviewAt-b.nextReviewAt);
- const fresh=state.words.filter(w=>!blocked.has(w.id)&&!w.attempts).slice(0,state.newLimit===0?0:state.fillDailyLimit?cap:Math.max(0,Math.min(15,state.newLimit??3)));
+ const candidates=vocabularyCandidates(state);
+ const due=candidates.filter(w=>!blocked.has(w.id)&&w.attempts>0&&(vocabularyNeedsRepeat(w)||w.nextReviewAt<=now)).sort((a,b)=>Number(vocabularyNeedsRepeat(b))-Number(vocabularyNeedsRepeat(a))||a.nextReviewAt-b.nextReviewAt);
+ const freshOptions=candidates.filter(w=>!blocked.has(w.id)&&!w.attempts);
+ const fresh=(state.activeCollection&&!state.activeCollection.topicId?mixedTopicWords(freshOptions,candidates):freshOptions).slice(0,state.newLimit===0?0:state.fillDailyLimit?cap:Math.max(0,Math.min(15,state.newLimit??3)));
  const selected=[...due,...fresh].slice(0,cap).map(word=>({word,practiceOnly:false}));
  if(state.fillDailyLimit&&selected.length<cap){
   const used=new Set(selected.map(item=>item.word.id));
-  const early=state.words.filter(w=>!blocked.has(w.id)&&!used.has(w.id)&&w.attempts>0).sort((a,b)=>(a.nextReviewAt||0)-(b.nextReviewAt||0)||(a.lastReviewedAt||0)-(b.lastReviewedAt||0));
+  const early=candidates.filter(w=>!blocked.has(w.id)&&!used.has(w.id)&&w.attempts>0).sort((a,b)=>(a.nextReviewAt||0)-(b.nextReviewAt||0)||(a.lastReviewedAt||0)-(b.lastReviewedAt||0));
   selected.push(...early.slice(0,cap-selected.length).map(word=>({word,practiceOnly:true})));
  }
  return selected;
@@ -102,11 +120,12 @@ export function additionalVocabularyLesson(state,now=Date.now()) {
  if(state.lesson && !state.lesson.closed && state.lesson.queue.length)return state;
  const day=calendarDayKey(now),same=state.lesson?.day===day;
  const finished=finishVocabulary(state);
- const weak=finished.words.filter(w=>w.attempts>0 && vocabularyNeedsRepeat(w)).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
- const due=finished.words.filter(w=>w.attempts>0 && vocabularyKnown(w) && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
- const fresh=finished.words.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,finished.newLimit??3)));
+ const candidates=vocabularyCandidates(finished);
+ const weak=candidates.filter(w=>w.attempts>0 && vocabularyNeedsRepeat(w)).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+ const due=candidates.filter(w=>w.attempts>0 && vocabularyKnown(w) && w.nextReviewAt<=now).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
+ const fresh=candidates.filter(w=>!w.attempts).slice(0,Math.max(0,Math.min(15,finished.newLimit??3)));
  let selected=[...weak,...due,...fresh].slice(0,Math.max(1,Math.min(50,finished.dailyLimit||15))),practiceOnly=false;
- if(!selected.length){selected=finished.words.filter(w=>w.attempts>0).sort((a,b)=>(a.lastReviewedAt||0)-(b.lastReviewedAt||0)).slice(0,finished.dailyLimit||15);practiceOnly=true;}
+ if(!selected.length){selected=candidates.filter(w=>w.attempts>0).sort((a,b)=>(a.lastReviewedAt||0)-(b.lastReviewedAt||0)).slice(0,finished.dailyLimit||15);practiceOnly=true;}
  if(!selected.length)return finished;
  const previous=finished.lesson,portion=state.fillDailyLimit?vocabularyPortion(finished,now):selected.map(word=>({word,practiceOnly}));
  return {...finished,lesson:{day,extraRound:true,countsAsDaily:!vocabularyDailyProgress(finished,new Date(now)).done,sessionSeconds:Number(state.sessionSeconds)||900,previousIds:same?[...new Set([...(previous?.previousIds||[]),...(previous?.ids||[])])]:[],previousRated:same?[...new Set([...(previous?.previousRated||[]),...(previous?.rated||[])])]:[],ids:portion.map(({word})=>word.id),queue:portion.map(({word,practiceOnly})=>({id:word.id,practiceOnly})),introduced:[],rated:[],retryIds:[],activeMs:0,reviewCount:0,correctCount:0,closed:false}};

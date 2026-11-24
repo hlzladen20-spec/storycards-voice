@@ -1,10 +1,12 @@
-const CACHE = "storycards-shell-vocabulary-goal-v89";
+const CACHE = "storycards-shell-word-courses-v90";
 const SHELL = ["/language-courses.js", "/language-ui.js", "/language-courses.css", "/", "/index.html", "/styles.css", "/cards-design.css", "/cards-design.js", "/card-manager.css", "/card-manager.js", "/learning-storage.js", "/account-data.js", "/cloud-account.js", "/cloud-account.css", "/vendor/supabase.js", "/app.js", "/cards.js", "/fsrs.mjs", "/manifest.webmanifest", "/icon.svg"];
 SHELL.push('/streak-rewards.js','/streak-rewards-ui.js','/streak-rewards.css');
 SHELL.push('/learning-week.js','/emma-speech.js');
 SHELL.push('/account-config.js','/account-gate.js','/authenticated-fetch.js','/admin-usage.js');
 SHELL.push('/admin-usage.css');
 SHELL.push('/conversation-health.js','/conversation-turns.js','/vocabulary-goal.js');
+SHELL.push('/vocabulary-course-data.js','/vocabulary-basic-extra.js','/vocabulary-collections.js','/vocabulary-course-picker.js');
+SHELL.push('/learner-name.js');
 SHELL.push('/daily-learning-goals.js');
 SHELL.push('/section-collapse.js');
 SHELL.push('/quick-learning.js');
