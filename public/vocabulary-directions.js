@@ -1,4 +1,5 @@
 import {englishVocabularyForm} from './vocabulary-english-form.js';
+import {vocabularyNeedsRepeat} from './vocabulary.js';
 
 export const VOCABULARY_MODES=['mixed','de-target','target-de','listening'];
 const directions=['de-target','target-de'];
@@ -14,7 +15,7 @@ export function prepareVocabularyQuestion(state){
  const item=state.lesson?.queue?.[0];if(!item||state.lesson.closed)return state;
  const word=state.words.find(word=>word.id===item.id);if(!word)return state;
  if(directions.includes(item.direction))return state;
- const mode=vocabularyMode(state),difficult=word.relearning===true||['no','hard'].includes(word.lastRating);
+ const mode=vocabularyMode(state),difficult=vocabularyNeedsRepeat(word);
  const remembered=difficult&&directions.includes(word.relearningDirection)?word.relearningDirection:null;
  const cursor=Number.isSafeInteger(state.directionCursor)&&state.directionCursor>=0?state.directionCursor%2:0;
  const direction=remembered||(mode==='mixed'?directions[cursor%2]:mode==='listening'?'target-de':mode);

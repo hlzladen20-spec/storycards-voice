@@ -7,7 +7,7 @@ import {setupVocabularyCreator} from './vocabulary-creator.js';
 import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
 import {removeVocabulary} from './vocabulary.js';
 import {vocabularySessionSeconds} from './vocabulary.js';
-import {vocabularyRoundProgress,vocabularyDailyProgress} from './vocabulary.js';
+import {completedBasicWord,vocabularyCandidates,vocabularyRoundProgress,vocabularyDailyProgress} from './vocabulary.js';
 import {reviewIntervalLabel} from '../lib/review-scheduler.js';
 import {vocabularyMode,setVocabularyMode,prepareVocabularyQuestion,vocabularyQuestion} from './vocabulary-directions.js';
 import {dailyAmount} from './quick-learning.js';
@@ -100,7 +100,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   const list=manage('.vocab-list'),learned=manage('.vocab-learned-list');list.replaceChildren();learned.replaceChildren();
   const known=state.words.filter(vocabularyKnown).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
   manage('.vocab-learned-count').textContent=`(${known.length})`;
-  for(const w of known.slice(0,managementLimit)){const answer=displayAnswer(w),row=line(`${w.front} – ${answer} · nächste Wiederholung am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(answer);row.append(audio);learned.append(row);}
+  for(const w of known.slice(0,managementLimit)){const answer=displayAnswer(w),due=completedBasicWord(w)?'gekonnt':`nächste Wiederholung am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`,row=line(`${w.front} – ${answer} · ${due}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(answer);row.append(audio);learned.append(row);}
   if(!known.length)learned.append(line('Noch keine Karte sicher erinnert. Nur Aufdecken zählt noch nicht: Erst vergleichen und ehrlich bewerten.'));
   for(const word of state.words.slice(0,managementLimit)){
    const known=vocabularyKnown(word),row=document.createElement('div');row.className='vocab-management-row'+(known?' is-known':'');
@@ -124,6 +124,8 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   save();progress();renderLists();refreshSettings();refreshChoice();
   $('.vocab-collection').textContent=collectionLabel(state.activeCollection);$('.vocab-collection').hidden=!state.activeCollection;
   const word=answerCard||state.words.find(w=>w.id===state.lesson.queue[0]?.id),ended=state.lesson.closed||!word;
+  const basic=state.activeCollection?.courseId==='basic';
+  const noOpenBasicWords=basic&&ended&&!vocabularyCandidates(state).length;
   $('.vocab-delete').hidden=ended;
   $('.vocab-menu').open=false;
   const mode=vocabularyMode(state);$('.vocab-mode').textContent=({mixed:'Gemischt', 'de-target':'Deutsch → '+course.name,'target-de':course.name+' → Deutsch',listening:'Hören → Deutsch'}[mode])+' ▾';
@@ -131,18 +133,29 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   for(const button of panel.querySelectorAll('[data-vocab-mode]'))button.setAttribute('aria-pressed',String(button.dataset.vocabMode===mode));
   $('.vocab-reveal').hidden=ended||Boolean(answerCard);
   $('.vocab-ratings').hidden=ended||!answerCard;
-  $('.vocab-continue').hidden=!ended || !state.words.length;
+  $('.vocab-continue').hidden=!ended || !state.words.length || noOpenBasicWords;
   $('.vocab-finish').hidden=!ended;
   if(ended){
+   if(noOpenBasicWords){
+    $('.vocab-word').replaceChildren(line('Keine offenen Karten','h3'));
+    $('.vocab-status').textContent='Deine gekonnten Wörter aus diesem Bereich sind abgeschlossen.';
+    return;
+   }
    $('.vocab-word').replaceChildren(line(!state.words.length?'Noch keine persönlichen Kurzsätze':state.lesson.activeMs>=vocabularySessionSeconds(state)*1000?'Deine Lernzeit ist geschafft!':'Runde geschafft!','h3'));
    $('.vocab-status').textContent=(!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Mit „Weiterlernen“ startest du freiwillig eine weitere Runde – schwierige Karten zuerst.')+(targetShortfall()?' '+targetShortfall():'');return;
   }
   wordView(word,Boolean(answerCard));
   if(answerCard)for(const button of panel.querySelectorAll('[data-grade]')){
-   const hint=document.createElement('small');hint.textContent=vocabularyNeedsRepeat(word)||button.dataset.grade!=='yes'?'erneut in dieser Runde':reviewIntervalLabel(word,button.dataset.grade);
+   const hint=document.createElement('small');
+   if(word.courseId==='basic'){
+    hint.textContent=button.dataset.grade==='yes'?'Karte abschließen':'erneut in dieser Runde';
+   }else{
+    hint.textContent=vocabularyNeedsRepeat(word)||button.dataset.grade!=='yes'?'erneut in dieser Runde':reviewIntervalLabel(word,button.dataset.grade);
+   }
    button.replaceChildren(line({no:'Nochmal',hard:'Mit Mühe',yes:'Gewusst'}[button.dataset.grade],'span'),hint);
   }
-  $('.vocab-status').textContent=[vocabularyNeedsRepeat(word)?`Wiederholung · ${word.cleanStreak||0} von 3 hintereinander fehlerfrei`:'',targetShortfall()].filter(Boolean).join(' · ');
+  const retryHint=word.courseId==='basic'?'Wiederholung · einmal richtig reicht':`Wiederholung · ${word.cleanStreak||0} von 3 hintereinander fehlerfrei`;
+  $('.vocab-status').textContent=[vocabularyNeedsRepeat(word)?retryHint:'',targetShortfall()].filter(Boolean).join(' · ');
  }
  function tick(){
   const now=Date.now(),delta=now-lastTick;lastTick=now;

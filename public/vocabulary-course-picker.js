@@ -38,7 +38,9 @@ export function setupVocabularyCoursePicker({anchor,getState,onStart,course}){
    };
    card.append(details);topics.append(card);
   }
-  const info=node('details','','word-course-info');info.append(node('summary','Wie wird gezählt?'),node('p','Der Balken zählt die Wörter dieses festen StoryCards-Pakets, die du als gewusst bewertet hast. Nach einem Fehler oder „Mit Mühe“ zählt ein Wort erst nach drei fehlerfreien Antworten wieder dazu. Aufdecken allein zählt nicht. Die Wortanzahl ist keine Einstufung deines Sprachniveaus.'));
+  const info=node('details','','word-course-info');
+  const rule=courseId==='basic'?'Einmal „Gewusst“ schließt die Karte ab. „Nochmal“ und „Mit Mühe“ legen sie zurück in die Runde.':'Nach einem Fehler oder „Mit Mühe“ zählt ein Wort erst nach drei fehlerfreien Antworten wieder dazu.';
+  info.append(node('summary','Wie wird gezählt?'),node('p',rule+' Aufdecken allein zählt nicht.'));
   catalog.append(back,heading,description,summary,mixed,node('h3','Nach Themen üben'),topics,info);refresh();heading.tabIndex=-1;heading.focus();
  }
  document.addEventListener('storycards-card-choice-opened',reset);
