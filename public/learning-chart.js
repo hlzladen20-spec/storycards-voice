@@ -5,15 +5,16 @@ const ns='http://www.w3.org/2000/svg';
 const decimal=value=>value.toLocaleString('de-DE',{maximumFractionDigits:1});
 function node(tag,text='',className=''){const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el;}
 function svgNode(tag,attributes,text){const el=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))el.setAttribute(key,String(value));if(text!==undefined)el.textContent=text;return el;}
-export function setupLearningChart(host,{getCards=()=>[],getVocabulary=()=>({}),getStats=()=>({}),getProfile=()=>({}),onVocabularyGoalSave=null,language='en',now=()=>new Date()}={}){
- let mode='week',view='retention',metric='pace';
+export function setupLearningChart(host,{getCards=()=>[],getVocabulary=()=>({}),getStats=()=>({}),getProfile=()=>({}),onVocabularyGoalSave=null,showRetention=false,language='en',now=()=>new Date()}={}){
+ let mode='week',view=showRetention?'retention':'speech',metric='pace';
  host.className='learning-chart';host.setAttribute('aria-label','Deine Entwicklung');
  const heading=node('h3','Deine Entwicklung'),subtitle=node('p','','chart-subtitle');
  const views=node('div','','chart-switch'),periods=node('div','','chart-periods'),metrics=node('label','Messwert ','chart-metric');
  views.setAttribute('role','group');views.setAttribute('aria-label','Art der Entwicklung');periods.setAttribute('role','group');periods.setAttribute('aria-label','Zeitraum');
  const select=node('select');select.setAttribute('aria-label','Sprachmesswert');for(const [value,label]of [['pace','Wörter pro Minute'],['segment','Länge der Sprechabschnitte']]){const option=node('option',label);option.value=value;select.append(option);}select.value=metric;select.onchange=()=>{metric=select.value;refresh();};metrics.append(select);
  const viewButtons=[],periodButtons=[];
- for(const [key,label]of [['retention','Behalten'],['speech','Sprechen']]){const button=node('button',label);button.type='button';button.onclick=()=>{view=key;refresh();};views.append(button);viewButtons.push([key,button]);}
+ views.hidden=!showRetention;
+ for(const [key,label]of showRetention?[['retention','Behalten'],['speech','Sprechen']]:[]){const button=node('button',label);button.type='button';button.onclick=()=>{view=key;refresh();};views.append(button);viewButtons.push([key,button]);}
  for(const [key,label]of [['week','Woche'],['month','Monat']]){const button=node('button',label);button.type='button';button.onclick=()=>{mode=key;refresh();};periods.append(button);periodButtons.push([key,button]);}
  const toolbar=node('div','','chart-toolbar');toolbar.append(views,periods);
  const legend=node('div','','chart-legend'),plot=node('div','','chart-plot'),status=node('p','','chart-status'),selected=node('p','','chart-selected'),details=node('details','','chart-explanation');
@@ -25,7 +26,7 @@ export function setupLearningChart(host,{getCards=()=>[],getVocabulary=()=>({}),
   const retention=view==='retention';
   for(const [key,button]of viewButtons)button.setAttribute('aria-pressed',String(view===key));
   for(const [key,button]of periodButtons)button.setAttribute('aria-pressed',String(mode===key));
-  subtitle.textContent=retention?'Wie viel bleibt hängen?':'Dein Sprechen im Verlauf';metrics.hidden=retention;
+  subtitle.textContent=retention?'':'Dein Sprechen im Verlauf';subtitle.hidden=retention;metrics.hidden=retention;
   const chart=retention?retentionChart({cards:getCards(),vocabulary:getVocabulary(),stats:getStats()},{mode,now:now()}):speakingChart(getStats(),{mode,metric,language,now:now()});
   legend.replaceChildren();for(const series of chart.series){const key=node('span',series.label,'chart-key chart-key-'+series.key);legend.append(key);}
   const width=400,height=222,left=43,right=16,top=18,bottom=36,w=width-left-right,h=height-top-bottom;
