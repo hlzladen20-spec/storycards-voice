@@ -1,4 +1,5 @@
 import {VOCABULARY_COURSES,vocabularyCollectionProgress,vocabularyCollectionIndex} from './vocabulary-collections.js';
+import {englishVocabularyForm} from './vocabulary-english-form.js';
 const node=(tag,text='',className='')=>{const element=document.createElement(tag);element.textContent=text;if(className)element.className=className;return element;};
 export function setupVocabularyCoursePicker({anchor,getState,onStart,course}){
  if(course.target!=='en')return null;
@@ -33,7 +34,7 @@ export function setupVocabularyCoursePicker({anchor,getState,onStart,course}){
    const details=node('details'),show=node('summary',`${topic.entries.length} Wörter ansehen`),words=node('div','','word-topic-words');details.append(show,words);
    details.ontoggle=()=>{
     if(!details.open)return;words.replaceChildren();
-    for(const entry of topic.entries){const row=node('p'),german=node('span',entry.front),english=node('strong',entry.back);german.lang='de';english.lang='en';row.append(english,german);words.append(row);}
+    for(const entry of topic.entries){const row=node('p'),german=node('span',entry.front),english=node('strong',englishVocabularyForm(entry,topic.id));german.lang='de';english.lang='en';row.append(english,german);words.append(row);}
    };
    card.append(details);topics.append(card);
   }

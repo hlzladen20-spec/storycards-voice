@@ -13,6 +13,7 @@ import {vocabularyMode,setVocabularyMode,prepareVocabularyQuestion,vocabularyQue
 import {dailyAmount} from './quick-learning.js';
 import {activateVocabularyCollection,collectionLabel} from './vocabulary-collections.js';
 import {setupVocabularyCoursePicker} from './vocabulary-course-picker.js';
+import {englishVocabularyForm} from './vocabulary-english-form.js';
 
 export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChange=()=>{},onDelete=()=>{},getCards=()=>[],getQuickMode=()=>false,exactTarget=false,speech,course=LANGUAGE_COURSES.en}) {
  const coach=()=>speech?.name?.()||'Emma';
@@ -69,8 +70,8 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   const view=vocabularyQuestion(state,word,answer,course),label=line(view.label,'small');label.className='vocab-direction';
   const question=line(view.question,'h3');question.lang=view.questionLanguage;box.append(label,question);
   if(view.answer){const solution=line(view.answer);solution.className='vocab-solution';solution.lang=view.answerLanguage;box.append(solution);}
-  if(view.canListen){const audio=line('Mit '+coach()+' anhören','button');audio.type='button';audio.className='ghost vocab-listen';audio.setAttribute('aria-label',course.name+(word.courseId?'es Wort':'en Satz')+' mit '+coach()+' anhören');audio.onclick=()=>say(word.back);box.append(audio);}
-  if(view.listening&&!answer&&spokenId!==word.id){spokenId=word.id;say(word.back);}
+  if(view.canListen){const audio=line('Mit '+coach()+' anhören','button');audio.type='button';audio.className='ghost vocab-listen';audio.setAttribute('aria-label',course.name+(word.courseId?'es Wort':'en Satz')+' mit '+coach()+' anhören');audio.onclick=()=>say(view.spokenText);box.append(audio);}
+  if(view.listening&&!answer&&spokenId!==word.id){spokenId=word.id;say(view.spokenText);}
  }
  async function deleteWord(id){
   if(deleting)return;const word=state.words.find(item=>item.id===id);if(!word)return;
@@ -99,11 +100,11 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   const list=manage('.vocab-list'),learned=manage('.vocab-learned-list');list.replaceChildren();learned.replaceChildren();
   const known=state.words.filter(vocabularyKnown).sort((a,b)=>a.nextReviewAt-b.nextReviewAt);
   manage('.vocab-learned-count').textContent=`(${known.length})`;
-  for(const w of known.slice(0,managementLimit)){const row=line(`${w.front} – ${w.back} · nächste Wiederholung am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(w.back);row.append(audio);learned.append(row);}
+  for(const w of known.slice(0,managementLimit)){const answer=displayAnswer(w),row=line(`${w.front} – ${answer} · nächste Wiederholung am ${new Date(w.nextReviewAt).toLocaleDateString('de-DE')}`);const audio=line('🔊 Anhören','button');audio.type='button';audio.className='ghost';audio.onclick=()=>say(answer);row.append(audio);learned.append(row);}
   if(!known.length)learned.append(line('Noch keine Karte sicher erinnert. Nur Aufdecken zählt noch nicht: Erst vergleichen und ehrlich bewerten.'));
   for(const word of state.words.slice(0,managementLimit)){
    const known=vocabularyKnown(word),row=document.createElement('div');row.className='vocab-management-row'+(known?' is-known':'');
-   const text=line(`${word.front} – ${word.back}`,'span');text.className='vocab-managed-copy';
+   const text=line(`${word.front} – ${displayAnswer(word)}`,'span');text.className='vocab-managed-copy';
    if(known){const badge=line('✓ Gekonnt','small');badge.className='vocab-known-badge';text.append(badge);}
    row.append(text);
    const remove=line('Entfernen','button');remove.type='button';remove.className='ghost';
@@ -113,6 +114,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   for(const [host,count]of [[list,state.words.length],[learned,known.length]])if(count>managementLimit){const more=line(`Weitere anzeigen (${count-managementLimit})`,'button');more.type='button';more.className='secondary';more.onclick=()=>{managementLimit+=100;renderLists();};host.append(more);}
   manage('.vocab-archive').textContent=state.archivedWords?.length?`${state.archivedWords.length} frühere Wortkarten bleiben als Archiv gespeichert und erscheinen nicht mehr in der Satzrunde.`:'';
  }
+ function displayAnswer(word){return word.courseId&&course.target==='en'?englishVocabularyForm(word):word.back;}
  function render(){
   speech?.stop();
   state={...state,quickModeDay:getQuickMode()?calendarDayKey(new Date()):null};
