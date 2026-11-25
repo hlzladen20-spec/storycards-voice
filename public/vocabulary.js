@@ -93,13 +93,13 @@ export function vocabularyCandidates(state){
  return state.words.filter(word=>{
   if(filter&&(word.courseId!==filter.courseId||filter.topicId&&word.topicId!==filter.topicId))return false;
   if(!word.courseId)return true;
-  return isVocabularyAssessment(state)?!word.lastRating:!word.assessmentSentenceId&&vocabularyNeedsRepeat(word);
+  return isVocabularyAssessment(state)?!word.lastRating:!word.assessmentSentencePending&&!word.assessmentSentenceId&&vocabularyNeedsRepeat(word);
  });
 }
 function removeObsoleteCourseReviews(state,lesson){
  const assessment=isVocabularyAssessment(state);
  const completed=new Set(state.words.filter(word=>word.courseId&&
-  (assessment?Boolean(word.lastRating):Boolean(word.assessmentSentenceId)||!vocabularyNeedsRepeat(word))).map(word=>word.id));
+  (assessment?Boolean(word.lastRating):word.assessmentSentencePending||word.assessmentSentenceId||!vocabularyNeedsRepeat(word))).map(word=>word.id));
  const queued=[...lesson.queue,...(lesson.quickDeferred||[])];
  const obsolete=new Set(queued.filter(item=>completed.has(item.id)).map(item=>item.id));
  if(!obsolete.size)return lesson;

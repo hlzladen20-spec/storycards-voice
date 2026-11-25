@@ -39,18 +39,24 @@ export async function requestAssessmentSentence(word,language,signal){
  const input=vocabularyRequest({word:word.back,context:word.front});
  return (await requestVocabularySuggestions(input,language,{signal}))[0];
 }
-export function saveAssessmentSentence(state,word,draft,now=Date.now()){
+export function queueAssessmentSentence(state,word,now=Date.now()){
  if(!word.courseId||!isVocabularyAssessment(state)||state.lesson?.queue[0]?.id!==word.id)throw Error('Diese Vokabel ist gerade nicht in der Abfrage.');
+ const rated=rateVocabulary(state,'no',now);
+ return {...rated,words:rated.words.map(card=>card.id===word.id?{...card,assessmentSentencePending:true}:card)};
+}
+export function saveAssessmentSentence(state,wordId,draft,now=Date.now()){
+ const word=state.words.find(card=>card.id===wordId&&card.assessmentSentencePending);
+ if(!word)return state;
  const {front,back,meaning}=validateVocabularySuggestion(draft,word.back);
  const sentenceId='assessment:'+word.id;
  const existing=state.words.find(card=>card.id===sentenceId)||state.words.find(card=>!card.courseId&&card.front.toLowerCase()===front.toLowerCase()&&card.back.toLowerCase()===back.toLowerCase());
  const id=existing?.id||sentenceId;
- const rated=rateVocabulary(state,'no',now);
  const sentence={...existing,id,front,back,example:meaning,source:'assessment-sentence',sourceWord:word.back,attempts:Math.max(1,existing?.attempts||0),
   stage:0,lastRating:'no',lastReviewedAt:now,cleanStreak:0,relearning:true,nextReviewAt:now};
- const words=rated.words.map(card=>card.id===word.id?{...card,assessmentSentenceId:id}:card.id===id?sentence:card);
+ const {assessmentSentencePending,...completed}=word;
+ const words=state.words.map(card=>card.id===word.id?{...completed,assessmentSentenceId:id}:card.id===id?sentence:card);
  if(!existing)words.push(sentence);
- return {...rated,words};
+ return {...state,words};
 }
 export function addSuggestedVocabulary(state,word,draft,now=Date.now()){
  const suggestion=validateVocabularySuggestion(draft,vocabularyRequest({word}).word);
