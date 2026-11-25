@@ -69,9 +69,12 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
  function speechOptions(word){return {language:course.target,cacheOnDevice:word?.id?.startsWith('course:')===true};}
  function say(text,word){
   void speech?.speak(text,{...speechOptions(word),onStatus:value=>{$('.vocab-audio-status').textContent=value;}});
-  if(panel.classList.contains('hidden')||document.hidden||word?.id!==state.lesson?.queue[0]?.id)return;
-  const next=state.words.find(item=>item.id===state.lesson.queue[1]?.id);
-  if(next)speech?.prepare(displayAnswer(next),speechOptions(next));
+  if(!word||panel.classList.contains('hidden')||document.hidden||word.id!==state.lesson?.queue[0]?.id)return;
+  const upcoming=state.lesson.queue.slice(1,4).flatMap(({id})=>{
+   const next=state.words.find(item=>item.id===id);
+   return next?[{text:displayAnswer(next),...speechOptions(next)}]:[];
+  });
+  speech?.prepare(upcoming);
  }
  const cancelPreparedSpeech=()=>speech?.cancelPreparation();
  function wordView(word,answer=false){

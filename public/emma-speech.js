@@ -21,16 +21,21 @@ async function saveWordAudio({cache,request},blob){
  }catch{/* Device storage is optional. */}
 }
 export function createEmmaSpeech({getVoice=()=> 'marin',fetcher=(...args)=>authenticatedFetch(...args),makeAudio=url=>new Audio(url),urls=URL,cacheLimit=40}={}){
- let serial=0,current=null,playingUrl=null,foreground=null,prepared=null,lastStatus=()=>{};const cache=new Map();
+ let serial=0,current=null,playingUrl=null,foreground=null,waiting=[],lastStatus=()=>{};
+ const cache=new Map(),prepared=new Map();
  function stop(){
   serial++;
-  if(foreground!==prepared)foreground?.controller.abort();
+  if(foreground&&!prepared.has(foreground.key))foreground.controller.abort();
   foreground=null;
   if(current){current.pause();current=null;}
   if(playingUrl){urls.revokeObjectURL(playingUrl);playingUrl=null;}
   lastStatus('');lastStatus=()=>{};
  }
- function cancelPreparation(){if(prepared!==foreground)prepared?.controller.abort();prepared=null;}
+ function cancelPreparation(){
+  waiting=[];
+  for(const task of prepared.values())if(task!==foreground)task.controller.abort();
+  prepared.clear();
+ }
  async function loadAudio({text,language,voice,key,cacheOnDevice},signal){
   const stored=cacheOnDevice?await openWordAudioCache(key):null;
   let blob;
@@ -59,14 +64,26 @@ export function createEmmaSpeech({getVoice=()=> 'marin',fetcher=(...args)=>authe
   const voice=getVoice();
   return {text,language,voice,cacheOnDevice,key:JSON.stringify([text,language,voice])};
  }
- function prepare(text,{language='en',cacheOnDevice=false}={}){
-  if(typeof text!=='string'||!text.trim())return;
-  const audio=audioInput(text,language,cacheOnDevice);
-  if(cache.has(audio.key)||foreground?.key===audio.key||prepared?.key===audio.key)return;
-  cancelPreparation();
-  const task=requestAudio(audio);prepared=task;
-  const finish=()=>{if(prepared===task)prepared=null;};
-  void task.result.then(finish,finish);
+ function loadPreparedAudio(){
+  // The server allows three concurrent generations. Leave one slot for direct playback.
+  while(prepared.size<2&&waiting.length){
+   const audio=waiting.shift();
+   if(cache.has(audio.key)||foreground?.key===audio.key||prepared.has(audio.key))continue;
+   const task=requestAudio(audio);
+   prepared.set(audio.key,task);
+   const finish=()=>{
+    if(prepared.get(audio.key)!==task)return;
+    prepared.delete(audio.key);
+    loadPreparedAudio();
+   };
+   void task.result.then(finish,finish);
+  }
+ }
+ function prepare(clips){
+  waiting=clips.slice(0,3)
+   .filter(({text})=>typeof text==='string'&&text.trim())
+   .map(({text,language='en',cacheOnDevice=false})=>audioInput(text,language,cacheOnDevice));
+  loadPreparedAudio();
  }
  async function speak(text,{language='en',onStatus=()=>{},cacheOnDevice=false}={}){
   stop();if(typeof text!=='string' || !text.trim())return;
@@ -75,7 +92,7 @@ export function createEmmaSpeech({getVoice=()=> 'marin',fetcher=(...args)=>authe
    let blob=cache.get(key);
    if(!blob){
     onStatus(name+' lädt den Satz …');
-    foreground=prepared?.key===key?prepared:requestAudio(audio);
+    foreground=prepared.get(key)||requestAudio(audio);
     blob=await foreground.result;
    }
    if(token!==serial)return;
