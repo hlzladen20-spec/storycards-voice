@@ -1,5 +1,5 @@
 import {difficultCards} from './lesson-planner.js';
-import {completedBasicWord,vocabularyKnown,isShortVocabulary} from './vocabulary.js';
+import {completedCourseWord,vocabularyKnown,isShortVocabulary} from './vocabulary.js';
 
 // These are current successful recalls, not lifetime views or permanently mastered words.
 export function learnedStatistics(cards=[],vocabulary={words:[]}){
@@ -25,7 +25,7 @@ export function renderLearnedStatistics(root,cards,vocabulary,course){
    const row=node('li','');
    row.append(node('strong',card.front),node('p',`${course.flag} ${card.back}`));
    const due=Number(card.nextReviewAt);
-   if(!completedBasicWord(card)&&Number.isFinite(due) && due>0)row.append(node('small',`Nächste Wiederholung: ${new Date(due).toLocaleDateString('de-DE')}`));
+   if(!completedCourseWord(card)&&Number.isFinite(due) && due>0)row.append(node('small',`Nächste Wiederholung: ${new Date(due).toLocaleDateString('de-DE')}`));
    list.append(row);
   }
  }

@@ -56,3 +56,5 @@ body:has(#vocabulary:not(.hidden)) .app>header{display:none}
 .word-topic-card{padding:0 13px 5px;background:#fffef8;border:1px solid #dae4d5;border-radius:14px}.word-topic-start{min-height:55px;padding:12px 0}.word-topic-start strong{font-size:.92rem;line-height:1.35}.word-topic-start>span{white-space:nowrap;color:#16806a;font-size:.76rem;font-weight:650}
 .word-topic-card details{margin-top:3px}.word-topic-card summary,.word-course-info summary{min-height:40px;align-content:center;cursor:pointer;font-size:.76rem;color:#38654e}.word-topic-words{max-height:330px;overflow:auto;border-top:1px solid #e3e9dc}.word-topic-words p{display:grid;gap:3px;margin:0;padding:10px 0;border-bottom:1px solid #e7ecdf;font-size:.82rem}.word-topic-words p>span{color:#5e7567}.word-course-info{margin:18px 0 0}.word-course-info p{font-size:.8rem;line-height:1.6;color:#567161}
 .word-course-picker button:focus-visible,.word-course-picker summary:focus-visible{outline:3px solid #69b89d;outline-offset:3px}
+
+.card-choice>.vocab-create-open,.card-choice>.library-open{display:block;width:100%;min-height:46px;margin:0 0 10px}.card-choice>.word-course-picker{margin-top:18px}

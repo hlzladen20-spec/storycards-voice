@@ -54,5 +54,5 @@ export function setupVocabularyCreator({anchor,course,onSave,onLearn,onListen,re
    status.textContent='✓ Im Vokabeltrainer gespeichert. Der Satz wird in einer neuen Portion eingeplant; deine laufende Runde bleibt unverändert.';$('.vocab-create-learn').hidden=false;
   }catch(error){status.textContent=error.message;}
  };
- return {reset:()=>{reset();area.hidden=true;open.setAttribute('aria-expanded','false');}};
+ return {area,reset:()=>{reset();area.hidden=true;open.setAttribute('aria-expanded','false');}};
 }

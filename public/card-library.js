@@ -10,7 +10,7 @@ export function setupCardLibrary({root,profile,choice,sentencePractice=true}){
  }
  if(cards)addForm(cards,cards.querySelector('.manager-form'),'＋ Eigene Satzkarte hinzufügen');
  if(vocabulary){addForm(vocabulary,vocabulary.querySelector('.vocab-add'),'＋ Eigenen Kurzsatz hinzufügen');const main=vocabulary.querySelector('.vocab-manager'),learned=vocabulary.querySelector('.vocab-learned');if(main&&learned)vocabulary.insertBefore(main,learned);}
- const entry=document.createElement('button');entry.type='button';entry.className='secondary library-open';entry.textContent='Meine Karten verwalten →';choice.append(entry);
+ const entry=document.createElement('button');entry.type='button';entry.className='secondary library-open';entry.textContent='Meine Karten verwalten →';choice.insertBefore(entry,choice.querySelector('.word-course-picker'));
  const tabs=[...section.querySelectorAll('[data-library]')];
  if(!sentencePractice){section.querySelector('.library-tabs').hidden=true;section.querySelector('h2').textContent='Deine Vokabeln';entry.textContent='Vokabeln verwalten →';}
  function select(kind){
