@@ -10,7 +10,7 @@ export function setupStreakRewardsUI({host,pointsHost=null,rescueHost=null,onRes
  help.textContent=`${DAILY_POINTS} Punkte für dein vollständiges Tagesziel: Sprechen und die geplante Vokabelrunde. Weitere ${DAILY_POINTS} Punkte für eine vollständige zusätzliche Sprechlektion oder Vokabelrunde. Jede Gutschrift gibt es einmal pro Tag. Keine Vokabelkarten vorhanden? Dann ist dieser Teil nicht nötig. ${STREAK_RESCUE_COST} Punkte retten einen ausgelassenen Tag. Bereits verdiente Punkte bleiben erhalten.`;
  learn.type='button';learn.className='primary';learn.onclick=onLearn;steps.className='learning-goal-steps';progress.max=3;
  area.append(title,details,button,status,headline,progress,steps,learn);host.after(area);let pending=false;
- if(pointsHost){title.className='learning-points-badge';title.setAttribute('aria-live','polite');pointsHost.append(title);}
+ if(pointsHost){title.className='learning-points-total';title.setAttribute('aria-live','polite');pointsHost.insertBefore(title,pointsHost.querySelector('small'));}
  const rescueArea=document.createElement('section'),rescueTitle=document.createElement('h3'),rescueText=document.createElement('p'),rescueStatus=document.createElement('p');
  rescueArea.className='streak-rescue profile-card';rescueArea.setAttribute('aria-label','Ausgelassenen Tag mit Lernpunkten schützen');rescueStatus.setAttribute('role','status');
  if(rescueHost){rescueArea.append(rescueTitle,rescueText,button,rescueStatus);rescueHost.after(rescueArea);}
@@ -19,7 +19,7 @@ export function setupStreakRewardsUI({host,pointsHost=null,rescueHost=null,onRes
   const next=isBusy()?current:rewardDailyGoals(current,goal,now());
   if(next!==current){try{saveStats(next);status.textContent=`🎉 ${goal.bonus?'Tagesziel plus Zusatzrunde':'Alles für heute'} geschafft – heute ${rewardEarnedOnDay(next,goal.day)} Lernpunkte gutgeschrieben!`;}catch{status.textContent='Tagesziel geschafft! Die Punkte konnten noch nicht gespeichert werden. Bitte öffne die Übersicht später erneut.';}}
   const offer=streakRescueOffer(getStats(),now());
-  title.textContent=`⭐ ${rewardBalance(getStats(),now())} Lernpunkte`;
+  title.textContent=pointsHost?String(rewardBalance(getStats(),now())):`⭐ ${rewardBalance(getStats(),now())} Lernpunkte`;
   const today=goal?.day;
   const earned=getStats().streakRewards?.earnedDays?.includes(today),bonus=getStats().streakRewards?.bonusDays?.includes(today);
   const todayPoints=rewardEarnedOnDay(getStats(),today);

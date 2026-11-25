@@ -396,8 +396,8 @@ function refreshHomeLearning(){
 }
 function updateHomeProgress() {
  refreshHomeLearning();
- $("homeStreak").textContent = `${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`;
- $("homeLearned").textContent = cards.filter((card) => Number(card.knownStreak || 0) > 0).length;
+ const streak=learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays);
+ $("homeStreak").textContent=streak+(streak===1?" Tag":" Tage");
  $("homeMinutes").textContent = `${Number(learningStats.minutes || 0)} min`;
  const vocabulary=learningStorage.load("vocabulary",{words:[]});
  const words=Array.isArray(vocabulary.words)?vocabulary.words:[];
@@ -904,7 +904,7 @@ setupProfileLayout({profile:$('profile'),getCoachName:currentCoachName,exactVoca
 }});
 $('saveProfileButton').textContent='Lernziele speichern';
 streakRewardsUI=setupStreakRewardsUI({
- host:document.querySelector('.home-progress'),pointsHost:document.querySelector('.home-scenery'),getStats:()=>learningStats,
+ host:document.querySelector('.home-progress'),pointsHost:document.querySelector('.home-learning-points'),getStats:()=>learningStats,
  rescueHost:$('statistics').querySelector('.statistics-overview'),onRescue:()=>{renderLearningWeek($('statistics'),learningStats);$('statStreak').textContent=`${learningStreak(learningStats.practiceDays,new Date(),learningStats.streakRewards?.protectedDays)} Tage`;},
  getProgress:()=>dailyLearningGoals({sentencePractice:APP_FEATURES.sentencePractice,stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})}),
  onLearn:()=>{const goal=dailyLearningGoals({sentencePractice:APP_FEATURES.sentencePractice,stats:learningStats,minutes:dailySpeakingMinutes,lesson:prepareDailyLesson(),vocabulary:learningStorage.load('vocabulary',{})});const next=goal.rows.find(row=>!row.done);if(next?.id==='speaking'){$('homeStartButton').click();}else if(next?.id==='cards'){showReview();}else if(next?.id==='vocabulary'){$('vocabularyChoiceButton').click();}else showCardChoice();},

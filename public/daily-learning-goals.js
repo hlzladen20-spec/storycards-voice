@@ -1,5 +1,5 @@
 import {calendarDayKey} from './learning-streak.js';
-import {initialVocabulary,vocabularyLesson,vocabularyDailyProgress} from './vocabulary.js';
+import {initialVocabulary,personalVocabularyRound,vocabularyLesson,vocabularyDailyProgress} from './vocabulary.js';
 import {quickToday,dailyAmount} from './quick-learning.js';
 
 // Read-only projection of the existing rounds. Opening Home never completes one.
@@ -10,7 +10,7 @@ export function dailyLearningGoals({stats={},minutes=10,lesson={},vocabulary={},
  const plan=lesson.day===lessonDay?lesson:{};
  const ids=[...new Set(plan.plannedIds||[])],completed=new Set(plan.completed||[]);
  const remaining=ids.filter(id=>!completed.has(id)).length+(plan.pendingRetries||[]).length;
- const state=vocabularyLesson({...initialVocabulary(),...vocabulary,quickModeDay:stats.quickModeDay,words:Array.isArray(vocabulary.words)?vocabulary.words:[]},Number(date));
+ const state=vocabularyLesson(personalVocabularyRound({...initialVocabulary(),...vocabulary,quickModeDay:stats.quickModeDay,words:Array.isArray(vocabulary.words)?vocabulary.words:[]}),Number(date));
  const round=state.lesson,vocab=vocabularyDailyProgress(state,now);
  const available=vocab.hasWork,vocabDone=vocab.done;
  const rows=[

@@ -1,12 +1,12 @@
 import {APP_FEATURES} from './app-features.js';
 import {calendarDayKey} from './learning-streak.js';
 import {speakingGoal} from './speaking-goal.js';
-import {initialVocabulary,vocabularyLesson,vocabularyDailyProgress,vocabularySessionSeconds} from './vocabulary.js';
+import {initialVocabulary,personalVocabularyRound,vocabularyLesson,vocabularyDailyProgress,vocabularySessionSeconds} from './vocabulary.js';
 import {learningPace} from './learning-plan.js';
 const clock=seconds=>`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(Math.floor(seconds%60)).padStart(2,'0')}`;
 export function todayLearningOverview({stats={},minutes=10,vocabulary={},lesson={},sentencePractice=APP_FEATURES.sentencePractice,exactVocabularyTarget=APP_FEATURES.exactVocabularyTarget,coach='Emma',now=new Date()}={}){
  const day=calendarDayKey(now),goal=speakingGoal(stats,minutes,now);
- const state=vocabularyLesson({...initialVocabulary(),...vocabulary,fillDailyLimit:exactVocabularyTarget||vocabulary.fillDailyLimit===true,words:Array.isArray(vocabulary.words)?vocabulary.words:[],quickModeDay:stats.quickModeDay},Number(now));
+ const state=vocabularyLesson(personalVocabularyRound({...initialVocabulary(),...vocabulary,fillDailyLimit:exactVocabularyTarget||vocabulary.fillDailyLimit===true,words:Array.isArray(vocabulary.words)?vocabulary.words:[],quickModeDay:stats.quickModeDay}),Number(now));
  const progress=vocabularyDailyProgress(state,now),round=state.lesson;
  const available=new Set(state.words.map(word=>word.id));
  let count=new Set((round.ids||[]).filter(id=>available.has(id))).size;

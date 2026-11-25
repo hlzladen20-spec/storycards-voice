@@ -167,13 +167,22 @@ async function readCardSpeech(req,res){
 }
 export function createApp({accounts=createAccountService(),realtimeFactory=createRealtimeUsage}={}) {
   const monitor=realtimeFactory({accounts,getKey:()=>apiKey});
+  const recentAccountTouches=new Map();
   const server=createServer(async (req, res) => {
   try {
     if (req.method === "GET" && req.url === "/health") return json(res, 200, { ok: true, realtimeConfigured: Boolean(apiKey) });
     const path=req.url.split('?')[0];
     if(path.startsWith('/api/')){
       const user=await accounts.authenticate(req);
-      await accounts.touch?.(user);
+      // Speech still authenticates the caller and records each provider request.
+      // A recent directory write is sufficient for the last-seen timestamp.
+      const touched=recentAccountTouches.get(user.id);
+      if(path!=='/api/card-speech'||!touched||touched.email!==user.email||Date.now()-touched.at>=60000){
+        await accounts.touch?.(user);
+        recentAccountTouches.delete(user.id);
+        recentAccountTouches.set(user.id,{email:user.email,at:Date.now()});
+        if(recentAccountTouches.size>512)recentAccountTouches.delete(recentAccountTouches.keys().next().value);
+      }
       if(req.method==='GET'&&path==='/api/account')return json(res,200,{email:user.email,admin:accounts.isAdmin(user)});
       if(req.method==='GET'&&path==='/api/admin/usage')return json(res,200,await accounts.report(user,new URL(req.url,'http://localhost').searchParams));
       return await apiContext.run({accounts,user,monitor,feature:path.replace('/api/','')},async()=>{

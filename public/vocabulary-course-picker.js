@@ -26,10 +26,10 @@ export function setupVocabularyCoursePicker({anchor,getState,onStart,course}){
   progress(summary,{courseId});
   const count=selected.topics.reduce((sum,topic)=>sum+topic.entries.length,0);
   const description=node('p',`${count.toLocaleString('de-DE')} Wörter und Wendungen · ${selected.topics.length} Themen`,'word-course-description');
-  const mixed=node('button','Alles gemischt üben →','primary');mixed.type='button';mixed.onclick=()=>onStart({courseId});
+  const mixed=node('button',courseId==='basic'?'Alles gemischt abfragen →':'Alles gemischt üben →','primary');mixed.type='button';mixed.onclick=()=>onStart({courseId});
   const topics=node('div','','word-topic-list');
   for(const topic of selected.topics){
-   const card=node('article','','word-topic-card'),start=node('button','','word-topic-start');start.type='button';start.append(node('strong',topic.title),node('span','Üben ›'));
+   const card=node('article','','word-topic-card'),start=node('button','','word-topic-start');start.type='button';start.append(node('strong',topic.title),node('span',courseId==='basic'?'Abfragen ›':'Üben ›'));
    start.onclick=()=>onStart({courseId,topicId:topic.id});card.append(start);progress(card,{courseId,topicId:topic.id});
    const details=node('details'),show=node('summary',`${topic.entries.length} Wörter ansehen`),words=node('div','','word-topic-words');details.append(show,words);
    details.ontoggle=()=>{
@@ -39,9 +39,9 @@ export function setupVocabularyCoursePicker({anchor,getState,onStart,course}){
    card.append(details);topics.append(card);
   }
   const info=node('details','','word-course-info');
-  const rule=courseId==='basic'?'Einmal „Gewusst“ schließt die Karte ab. „Nochmal“ und „Mit Mühe“ legen sie zurück in die Runde.':'Nach einem Fehler oder „Mit Mühe“ zählt ein Wort erst nach drei fehlerfreien Antworten wieder dazu.';
+  const rule=courseId==='basic'?'Jedes Wort wird einmal abgefragt. „Gewusst“ zählt zum Fortschritt. „Nochmal“ und „Mit Mühe“ legen das Wort zum Üben in den Vokabeltrainer.':'Nach einem Fehler oder „Mit Mühe“ zählt ein Wort erst nach drei fehlerfreien Antworten wieder dazu.';
   info.append(node('summary','Wie wird gezählt?'),node('p',rule+' Aufdecken allein zählt nicht.'));
-  catalog.append(back,heading,description,summary,mixed,node('h3','Nach Themen üben'),topics,info);refresh();heading.tabIndex=-1;heading.focus();
+  catalog.append(back,heading,description,summary,mixed,node('h3',courseId==='basic'?'Nach Themen abfragen':'Nach Themen üben'),topics,info);refresh();heading.tabIndex=-1;heading.focus();
  }
  document.addEventListener('storycards-card-choice-opened',reset);
  refresh();return {refresh,open,reset};
