@@ -4,7 +4,7 @@ import {vocabularyIcon} from './card-vocabulary.js';
 import {calendarDayKey} from './learning-streak.js';
 import {confirmDialog} from './app-dialog.js';
 import {setupVocabularyCreator} from './vocabulary-creator.js';
-import {addSuggestedVocabulary} from './vocabulary-suggestions.js';
+import {addSuggestedVocabulary,requestAssessmentSentence,saveAssessmentSentence} from './vocabulary-suggestions.js';
 import {removeVocabulary} from './vocabulary.js';
 import {vocabularySessionSeconds} from './vocabulary.js';
 import {completedCourseWord,isVocabularyAssessment,personalVocabularyRound,vocabularyCandidates,vocabularyRoundProgress,vocabularyDailyProgress} from './vocabulary.js';
@@ -18,7 +18,7 @@ import {englishVocabularyForm} from './vocabulary-english-form.js';
 export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChange=()=>{},onDelete=()=>{},getCards=()=>[],getQuickMode=()=>false,exactTarget=false,speech,course=LANGUAGE_COURSES.en}) {
  const coach=()=>speech?.name?.()||'Emma';
  const trainerState=value=>({...personalVocabulary(value||initialVocabulary()),...(exactTarget?{fillDailyLimit:true}:{})});
- let state=trainerState(storage.load('vocabulary',null)),answerCard=null,lastTick=Date.now(),deleting=false,spokenId=null,coursePicker=null,managementLimit=100;
+ let state=trainerState(storage.load('vocabulary',null)),answerCard=null,lastTick=Date.now(),deleting=false,spokenId=null,coursePicker=null,managementLimit=100,transferController=null;
  state={...state,totalActiveMs:vocabularyTotalMs(state)};
  const panel=document.createElement('section');panel.id='vocabulary';panel.className='panel hidden vocabulary-trainer';
  panel.setAttribute('aria-label','Vokabeltrainer');
@@ -146,6 +146,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   for(const button of panel.querySelectorAll('[data-vocab-mode]'))button.setAttribute('aria-pressed',String(button.dataset.vocabMode===mode));
   $('.vocab-reveal').hidden=ended||Boolean(answerCard);
   $('.vocab-ratings').hidden=ended||!answerCard;
+  $('.vocab-ratings').setAttribute('aria-label',assessment?'Vokabel bewerten':'Wie sicher war deine Antwort?');
   $('.vocab-continue').hidden=!ended || !state.words.length || noOpenAssessmentWords;
   $('.vocab-continue').textContent=assessment?'Weitere Wörter abfragen →':'Weiterlernen →';
   $('.vocab-open-personal').hidden=!assessment || !ended;
@@ -154,30 +155,34 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
    cancelPreparedSpeech();
    if(assessment){
     $('.vocab-word').replaceChildren(line(noOpenAssessmentWords?'Alle Wörter abgefragt':'Abfrage geschafft!','h3'));
-    $('.vocab-status').textContent='Schwierige Wörter findest du zum Üben im Vokabeltrainer.';
+    $('.vocab-status').textContent='Deine Übungssätze findest du im Vokabeltrainer.';
     return;
    }
    $('.vocab-word').replaceChildren(line(!state.words.length?'Noch keine persönlichen Kurzsätze':state.lesson.activeMs>=vocabularySessionSeconds(state)*1000?'Deine Lernzeit ist geschafft!':'Runde geschafft!','h3'));
    $('.vocab-status').textContent=(!state.words.length?'Führe ein Gespräch. Erkannte Schwierigkeiten werden danach automatisch als kurze Sätze übernommen.':'Dein SRS-Plan ist gespeichert. Mit „Weiterlernen“ startest du freiwillig eine weitere Runde – schwierige Karten zuerst.')+(targetShortfall()?' '+targetShortfall():'');return;
   }
   wordView(word,Boolean(answerCard));
-  if(answerCard)for(const button of panel.querySelectorAll('[data-grade]')){
+  for(const button of panel.querySelectorAll('[data-grade]')){
+   const rating=button.dataset.grade;
+   button.hidden=assessment&&rating==='hard';
+   if(!answerCard)continue;
    const hint=document.createElement('small');
    if(assessment){
-    hint.textContent=button.dataset.grade==='yes'?'Karte abschließen':'in den Vokabeltrainer';
+    hint.textContent=rating==='yes'?'Karte abschließen':'Mit Beispielsatz üben';
    }else if(word.courseId){
     hint.textContent=button.dataset.grade==='yes'?'Karte abschließen':'erneut in dieser Runde';
    }else{
     hint.textContent=vocabularyNeedsRepeat(word)||button.dataset.grade!=='yes'?'erneut in dieser Runde':reviewIntervalLabel(word,button.dataset.grade);
    }
-   button.replaceChildren(line({no:'Nochmal',hard:'Mit Mühe',yes:'Gewusst'}[button.dataset.grade],'span'),hint);
+   const label=assessment&&rating==='no'?'Zum Vokabeltrainer':{no:'Nochmal',hard:'Mit Mühe',yes:'Gewusst'}[rating];
+   button.replaceChildren(line(label,'span'),hint);
   }
   const retryHint=word.courseId?'Wiederholung · einmal richtig reicht':`Wiederholung · ${word.cleanStreak||0} von 3 hintereinander fehlerfrei`;
   $('.vocab-status').textContent=[vocabularyNeedsRepeat(word)?retryHint:'',targetShortfall()].filter(Boolean).join(' · ');
  }
  function tick(){
   const now=Date.now(),delta=now-lastTick;lastTick=now;
-  if(deleting||panel.classList.contains('hidden')||document.visibilityState!=='visible'||!state.lesson||state.lesson.closed)return;
+  if(deleting||transferController||panel.classList.contains('hidden')||document.visibilityState!=='visible'||!state.lesson||state.lesson.closed)return;
   const elapsed=Math.min(Math.max(0,delta),Math.max(0,vocabularySessionSeconds(state)*1000-state.lesson.activeMs));
   state.totalActiveMs=vocabularyTotalMs(state)+elapsed;
   state.lesson.activeMs+=elapsed;
@@ -189,23 +194,57 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   const word=state.words.find(w=>w.id===state.lesson.queue[0]?.id);if(!word)return;
   answerCard=word;render();
  }
+ function setTransferBusy(busy){
+  $('.vocab-ratings').setAttribute('aria-busy',String(busy));
+  for(const button of panel.querySelectorAll('[data-grade]'))button.disabled=busy;
+ }
+ function cancelTransfer(){
+  if(!transferController)return;
+  transferController.abort();
+  transferController=null;lastTick=Date.now();setTransferBusy(false);
+ }
+ async function transferAssessment(word){
+  const controller=new AbortController();transferController=controller;
+  const timeout=setTimeout(()=>controller.abort(),30000);
+  setTransferBusy(true);
+  $('.vocab-status').textContent='Beispielsatz wird erstellt …';
+  try{
+   const sentence=await requestAssessmentSentence(word,course.target,controller.signal);
+   if(transferController!==controller||panel.classList.contains('hidden'))return;
+   controller.signal.throwIfAborted();
+   const next=saveAssessmentSentence(state,word,sentence);
+   storage.save('vocabulary',next);state=next;
+   answerCard=null;spokenId=null;
+   render();
+   $('.vocab-status').textContent=state.lesson.closed?'Abfrage geschafft. Der Beispielsatz ist im Vokabeltrainer.':'✓ Beispielsatz im Vokabeltrainer gespeichert.';
+  }catch(error){
+   if(transferController===controller&&!panel.classList.contains('hidden'))$('.vocab-status').textContent=error.name==='AbortError'
+    ?'Das hat zu lange gedauert. Tippe erneut auf „Zum Vokabeltrainer“.'
+    :'Der Beispielsatz konnte nicht gespeichert werden. Tippe erneut auf „Zum Vokabeltrainer“.';
+  }finally{
+   clearTimeout(timeout);
+   if(transferController===controller){transferController=null;lastTick=Date.now();setTransferBusy(false);}
+  }
+ }
  function rate(rating){
   tick();if(state.lesson?.closed)return;
   if(!answerCard){$('.vocab-status').textContent='Bitte zuerst die Antwort aufdecken und mit deiner eigenen Antwort vergleichen.';return;}
   const word=state.words.find(w=>w.id===state.lesson.queue[0]?.id);if(!word || word.id!==answerCard.id)return;
   const assessment=isVocabularyAssessment(state);
+  if(assessment&&transferController)return;
+  if(assessment&&rating==='no')return transferAssessment(word);
+  if(assessment&&rating!=='yes')return;
   state=rateVocabulary(state,rating);answerCard=null;spokenId=null;if(!assessment)onPractice();render();
-  if(assessment&&rating!=='yes'&&!state.lesson.closed)$('.vocab-status').textContent='Zum Üben im Vokabeltrainer gespeichert.';
  }
  function syncCards(){state=importConversationVocabulary(state,getCards());save();renderLists();refreshChoice();}
- function openCollection(collection=null){tick();state=trainerState(storage.load('vocabulary',null));state=activateVocabularyCollection(state,collection);syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;spokenId=null;render();}
+ function openCollection(collection=null){cancelTransfer();tick();state=trainerState(storage.load('vocabulary',null));state=activateVocabularyCollection(state,collection);syncCards();onOpen();panel.classList.remove('hidden');lastTick=Date.now();answerCard=null;spokenId=null;render();}
  button.onclick=()=>openCollection();
  $('.vocab-open-personal').onclick=()=>openCollection();
  $('.vocab-back').onclick=()=>{speech?.stop();const collection=state.activeCollection;document.getElementById('choiceCardsButton').click();if(collection)coursePicker?.open(collection.courseId);};
- $('.vocab-delete').onclick=()=>{const id=answerCard?.id||state.lesson?.queue[0]?.id;if(id)void deleteWord(id);};
+ $('.vocab-delete').onclick=()=>{const id=answerCard?.id||state.lesson?.queue[0]?.id;if(id&&!transferController)void deleteWord(id);};
  $('.vocab-manage-open').onclick=()=>{speech?.stop();document.dispatchEvent(new CustomEvent('storycards-open-library',{detail:'vocabulary'}));};
  $('.vocab-mode').onclick=()=>{const options=$('.vocab-mode-options');options.hidden=!options.hidden;$('.vocab-mode').setAttribute('aria-expanded',String(!options.hidden));};
- for(const button of panel.querySelectorAll('[data-vocab-mode]'))button.onclick=()=>{state=setVocabularyMode(state,button.dataset.vocabMode);spokenId=null;answerCard=null;render();};
+ for(const button of panel.querySelectorAll('[data-vocab-mode]'))button.onclick=()=>{cancelTransfer();state=setVocabularyMode(state,button.dataset.vocabMode);spokenId=null;answerCard=null;render();};
  $('.vocab-mode-options').addEventListener('keydown',event=>{if(event.key==='Escape'){$('.vocab-mode-options').hidden=true;$('.vocab-mode').setAttribute('aria-expanded','false');$('.vocab-mode').focus();}});
  $('.vocab-finish').onclick=()=>{speech?.stop();tick();save();window.speechSynthesis?.cancel();document.getElementById('choiceCardsButton').click();};
  panel.querySelectorAll('[data-target]').forEach(n=>n.onclick=()=>document.getElementById(n.dataset.target).click());
@@ -217,12 +256,12 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
  box.addEventListener('keydown',e=>{if(e.target===box && (e.key===' '||e.key==='Enter')){e.preventDefault();revealCurrent();}});
  manage('.vocab-add').onsubmit=e=>{e.preventDefault();try{const data=new FormData(e.target);state=addVocabulary(state,data.get('front'),data.get('back'));save();e.target.reset();renderLists();manage('.vocab-management-status').textContent='Kurzer Satz gespeichert. Er kommt in eine kommende Tagesportion.';}catch(error){manage('.vocab-management-status').textContent=error.message;}};
  document.addEventListener('storycards-cards-updated',syncCards);
- document.addEventListener('storycards-quick-mode-changed',()=>{state={...state,quickModeDay:getQuickMode()?calendarDayKey(new Date()):null};state=vocabularyLesson(state);answerCard=null;if(!state.lesson.queue.length&&!state.lesson.closed)state=finishVocabulary(state);save();progress();refreshChoice();});
+ document.addEventListener('storycards-quick-mode-changed',()=>{cancelTransfer();state={...state,quickModeDay:getQuickMode()?calendarDayKey(new Date()):null};state=vocabularyLesson(state);answerCard=null;if(!state.lesson.queue.length&&!state.lesson.closed)state=finishVocabulary(state);save();progress();refreshChoice();});
  document.addEventListener('storycards-card-choice-opened',refreshChoice);
- document.addEventListener('storycards-vocabulary-changed',()=>{state=trainerState(storage.load('vocabulary',null));answerCard=null;if(!panel.classList.contains('hidden'))render();else renderLists();});
- new MutationObserver(()=>{if(panel.classList.contains('hidden'))cancelPreparedSpeech();}).observe(panel,{attributeFilter:['class']});
+ document.addEventListener('storycards-vocabulary-changed',()=>{cancelTransfer();state=trainerState(storage.load('vocabulary',null));answerCard=null;if(!panel.classList.contains('hidden'))render();else renderLists();});
+ new MutationObserver(()=>{if(panel.classList.contains('hidden')){cancelPreparedSpeech();cancelTransfer();}}).observe(panel,{attributeFilter:['class']});
  document.addEventListener('visibilitychange',()=>{lastTick=Date.now();if(document.hidden)cancelPreparedSpeech();});
- window.addEventListener('pagehide',tick);setInterval(tick,1000);syncCards();renderLists();
+ window.addEventListener('pagehide',()=>{cancelTransfer();tick();});setInterval(tick,1000);syncCards();renderLists();
  const creator=setupVocabularyCreator({anchor:button,course,onListen:say,onLearn:()=>button.onclick(),onSave:(word,draft)=>{
   const next=addSuggestedVocabulary(state,word,draft);storage.save('vocabulary',next);state=next;renderLists();refreshChoice();
  }});

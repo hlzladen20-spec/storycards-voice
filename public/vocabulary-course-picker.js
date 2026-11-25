@@ -40,7 +40,7 @@ export function setupVocabularyCoursePicker({anchor,getState,onStart,course}){
    card.append(details);topics.append(card);
   }
   const info=node('details','','word-course-info');
-  const rule='Jedes Wort wird einmal abgefragt. „Gewusst“ zählt zum Fortschritt. „Nochmal“ und „Mit Mühe“ legen das Wort zum Üben in den Vokabeltrainer.';
+  const rule='Jedes Wort wird einmal abgefragt. „Gewusst“ zählt zum Fortschritt. „Zum Vokabeltrainer“ speichert einen Beispielsatz mit Übersetzung zum Üben.';
   info.append(node('summary','Wie wird gezählt?'),node('p',rule+' Aufdecken allein zählt nicht.'));
   catalog.append(back,heading,description,summary,mixed,node('h3','Nach Themen abfragen'),topics,info);refresh();heading.tabIndex=-1;heading.focus();
  }

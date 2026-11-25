@@ -1,4 +1,4 @@
-import {vocabularyRequest,cleanVocabularySuggestions,validateVocabularySuggestion} from './vocabulary-suggestions.js';
+import {vocabularyRequest,requestVocabularySuggestions,validateVocabularySuggestion} from './vocabulary-suggestions.js';
 import {authenticatedFetch} from './authenticated-fetch.js';
 
 export function setupVocabularyCreator({anchor,course,onSave,onLearn,onListen,request=authenticatedFetch}){
@@ -30,10 +30,9 @@ export function setupVocabularyCreator({anchor,course,onSave,onLearn,onListen,re
   const current=revision;controller=new AbortController();const activeController=controller;
   const timeout=setTimeout(()=>activeController.abort(),30000);busy(true);status.textContent='Die KI erstellt kurze Sätze zur Auswahl …';
   try{
-   const response=await request('/api/vocabulary-suggestion',{method:'POST',headers:{'Content-Type':'application/json'},signal:activeController.signal,body:JSON.stringify({...input,language:course.target})});
-   const output=await response.json();if(current!==revision)return;
-   if(!response.ok)throw Error(output.error||'Der Satz konnte nicht erstellt werden.');
-   const suggestions=cleanVocabularySuggestions(output,input.word),choices=$('.vocab-create-choices');choices.replaceChildren();sourceWord=input.word;
+   const suggestions=await requestVocabularySuggestions(input,course.target,{signal:activeController.signal,request});
+   if(current!==revision)return;
+   const choices=$('.vocab-create-choices');choices.replaceChildren();sourceWord=input.word;
    const options=[];
    const choose=(suggestion,index)=>{selected=suggestion;saved=false;front.value=suggestion.front;back.value=suggestion.back;saveForm.querySelector('[type=submit]').disabled=false;$('.vocab-create-learn').hidden=true;status.textContent='Prüfe den Satz und die Übersetzung. Du kannst beide vor dem Speichern bearbeiten.';options.forEach((button,i)=>button.setAttribute('aria-pressed',String(i===index)));};
    suggestions.forEach((suggestion,index)=>{

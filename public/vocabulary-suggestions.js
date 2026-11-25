@@ -1,4 +1,5 @@
-import {addVocabulary,isShortVocabulary} from './vocabulary.js';
+import {addVocabulary,isShortVocabulary,isVocabularyAssessment,rateVocabulary} from './vocabulary.js';
+import {authenticatedFetch} from './authenticated-fetch.js';
 
 export function vocabularyRequest(input){
  const word=typeof input?.word==='string'?input.word.trim().replace(/\s+/g,' '):'';
@@ -22,6 +23,34 @@ export function cleanVocabularySuggestions(output,word){
  }
  if(!result.length)throw Error('Kein passender kurzer Satz gefunden. Prüfe das Wort oder ergänze einen Kontext.');
  return result;
+}
+export async function requestVocabularySuggestions(input,language,{signal,request=authenticatedFetch}={}){
+ const response=await request('/api/vocabulary-suggestion',{method:'POST',headers:{'Content-Type':'application/json'},signal,body:JSON.stringify({...input,language})});
+ const output=await response.json();
+ if(!response.ok)throw Error(output.error||'Der Satz konnte nicht erstellt werden.');
+ return cleanVocabularySuggestions(output,input.word);
+}
+const timeExamples={
+ 'a.m.':{back:'It starts at 9 a.m.',front:'Es beginnt um 9 Uhr.',meaning:'vormittags'},
+ 'p.m.':{back:'We meet at 6 p.m.',front:'Wir treffen uns um 18 Uhr.',meaning:'nachmittags oder abends'}
+};
+export async function requestAssessmentSentence(word,language,signal){
+ if(language==='en'&&Object.hasOwn(timeExamples,word.back))return timeExamples[word.back];
+ const input=vocabularyRequest({word:word.back,context:word.front});
+ return (await requestVocabularySuggestions(input,language,{signal}))[0];
+}
+export function saveAssessmentSentence(state,word,draft,now=Date.now()){
+ if(!word.courseId||!isVocabularyAssessment(state)||state.lesson?.queue[0]?.id!==word.id)throw Error('Diese Vokabel ist gerade nicht in der Abfrage.');
+ const {front,back,meaning}=validateVocabularySuggestion(draft,word.back);
+ const sentenceId='assessment:'+word.id;
+ const existing=state.words.find(card=>card.id===sentenceId)||state.words.find(card=>!card.courseId&&card.front.toLowerCase()===front.toLowerCase()&&card.back.toLowerCase()===back.toLowerCase());
+ const id=existing?.id||sentenceId;
+ const rated=rateVocabulary(state,'no',now);
+ const sentence={...existing,id,front,back,example:meaning,source:'assessment-sentence',sourceWord:word.back,attempts:Math.max(1,existing?.attempts||0),
+  stage:0,lastRating:'no',lastReviewedAt:now,cleanStreak:0,relearning:true,nextReviewAt:now};
+ const words=rated.words.map(card=>card.id===word.id?{...card,assessmentSentenceId:id}:card.id===id?sentence:card);
+ if(!existing)words.push(sentence);
+ return {...rated,words};
 }
 export function addSuggestedVocabulary(state,word,draft,now=Date.now()){
  const suggestion=validateVocabularySuggestion(draft,vocabularyRequest({word}).word);

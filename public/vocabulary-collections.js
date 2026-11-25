@@ -10,7 +10,7 @@ export function collectionEntries(collection){
  if(!topics.length)throw Error('Dieses Thema ist nicht verfügbar.');
  return topics.flatMap(topic=>topic.entries.map(entry=>({...entry,id:`course:${course.id}:${entry.id}`,courseId:course.id,topicId:topic.id})));
 }
-export const vocabularyCollectionIndex=state=>new Map((state.words||[]).map(word=>[pair(word),word]));
+export const vocabularyCollectionIndex=state=>new Map((state.words||[]).filter(word=>word.source!=='assessment-sentence').map(word=>[pair(word),word]));
 export function vocabularyCollectionProgress(state,collection,words=vocabularyCollectionIndex(state)){
  const entries=collectionEntries(collection);
  const known=entries.filter(entry=>vocabularyKnown(words.get(pair(entry))||{})).length;
@@ -18,7 +18,7 @@ export function vocabularyCollectionProgress(state,collection,words=vocabularyCo
 }
 export function activateVocabularyCollection(state,collection,now=Date.now()){
  if(!collection&& !state.activeCollection)return state;
- const entries=collection?collectionEntries(collection):[],byPair=new Map(state.words.map(word=>[pair(word),word])),ignored=new Set(state.ignoredPhrases||[]);
+ const entries=collection?collectionEntries(collection):[],byPair=vocabularyCollectionIndex(state),ignored=new Set(state.ignoredPhrases||[]);
  const words=[...state.words];let changed=false;
  for(const entry of entries){
   const existing=byPair.get(pair(entry));
