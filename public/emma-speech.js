@@ -21,39 +21,71 @@ async function saveWordAudio({cache,request},blob){
  }catch{/* Device storage is optional. */}
 }
 export function createEmmaSpeech({getVoice=()=> 'marin',fetcher=(...args)=>authenticatedFetch(...args),makeAudio=url=>new Audio(url),urls=URL,cacheLimit=40}={}){
- let serial=0,current=null,controller=null,lastStatus=()=>{};const cache=new Map();
- function stop(){serial++;controller?.abort();controller=null;if(current){current.pause();current=null;}lastStatus('');lastStatus=()=>{};}
+ let serial=0,current=null,playingUrl=null,foreground=null,prepared=null,lastStatus=()=>{};const cache=new Map();
+ function stop(){
+  serial++;
+  if(foreground!==prepared)foreground?.controller.abort();
+  foreground=null;
+  if(current){current.pause();current=null;}
+  if(playingUrl){urls.revokeObjectURL(playingUrl);playingUrl=null;}
+  lastStatus('');lastStatus=()=>{};
+ }
+ function cancelPreparation(){if(prepared!==foreground)prepared?.controller.abort();prepared=null;}
+ async function loadAudio({text,language,voice,key,cacheOnDevice},signal){
+  const stored=cacheOnDevice?await openWordAudioCache(key):null;
+  let blob;
+  if(stored){
+   try{blob=await (await stored.cache.match(stored.request))?.blob();}catch{/* Try the server. */}
+  }
+  signal.throwIfAborted();
+  if(!validAudio(blob)){
+   const response=await fetcher('/api/card-speech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,language,voice}),signal});
+   if(!response.ok){const result=await response.json().catch(()=>({}));throw Error(result.error||'Emma kann gerade nicht vorlesen. Bitte erneut versuchen.');}
+   blob=await response.blob();
+   if(!validAudio(blob))throw Error('Keine gültige Sprachausgabe erhalten.');
+   signal.throwIfAborted();
+   if(stored)void saveWordAudio(stored,blob);
+  }
+  // Keep blobs in memory so preparing another word cannot revoke a clip in use.
+  cache.set(key,blob);
+  while(cache.size>cacheLimit)cache.delete(cache.keys().next().value);
+  return blob;
+ }
+ function requestAudio(audio){
+  const controller=new AbortController();
+  return {key:audio.key,controller,result:loadAudio(audio,controller.signal)};
+ }
+ function audioInput(text,language,cacheOnDevice){
+  const voice=getVoice();
+  return {text,language,voice,cacheOnDevice,key:JSON.stringify([text,language,voice])};
+ }
+ function prepare(text,{language='en',cacheOnDevice=false}={}){
+  if(typeof text!=='string'||!text.trim())return;
+  const audio=audioInput(text,language,cacheOnDevice);
+  if(cache.has(audio.key)||foreground?.key===audio.key||prepared?.key===audio.key)return;
+  cancelPreparation();
+  const task=requestAudio(audio);prepared=task;
+  const finish=()=>{if(prepared===task)prepared=null;};
+  void task.result.then(finish,finish);
+ }
  async function speak(text,{language='en',onStatus=()=>{},cacheOnDevice=false}={}){
   stop();if(typeof text!=='string' || !text.trim())return;
-  const voice=getVoice(),name=coachName(voice),token=serial,key=JSON.stringify([text,language,voice]);lastStatus=onStatus;
+  const audio=audioInput(text,language,cacheOnDevice),{key,voice}=audio,name=coachName(voice),token=serial;lastStatus=onStatus;
   try{
-   let url=cache.get(key);
-   if(!url){
+   let blob=cache.get(key);
+   if(!blob){
     onStatus(name+' lädt den Satz …');
-    const stored=cacheOnDevice?await openWordAudioCache(key):null;
-    let blob;
-    if(stored){
-     try{blob=await (await stored.cache.match(stored.request))?.blob();}catch{/* Try the server. */}
-    }
-    if(token!==serial)return;
-    if(!validAudio(blob)){
-     controller=new AbortController();
-     const response=await fetcher('/api/card-speech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,language,voice}),signal:controller.signal});
-     if(!response.ok){const result=await response.json().catch(()=>({}));throw Error(result.error||'Emma kann gerade nicht vorlesen. Bitte erneut versuchen.');}
-     blob=await response.blob();
-     if(!validAudio(blob))throw Error('Keine gültige Sprachausgabe erhalten.');
-     if(stored)void saveWordAudio(stored,blob);
-    }
-    if(token!==serial)return;
-    url=urls.createObjectURL(blob);cache.set(key,url);
-    while(cache.size>cacheLimit){const first=cache.keys().next().value;urls.revokeObjectURL(cache.get(first));cache.delete(first);}
+    foreground=prepared?.key===key?prepared:requestAudio(audio);
+    blob=await foreground.result;
    }
    if(token!==serial)return;
-   current=makeAudio(url);current.onended=()=>{if(token===serial)onStatus('');};
+   playingUrl=urls.createObjectURL(blob);
+   current=makeAudio(playingUrl);current.onended=()=>{if(token===serial)onStatus('');};
    current.onerror=()=>{if(token===serial)onStatus('Der Ton konnte nicht abgespielt werden. Bitte erneut antippen.');};
    await current.play();if(token===serial)onStatus(name+' liest vor · KI-Stimme');
   }catch(error){if(token!==serial || error.name==='AbortError')return;onStatus(coachText(error.name==='NotAllowedError'?'Ton bereit. Bitte den Satz noch einmal antippen, um Emma zu hören.':error.message||'Emma kann gerade nicht vorlesen.',voice));}
+  finally{if(token===serial)foreground=null;}
  }
- function clear(){stop();for(const url of cache.values())urls.revokeObjectURL(url);cache.clear();}
- return {speak,stop,clear,name:()=>coachName(getVoice())};
+ function clear(){stop();cancelPreparation();cache.clear();}
+ return {speak,prepare,stop,cancelPreparation,clear,name:()=>coachName(getVoice())};
 }

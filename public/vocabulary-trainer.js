@@ -66,7 +66,14 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   coursePicker?.refresh();
  }
  function line(text,tag='p'){const node=document.createElement(tag);node.textContent=text;return node;}
- function say(text,word){void speech?.speak(text,{language:course.target,cacheOnDevice:word?.id?.startsWith('course:')===true,onStatus:value=>{$('.vocab-audio-status').textContent=value;}});}
+ function speechOptions(word){return {language:course.target,cacheOnDevice:word?.id?.startsWith('course:')===true};}
+ function say(text,word){
+  void speech?.speak(text,{...speechOptions(word),onStatus:value=>{$('.vocab-audio-status').textContent=value;}});
+  if(panel.classList.contains('hidden')||document.hidden||word?.id!==state.lesson?.queue[0]?.id)return;
+  const next=state.words.find(item=>item.id===state.lesson.queue[1]?.id);
+  if(next)speech?.prepare(displayAnswer(next),speechOptions(next));
+ }
+ const cancelPreparedSpeech=()=>speech?.cancelPreparation();
  function wordView(word,answer=false){
   const box=$('.vocab-word');box.replaceChildren();
   const view=vocabularyQuestion(state,word,answer,course),label=line(view.label,'small');label.className='vocab-direction';
@@ -141,6 +148,7 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
   $('.vocab-open-personal').hidden=!assessment || !ended;
   $('.vocab-finish').hidden=!ended;
   if(ended){
+   cancelPreparedSpeech();
    if(assessment){
     $('.vocab-word').replaceChildren(line(noOpenAssessmentWords?'Alle Wörter abgefragt':'Abfrage geschafft!','h3'));
     $('.vocab-status').textContent='Schwierige Wörter findest du zum Üben im Vokabeltrainer.';
@@ -209,7 +217,8 @@ export function setupVocabularyTrainer({storage,onOpen,onPractice=()=>{},onChang
  document.addEventListener('storycards-quick-mode-changed',()=>{state={...state,quickModeDay:getQuickMode()?calendarDayKey(new Date()):null};state=vocabularyLesson(state);answerCard=null;if(!state.lesson.queue.length&&!state.lesson.closed)state=finishVocabulary(state);save();progress();refreshChoice();});
  document.addEventListener('storycards-card-choice-opened',refreshChoice);
  document.addEventListener('storycards-vocabulary-changed',()=>{state=trainerState(storage.load('vocabulary',null));answerCard=null;if(!panel.classList.contains('hidden'))render();else renderLists();});
- document.addEventListener('visibilitychange',()=>{lastTick=Date.now();});
+ new MutationObserver(()=>{if(panel.classList.contains('hidden'))cancelPreparedSpeech();}).observe(panel,{attributeFilter:['class']});
+ document.addEventListener('visibilitychange',()=>{lastTick=Date.now();if(document.hidden)cancelPreparedSpeech();});
  window.addEventListener('pagehide',tick);setInterval(tick,1000);syncCards();renderLists();
  const creator=setupVocabularyCreator({anchor:button,course,onListen:say,onLearn:()=>button.onclick(),onSave:(word,draft)=>{
   const next=addSuggestedVocabulary(state,word,draft);storage.save('vocabulary',next);state=next;renderLists();refreshChoice();
